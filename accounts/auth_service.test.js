@@ -1904,3 +1904,163 @@ test('GET /servers includes Server lists links and a Platform filter', async () 
 
   server.close();
 });
+
+function mapsRoster() {
+  return {
+    generatedAt: '2026-08-16T00:00:00.000Z',
+    servers: [
+      {
+        id: 'island-pve',
+        name: 'EU-PVE-TheIsland5313',
+        map: 'TheIsland_WP',
+        gameMode: 'pve',
+        playersNow: 10,
+        maxPlayers: 70,
+        version: '92.41',
+        uptimePercent: 99,
+        rankScore: 90,
+        rank: 1,
+        platformType: 'PC+XSX+WINGDK+PS5',
+      },
+      {
+        id: 'genesis-pvp',
+        name: 'EU-PVP-Genesis99',
+        map: 'Genesis_WP',
+        gameMode: 'pvp',
+        playersNow: 40,
+        maxPlayers: 70,
+        version: '93.0',
+        uptimePercent: 100,
+        rankScore: 95,
+        rank: 2,
+        platformType: 'PC+PS5+XSX',
+      },
+    ],
+  };
+}
+
+test('GET /maps renders the index sorted by server count', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(mapsRoster()),
+  });
+
+  const res = await fetch(`${base}/maps`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<title>ARK Maps/);
+  assert.match(html, /href="\/maps\/the-island"/);
+  assert.match(html, /href="\/maps\/genesis"/);
+
+  server.close();
+});
+
+test('GET /maps/the-island does not include a Genesis server', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(mapsRoster()),
+  });
+
+  const res = await fetch(`${base}/maps/the-island`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<title>ARK The Island Servers/);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /EU-PVP-Genesis99/);
+  assert.match(html, /href="\/servers\?map=TheIsland_WP"/);
+
+  server.close();
+});
+
+test('GET /maps/genesis routes the Genesis slug to Genesis servers only', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(mapsRoster()),
+  });
+
+  const res = await fetch(`${base}/maps/genesis`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVP-Genesis99/);
+  assert.doesNotMatch(html, /EU-PVE-TheIsland5313/);
+
+  server.close();
+});
+
+test('GET /maps/brand-new-map serves an unrecognized roster map without 500', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: 'n1', name: 'NA-PVE-New1', map: 'BrandNewMap_WP', gameMode: 'pve', playersNow: 3, maxPlayers: 70, rankScore: 11 },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(roster),
+  });
+
+  const res = await fetch(`${base}/maps/brand-new-map`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<h1>BrandNewMap_WP<\/h1>/);
+  assert.match(html, /NA-PVE-New1/);
+
+  server.close();
+});
+
+test('GET /maps/not-a-real-map returns 404', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(mapsRoster()),
+  });
+
+  const res = await fetch(`${base}/maps/not-a-real-map`);
+  const html = await res.text();
+  assert.equal(res.status, 404);
+  assert.match(html, /Map not found/);
+
+  server.close();
+});
+
+test('GET /maps degrades when the roster is unreachable', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/maps`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /isn't available right now/);
+
+  server.close();
+});

@@ -10,6 +10,7 @@
  */
 
 const { THEME_CSS, escapeHtml } = require('./theme.js');
+const { MAP_REGISTRY } = require('./maps.js');
 
 const GITHUB_REPO = 'https://github.com/gitstump/ArkHelper';
 
@@ -30,11 +31,21 @@ const STATS_NAV = [
   { href: '/is-ark-down', label: 'Is ARK Down', match: ['/is-ark-down', '/status'] },
 ];
 
+const MAPS_NAV = [...MAP_REGISTRY]
+  .sort((a, b) => a.displayName.localeCompare(b.displayName))
+  .map((m) => ({ href: `/maps/${m.slug}`, label: m.displayName }));
+
 const NAV = [
   {
     label: 'Servers',
     match: ['/', '/servers', '/lists'],
     children: [{ href: '/servers', label: 'Server Browser', match: ['/', '/servers'] }, ...LIST_NAV],
+  },
+  {
+    label: 'Maps',
+    match: ['/maps'],
+    columns: 2,
+    children: MAPS_NAV,
   },
   {
     label: 'Stats',
@@ -61,10 +72,11 @@ function renderNavLink(item, currentPath) {
 
 function renderNavGroup(item, currentPath) {
   const groupActive = pathMatches(currentPath, item.match) ? ' active' : '';
+  const menuClass = item.columns === 2 ? 'nav-menu nav-menu-cols' : 'nav-menu';
   const links = item.children.map((child) => renderNavLink(child, currentPath)).join('');
   return `<details class="nav-drop">
       <summary class="${groupActive.trim()}">${escapeHtml(item.label)}</summary>
-      <div class="nav-menu">${links}</div>
+      <div class="${menuClass}">${links}</div>
     </details>`;
 }
 
@@ -105,6 +117,7 @@ function renderFooter(live) {
         <h2>Server Tools</h2>
         <ul>
           <li><a href="/servers">Browser</a></li>
+          <li><a href="/maps">Maps</a></li>
           ${listItems}
           ${statsItems}
           <li><a href="/favorites">Favorites</a></li>
@@ -172,6 +185,7 @@ module.exports = {
   NAV,
   LIST_NAV,
   STATS_NAV,
+  MAPS_NAV,
   pathMatches,
   renderNav,
   renderAuth,

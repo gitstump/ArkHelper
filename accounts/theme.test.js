@@ -16,6 +16,11 @@ test('THEME_CSS defines the dark palette, accent, and status tokens', () => {
   assert.match(THEME_CSS, /--degraded:/);
 });
 
+test('THEME_CSS two-column nav menus wrap map links', () => {
+  assert.match(THEME_CSS, /\.nav-menu\.nav-menu-cols/);
+  assert.match(THEME_CSS, /flex:\s*0 0 50%/);
+});
+
 test('THEME_CSS uses a system font for prose and a mono stack for figures', () => {
   assert.match(THEME_CSS, /--font:\s*system-ui/);
   assert.match(THEME_CSS, /--font-mono:\s*ui-monospace/);

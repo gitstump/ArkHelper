@@ -26,7 +26,7 @@ test('renderPage wraps body in the shared shell with theme CSS', () => {
   assert.match(html, /<\/html>$/);
 });
 
-test('renderNav groups Servers and Stats into details dropdowns and keeps Favorites as a link', () => {
+test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps Favorites as a link', () => {
   const html = renderNav('/rankings');
   assert.match(html, /<details class="nav-drop">/);
   assert.match(html, /<summary class="active">Stats<\/summary>/);
@@ -34,6 +34,10 @@ test('renderNav groups Servers and Stats into details dropdowns and keeps Favori
   assert.match(html, /href="\/lists\/official-pve"/);
   assert.match(html, /href="\/lists\/low-ping"/);
   assert.match(html, /href="\/lists\/available-now"/);
+  assert.match(html, /href="\/maps\/the-island"/);
+  assert.match(html, /href="\/maps\/aberration"/);
+  assert.match(html, /href="\/maps\/genesis"/);
+  assert.match(html, /class="nav-menu nav-menu-cols"/);
   assert.match(html, /href="\/rankings"/);
   assert.match(html, /href="\/leaderboards"/);
   assert.match(html, /href="\/leaderboards\/map-uptime"/);
@@ -43,6 +47,17 @@ test('renderNav groups Servers and Stats into details dropdowns and keeps Favori
   assert.match(html, /class="active" href="\/rankings"/);
   assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
   assert.match(html, />Favorites<\/a>/);
+  const serversAt = html.indexOf('>Servers</summary>');
+  const mapsAt = html.indexOf('>Maps</summary>');
+  const statsAt = html.indexOf('>Stats</summary>');
+  assert.ok(serversAt !== -1 && mapsAt !== -1 && statsAt !== -1);
+  assert.ok(serversAt < mapsAt && mapsAt < statsAt);
+});
+
+test('renderNav marks the Maps group active on per-map pages', () => {
+  const html = renderNav('/maps/the-island');
+  assert.match(html, /<summary class="active">Maps<\/summary>/);
+  assert.match(html, /class="active" href="\/maps\/the-island"/);
 });
 
 test('renderNav marks the Servers group active on derived list pages', () => {
@@ -85,6 +100,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   const html = renderFooter({ totalOfficial: 3179, generatedAt: '2026-08-15T16:52:24.124Z' });
   assert.match(html, /Server Tools/);
   assert.match(html, /href="\/servers">Browser/);
+  assert.match(html, /href="\/maps">Maps/);
   assert.match(html, /href="\/lists\/official-pve">Official PvE/);
   assert.match(html, /href="\/lists\/official-pvp">Official PvP/);
   assert.match(html, /href="\/lists\/low-ping">Low Ping/);

@@ -126,6 +126,16 @@ h1 a, h2 a { text-decoration: none; }
 }
 .nav-menu a:hover { background: var(--bg); color: var(--text); }
 .nav-menu a.active { border-bottom: none; background: var(--bg); }
+.nav-menu.nav-menu-cols {
+  flex-wrap: wrap;
+  min-width: 22rem;
+  max-width: 28rem;
+}
+.nav-menu.nav-menu-cols a {
+  flex: 0 0 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .platform-badge {
   display: inline-block;
   font-size: 0.7rem;
@@ -199,6 +209,7 @@ input, select {
 @media (max-width: 700px) {
   .footer-cols { grid-template-columns: 1fr; gap: var(--space-4); }
   .auth { margin-left: 0; width: 100%; }
+  .nav-menu.nav-menu-cols { min-width: 16rem; max-width: calc(100vw - 2rem); }
 }
 `.trim();
 

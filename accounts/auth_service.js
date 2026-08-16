@@ -19,6 +19,8 @@
  *   POST /presets/delete         -> delete a preset (cookie or account)
  *   GET  /p/:token               -> public share-link redirect to /servers?...
  *   GET  /is-ark-down            -> public network status page (alias GET /status)
+ *   GET  /maps                   -> official-map index
+ *   GET  /maps/:slug             -> per-map telemetry page
  */
 
 const http = require('http');
@@ -91,6 +93,19 @@ const {
   renderStatsPage,
 } = require('./stats_page.js');
 const { renderStatusPage } = require('./status_page.js');
+const { resolveSlug } = require('./maps.js');
+const {
+  serversForMap,
+  computeMapTelemetry,
+  computeMapBreakdown,
+  computeVersionCounts,
+  leadingServers,
+  unavailableServers,
+  computeMapIndex,
+  renderMapIndexPage,
+  renderMapPage,
+  renderMapNotFoundPage,
+} = require('./maps_page.js');
 
 const SESSION_COOKIE = 'ark_session';
 const STATE_COOKIE = 'ark_oauth_state';
@@ -482,6 +497,64 @@ function createAuthServer({
         return;
       }
 
+      if (req.method === 'GET' && (url.pathname === '/maps' || url.pathname.startsWith('/maps/'))) {
+        let slug = url.pathname === '/maps' ? '' : url.pathname.slice('/maps/'.length);
+        try {
+          slug = decodeURIComponent(slug);
+        } catch {
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(renderMapNotFoundPage({ slug: url.pathname.slice('/maps/'.length), account }));
+          return;
+        }
+        if (slug.includes('/')) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'not found' }));
+          return;
+        }
+
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const live = liveFromRoster(roster);
+        const rosterAvailable = Boolean(roster && Array.isArray(roster.servers));
+        const servers = rosterAvailable ? roster.servers : [];
+
+        if (slug === '') {
+          const body = renderMapIndexPage({
+            rosterAvailable,
+            maps: rosterAvailable ? computeMapIndex(servers) : [],
+            account,
+            live,
+          });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const mapInfo = resolveSlug(slug, rosterAvailable ? getDistinctMaps(servers) : []);
+        if (!mapInfo) {
+          const body = renderMapNotFoundPage({ slug, account, live });
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const mapServers = serversForMap(servers, mapInfo.id);
+        const body = renderMapPage({
+          rosterAvailable,
+          map: mapInfo,
+          servers: mapServers,
+          telemetry: computeMapTelemetry(mapServers),
+          breakdown: computeMapBreakdown(mapServers),
+          versions: computeVersionCounts(mapServers),
+          leading: leadingServers(mapServers),
+          unavailable: unavailableServers(mapServers),
+          account,
+          live,
+        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
       const listMatch = req.method === 'GET' && url.pathname.match(/^\/lists\/([^/]+)$/);
       if (listMatch) {
         const def = getListDef(listMatch[1]);
@@ -762,7 +835,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));
