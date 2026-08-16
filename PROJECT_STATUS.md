@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-16 — 457 tests passing — In flight: none
+Last updated: 2026-08-16 — 472 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -14,8 +14,9 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 
 - **Discovery** (`discovery/`) — full official ARK:SA roster (~3,189 servers as of last live run), no API key needed, refreshing on a schedule, history recording (uptime tracking, wipe/version change detection, peak-time and downtime-pattern heatmaps).
 - **Accounts** (`accounts/`) — real Discord OAuth login, SQLite-backed accounts/sessions.
-- **Homepage** — login state, live roster stats.
-- **Server browser** (`/servers`) — search, filter (map/mode/password/player range), sort, pagination.
+- **Shared UI** — one dark design system (`accounts/theme.js`) and a common page shell (`accounts/layout.js`: header nav, login state, footer sitemap). Every HTML page uses it; badge/heatmap SVG endpoints do not.
+- **Homepage** (`/`) — the server browser itself, with a hero stat band (official servers online, players online, 24h network uptime, network status). `/servers` is the same page.
+- **Server browser** (`/servers`) — search, filter (map/mode/password/player range), sort, pagination; compact rows with status, capacity bar, ping, uptime, rank.
 - **Filter presets** — named snapshots of the current browser query string. Logged-out: up to 3 in an HttpOnly cookie (~2KB guard). Logged-in: up to 15 in SQLite, cookie presets migrate on login (name collisions skipped), shareable via public `/p/<token>` → `/servers?...` redirects.
 - **Server detail pages** (`/servers/:id`) — full facts, uptime %, history table, activity log (wipe/version changes), peak-time & downtime heatmaps (inline SVG), embeddable live-status badge (`/servers/:id/badge.svg`) with markdown/HTML snippets.
 - **Favorites** — add/remove per account, `/favorites` page. This is the actual point of having accounts at all — confirmed working end to end.
