@@ -9,6 +9,8 @@ const {
   computeLiveCounters,
   getDistinctMaps,
   renderBrowserPage,
+  renderHeroBand,
+  renderServerRow,
 } = require('./server_browser.js');
 
 function makeServers() {
@@ -387,6 +389,47 @@ test('renderBrowserPage escapes a hostile preset name', () => {
   });
   assert.doesNotMatch(html, /<img src=x onerror=alert\(1\)>/);
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('renderHeroBand shows em dashes when incident data is missing', () => {
+  const html = renderHeroBand({ counters: null, rosterMeta: null, status: null });
+  assert.match(html, /Official Servers Online/);
+  assert.match(html, /Players Online/);
+  assert.match(html, /Network Uptime % \(24h\)/);
+  assert.match(html, /href="\/is-ark-down"/);
+  assert.match(html, /\u2014/);
+});
+
+test('renderHeroBand links the network status word to /is-ark-down', () => {
+  const html = renderHeroBand({
+    counters: { totalOfficial: 10, playersOnline: 40 },
+    status: { state: 'DEGRADED', onlineCount: 8, offlinePct: 12 },
+  });
+  assert.match(html, />8</);
+  assert.match(html, />40</);
+  assert.match(html, /88%/);
+  assert.match(html, /href="\/is-ark-down">Degraded</);
+});
+
+test('renderServerRow shows players as N / MAX with a capacity bar', () => {
+  const html = renderServerRow({
+    id: '1',
+    name: 'EU-PVE-TheIsland5313',
+    map: 'TheIsland_WP',
+    playersNow: 5,
+    maxPlayers: 70,
+    day: 100,
+    version: '92.41',
+    wildcardReportedPing: 180,
+    uptimePercent: 99.2,
+    rank: 3,
+  });
+  assert.match(html, /status-dot online/);
+  assert.match(html, /5 \/ 70/);
+  assert.match(html, /cap-fill/);
+  assert.match(html, /92\.41/);
+  assert.match(html, />180</);
+  assert.match(html, /99\.2%/);
 });
 
 test('renderBrowserPage shows a friendly message for a known presetError code', () => {

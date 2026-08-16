@@ -11,6 +11,7 @@
  */
 
 const { escapeHtml } = require('./home_page.js');
+const { renderPage } = require('./layout.js');
 
 // Leaderboard rows are enriched with a real name by auth_service.js
 // when possible (joined against the live roster), but this stays
@@ -85,18 +86,11 @@ function getTopServersByPlayers(servers, limit = 10) {
 // ---------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------
-const STYLE = `<style>
-  body { background:#141210; color:#e8e6e3; font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-  h1, h1 a { color: #f2b544; text-decoration: none; }
-  h2 { color: #f2b544; margin-top: 2rem; font-size: 1.1rem; }
-  a { color: #7fd0ff; }
-  table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
-  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #2a2620; }
-  .note { color: #b8b3a8; font-size: 0.9rem; }
-  .counters { color: #b8b3a8; }
-  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-  @media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr; } }
-</style>`;
+const PAGE_CSS = `
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
+.stats-grid td:not(:first-child) { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr; } }
+`;
 
 function renderStatsPage({
   rosterAvailable,
@@ -110,11 +104,18 @@ function renderStatsPage({
   uptimeAvailable,
   ranking,
   rankingAvailable,
+  account = null,
+  live = null,
 }) {
   if (!rosterAvailable) {
-    return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>ArkHelper \u2014 Stats</title>${STYLE}</head>
-<body><h1><a href="/">ArkHelper</a> &rsaquo; Stats</h1><p>Server data isn't available right now (the discovery service may not be running).</p></body></html>`;
+    return renderPage({
+      title: 'ArkHelper \u2014 Stats',
+      currentPath: '/stats',
+      account,
+      live,
+      extraCss: PAGE_CSS,
+      body: `<h1>Stats</h1><p>Server data isn't available right now (the discovery service may not be running).</p>`,
+    });
   }
 
   const countersBar = `<p class="counters">${escapeHtml(String(counters.totalOfficial))} official servers &middot; ${escapeHtml(String(counters.playersOnline))} players online</p>`;
@@ -198,16 +199,13 @@ function renderStatsPage({
         .join('')}</tbody>
     </table>`;
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ArkHelper \u2014 Stats</title>
-${STYLE}
-</head>
-<body>
-  <h1><a href="/">ArkHelper</a> &rsaquo; Stats</h1>
+  return renderPage({
+    title: 'ArkHelper \u2014 Stats',
+    currentPath: '/stats',
+    account,
+    live,
+    extraCss: PAGE_CSS,
+    body: `<h1>Stats</h1>
   ${countersBar}
   ${rankingSection}
   ${topByPlayersSection}
@@ -215,9 +213,8 @@ ${STYLE}
   <div class="stats-grid">
     <div>${modeSection}${platformSection}</div>
     <div>${mapSection}${clusterSection}</div>
-  </div>
-</body>
-</html>`;
+  </div>`,
+  });
 }
 
 module.exports = {

@@ -133,6 +133,23 @@ function readFormBody(req, { maxBytes = 1_000_000 } = {}) {
   });
 }
 
+function accountView(row) {
+  if (!row) return null;
+  return { username: row.discord_username, discordId: row.discord_id };
+}
+
+function liveFromRoster(roster) {
+  if (!roster) return null;
+  const total = roster.totalOfficial != null ? roster.totalOfficial : Array.isArray(roster.servers) ? roster.servers.length : null;
+  if (total == null && !roster.generatedAt) return null;
+  return { totalOfficial: total, generatedAt: roster.generatedAt || null };
+}
+
+function liveFromMeta(meta) {
+  if (!meta) return null;
+  return { totalOfficial: meta.totalOfficial, generatedAt: meta.generatedAt };
+}
+
 function shareOriginFromReq(req, cookieSecure) {
   const host = req.headers.host || 'localhost';
   const forwarded = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
@@ -183,6 +200,8 @@ function createAuthServer({
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://internal'); // base is irrelevant, we only use path+query
     const cookies = parseCookies(req.headers.cookie);
+    const accountRow = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
+    const account = accountView(accountRow);
 
     try {
       const shareMatch = req.method === 'GET' && url.pathname.match(/^\/p\/([^/]+)$/);
@@ -225,20 +244,19 @@ function createAuthServer({
         const roster = await detailDeps.fetchJsonSafe(rosterUrl);
         if (!roster || !Array.isArray(roster.servers)) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(renderRosterUnavailablePage());
+          res.end(renderRosterUnavailablePage({ account }));
           return;
         }
 
         const server = roster.servers.find((s) => s.id === serverId);
         if (!server) {
           res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(renderServerNotFoundPage(serverId));
+          res.end(renderServerNotFoundPage(serverId, { account, live: liveFromRoster(roster) }));
           return;
         }
 
-        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
-        const isFavorited = account ? listFavorites(db, account.id).includes(serverId) : false;
-        const alertSettings = account ? getAlertSettings(db, account.id, serverId) : null;
+        const isFavorited = accountRow ? listFavorites(db, accountRow.id).includes(serverId) : false;
+        const alertSettings = accountRow ? getAlertSettings(db, accountRow.id, serverId) : null;
 
         const historyData = await detailDeps.fetchJsonSafe(`${historyUrlBase}/${encodeURIComponent(serverId)}`);
         const body = renderServerDetailPage({
@@ -252,6 +270,8 @@ function createAuthServer({
           isFavorited,
           alertSettings,
           badgeUrl: `/servers/${encodeURIComponent(serverId)}/badge.svg`,
+          account,
+          live: liveFromRoster(roster),
         });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
@@ -259,26 +279,25 @@ function createAuthServer({
       }
 
       if (req.method === 'GET' && url.pathname === '/favorites') {
-        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
-        if (!account) {
+        if (!accountRow) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(renderFavoritesPage({ loggedIn: false, servers: [], rosterAvailable: true }));
+          res.end(renderFavoritesPage({ loggedIn: false, servers: [], rosterAvailable: true, account }));
           return;
         }
 
         const roster = await detailDeps.fetchJsonSafe(rosterUrl);
         if (!roster || !Array.isArray(roster.servers)) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(renderFavoritesPage({ loggedIn: true, servers: [], rosterAvailable: false }));
+          res.end(renderFavoritesPage({ loggedIn: true, servers: [], rosterAvailable: false, account }));
           return;
         }
 
-        const favoriteIds = listFavorites(db, account.id);
+        const favoriteIds = listFavorites(db, accountRow.id);
         const byId = new Map(roster.servers.map((s) => [s.id, s]));
         const servers = favoriteIds.map((id) => byId.get(id)).filter(Boolean);
         const staleFavoriteIds = favoriteIds.filter((id) => !byId.has(id));
 
-        const body = renderFavoritesPage({ loggedIn: true, servers, rosterAvailable: true, staleFavoriteIds });
+        const body = renderFavoritesPage({ loggedIn: true, servers, rosterAvailable: true, staleFavoriteIds, account, live: liveFromRoster(roster) });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
         return;
@@ -286,13 +305,12 @@ function createAuthServer({
 
       const favoriteAddMatch = req.method === 'POST' && url.pathname.match(/^\/favorites\/([^/]+)$/);
       if (favoriteAddMatch) {
-        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
-        if (!account) {
+        if (!accountRow) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'must be logged in to favorite a server' }));
           return;
         }
-        addFavorite(db, account.id, decodeURIComponent(favoriteAddMatch[1]));
+        addFavorite(db, accountRow.id, decodeURIComponent(favoriteAddMatch[1]));
         res.writeHead(302, { Location: `/servers/${favoriteAddMatch[1]}` });
         res.end();
         return;
@@ -300,13 +318,12 @@ function createAuthServer({
 
       const favoriteRemoveMatch = req.method === 'POST' && url.pathname.match(/^\/favorites\/([^/]+)\/remove$/);
       if (favoriteRemoveMatch) {
-        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
-        if (!account) {
+        if (!accountRow) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'must be logged in to remove a favorite' }));
           return;
         }
-        removeFavorite(db, account.id, decodeURIComponent(favoriteRemoveMatch[1]));
+        removeFavorite(db, accountRow.id, decodeURIComponent(favoriteRemoveMatch[1]));
         const referer = req.headers.referer;
         res.writeHead(302, { Location: referer && referer.includes('/favorites') ? '/favorites' : `/servers/${favoriteRemoveMatch[1]}` });
         res.end();
@@ -315,15 +332,14 @@ function createAuthServer({
 
       const alertSaveMatch = req.method === 'POST' && url.pathname.match(/^\/alerts\/([^/]+)$/);
       if (alertSaveMatch) {
-        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
-        if (!account) {
+        if (!accountRow) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'must be logged in to configure alerts' }));
           return;
         }
         const serverId = decodeURIComponent(alertSaveMatch[1]);
         const form = await readFormBody(req);
-        upsertAlertSettings(db, account.id, serverId, {
+        upsertAlertSettings(db, accountRow.id, serverId, {
           notifyDown: 'notifyDown' in form, // checkboxes only appear in the body when checked
           notifyOnline: 'notifyOnline' in form,
           capacityThresholdPct: form.capacityThresholdPct,
@@ -338,7 +354,7 @@ function createAuthServer({
         const roster = await statsDeps.fetchJsonSafe(rosterUrl);
         if (!roster || !Array.isArray(roster.servers)) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(renderStatsPage({ rosterAvailable: false }));
+          res.end(renderStatsPage({ rosterAvailable: false, account }));
           return;
         }
 
@@ -373,6 +389,8 @@ function createAuthServer({
           uptimeLeaderboard: enrichedUptimeLeaderboard,
           rankingAvailable,
           ranking: enrichedRanking,
+          account,
+          live: liveFromRoster(roster),
         });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
@@ -380,8 +398,16 @@ function createAuthServer({
       }
 
       if (req.method === 'GET' && (url.pathname === '/is-ark-down' || url.pathname === '/status')) {
-        const status = await statusDeps.fetchJsonSafe(incidentStatusUrl);
-        const body = renderStatusPage({ statusAvailable: Boolean(status), status });
+        const [status, rosterMeta] = await Promise.all([
+          statusDeps.fetchJsonSafe(incidentStatusUrl),
+          homeDeps.fetchRosterMetaSafe(rosterMetaUrl),
+        ]);
+        const body = renderStatusPage({
+          statusAvailable: Boolean(status),
+          status,
+          account,
+          live: liveFromMeta(rosterMeta),
+        });
         res.writeHead(200, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'public, max-age=30',
@@ -393,24 +419,34 @@ function createAuthServer({
       if (req.method === 'GET' && url.pathname === '/rankings') {
         const roster = await browserDeps.fetchJsonSafe(rosterUrl);
         if (!roster || !Array.isArray(roster.servers)) {
-          const body = renderRankingsPage({ rosterAvailable: false });
+          const body = renderRankingsPage({ rosterAvailable: false, account });
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(body);
           return;
         }
 
         const ranking = rankingFromRoster(roster.servers);
-        const body = renderRankingsPage({ rosterAvailable: true, ranking });
+        const body = renderRankingsPage({ rosterAvailable: true, ranking, account, live: liveFromRoster(roster) });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
         return;
       }
 
-      if (req.method === 'GET' && url.pathname === '/servers') {
-        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+      if (req.method === 'GET' && (url.pathname === '/servers' || url.pathname === '/')) {
+        const isHome = url.pathname === '/';
+        const [roster, rosterMeta, status] = await Promise.all([
+          browserDeps.fetchJsonSafe(rosterUrl),
+          homeDeps.fetchRosterMetaSafe(rosterMetaUrl),
+          statusDeps.fetchJsonSafe(incidentStatusUrl),
+        ]);
+        const live = liveFromRoster(roster) || liveFromMeta(rosterMeta);
+
         if (!roster || !Array.isArray(roster.servers)) {
+          const body = isHome
+            ? renderHomepage({ account, rosterMeta, status, live, rosterAvailable: false })
+            : renderBrowserPage({ rosterAvailable: false, account, live, rosterMeta, currentPath: '/servers' });
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(renderBrowserPage({ rosterAvailable: false }));
+          res.end(body);
           return;
         }
 
@@ -431,22 +467,21 @@ function createAuthServer({
         const sorted = sortServers(filtered, sort, dir);
         const page = paginateServers(sorted, pageNum);
 
-        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
         const setCookies = [];
-        if (account && cookies[PRESET_COOKIE]) {
+        if (accountRow && cookies[PRESET_COOKIE]) {
           const cookiePresets = parsePresetCookie(cookies[PRESET_COOKIE]);
           if (cookiePresets.length) {
-            migrateCookiePresetsToAccount(db, account.id, cookiePresets, { randomToken });
+            migrateCookiePresetsToAccount(db, accountRow.id, cookiePresets, { randomToken });
           }
           setCookies.push(buildSetCookie(PRESET_COOKIE, '', { clear: true, secure: cookieSecure }));
         }
 
-        const presets = account ? listFilterPresets(db, account.id) : parsePresetCookie(cookies[PRESET_COOKIE]);
+        const presets = accountRow ? listFilterPresets(db, accountRow.id) : parsePresetCookie(cookies[PRESET_COOKIE]);
         const currentQuery = sanitizeQueryString(url.search);
         const errorCode = url.searchParams.get('presetError');
         const presetError = messageForPresetError(errorCode) ? errorCode : '';
 
-        const body = renderBrowserPage({
+        const browserOpts = {
           page,
           filters,
           sort,
@@ -455,27 +490,22 @@ function createAuthServer({
           mapOptions: getDistinctMaps(roster.servers),
           rosterAvailable: true,
           presets,
-          loggedIn: Boolean(account),
+          loggedIn: Boolean(accountRow),
           shareOrigin: shareOriginFromReq(req, cookieSecure),
           currentQuery,
           presetError,
-        });
+          account,
+          live,
+          rosterMeta,
+          status,
+          currentPath: isHome ? '/' : '/servers',
+          showHero: true,
+        };
+        const body = isHome ? renderHomepage(browserOpts) : renderBrowserPage(browserOpts);
         const headers = { 'Content-Type': 'text/html; charset=utf-8' };
         if (setCookies.length) headers['Set-Cookie'] = setCookies.length === 1 ? setCookies[0] : setCookies;
         res.writeHead(200, headers);
         res.end(body);
-        return;
-      }
-
-      if (req.method === 'GET' && url.pathname === '/') {
-        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
-        const rosterMeta = await homeDeps.fetchRosterMetaSafe(rosterMetaUrl);
-        const html = renderHomepage({
-          account: account ? { username: account.discord_username, discordId: account.discord_id } : null,
-          rosterMeta,
-        });
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(html);
         return;
       }
 

@@ -11,25 +11,17 @@
  */
 
 const { escapeHtml } = require('./home_page.js');
+const { renderPage } = require('./layout.js');
 const { displayNameFor } = require('./stats_page.js');
 
 const TOP_N = 100;
 
-const STYLE = `<style>
-  body { background:#141210; color:#e8e6e3; font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-  h1, h1 a { color: #f2b544; text-decoration: none; }
-  h2 { color: #f2b544; margin-top: 2rem; font-size: 1.1rem; }
-  a { color: #7fd0ff; }
-  table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
-  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #2a2620; }
-  th { color: #b8b3a8; font-weight: 600; }
-  .note { color: #b8b3a8; font-size: 0.9rem; }
-  .num { font-variant-numeric: tabular-nums; }
-  .explain { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #2a2620; }
-  .explain h2 { margin-top: 0; }
-  .explain dt { color: #f2b544; margin-top: 0.8rem; }
-  .explain dd { margin-left: 0; color: #b8b3a8; }
-</style>`;
+const PAGE_CSS = `
+.explain { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.explain h2 { margin-top: 0; }
+.explain dt { color: var(--accent); margin-top: var(--space-3); }
+.explain dd { margin-left: 0; color: var(--muted); }
+`;
 
 function rankingFromRoster(servers, { limit = TOP_N } = {}) {
   const eligible = (Array.isArray(servers) ? servers : []).filter((s) => typeof s.rankScore === 'number');
@@ -51,14 +43,17 @@ function formatPoints(value) {
   return String(value);
 }
 
-function renderRankingsPage({ rosterAvailable, ranking }) {
+function renderRankingsPage({ rosterAvailable, ranking, account = null, live = null }) {
   if (!rosterAvailable) {
-    return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>ArkHelper \u2014 Rankings</title>${STYLE}</head>
-<body>
-  <h1><a href="/">ArkHelper</a> &rsaquo; Rankings</h1>
-  <p>Server data isn't available right now (the discovery service may not be running).</p>
-</body></html>`;
+    return renderPage({
+      title: 'ArkHelper \u2014 Rankings',
+      currentPath: '/rankings',
+      account,
+      live,
+      extraCss: PAGE_CSS,
+      body: `<h1>Rankings</h1>
+  <p>Server data isn't available right now (the discovery service may not be running).</p>`,
+    });
   }
 
   const rows = ranking && Array.isArray(ranking.servers) ? ranking.servers : [];
@@ -88,16 +83,13 @@ function renderRankingsPage({ rosterAvailable, ranking }) {
       ? `<p class="note">Showing the top ${escapeHtml(String(rows.length))} of ${escapeHtml(String(ranking.totalRanked))} ranked official servers. Score is out of 100.</p>`
       : '';
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ArkHelper \u2014 Rankings</title>
-${STYLE}
-</head>
-<body>
-  <h1><a href="/">ArkHelper</a> &rsaquo; Rankings</h1>
+  return renderPage({
+    title: 'ArkHelper \u2014 Rankings',
+    currentPath: '/rankings',
+    account,
+    live,
+    extraCss: PAGE_CSS,
+    body: `<h1>Rankings</h1>
   ${countNote}
   ${table}
 
@@ -114,9 +106,8 @@ ${STYLE}
       <dt>Confidence — 10 points</dt>
       <dd>How much history we have. A week or more of data is a full 10; a server we first saw this refresh gets 0. That keeps a brand-new server from outranking a well-known one on a single lucky snapshot.</dd>
     </dl>
-  </section>
-</body>
-</html>`;
+  </section>`,
+  });
 }
 
 module.exports = {

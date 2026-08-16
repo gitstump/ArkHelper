@@ -35,8 +35,10 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `db.js` | SQLite (`node:sqlite`) — accounts, sessions, favorites, alert settings, filter presets |
 | `discord_oauth.js` | Discord OAuth2 request-building/parsing |
 | `auth_service.js` | The actual HTTP server — every route lives here |
-| `home_page.js` | Homepage rendering + `escapeHtml` (imported everywhere else too) |
-| `server_browser.js` | Filter/sort/paginate + the `/servers` list page |
+| `theme.js` | Shared design tokens and base stylesheet (CSS variables) |
+| `layout.js` | Shared page shell — header nav, footer sitemap, document wrapper |
+| `home_page.js` | Homepage is the server browser + hero stats; still exports `escapeHtml` |
+| `server_browser.js` | Filter/sort/paginate + the `/` and `/servers` list page |
 | `presets.js` | Named filter snapshots — query sanitization, cookie cap/size guards; share tokens live in db.js |
 | `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
 | `favorites_page.js` | The `/favorites` page |

@@ -17,7 +17,8 @@
  * "no data" instead of breaking the page.
  */
 
-const { escapeHtml } = require('./home_page.js');
+const { escapeHtml } = require('./theme.js');
+const { renderPage } = require('./layout.js');
 const { hasActiveFilters, messageForPresetError, serversLocation } = require('./presets.js');
 
 const PAGE_SIZE = 25;
@@ -100,27 +101,104 @@ function getDistinctMaps(servers) {
 // ---------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------
-const STYLE = `<style>
-  body { background:#141210; color:#e8e6e3; font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-  h1, h1 a { color: #f2b544; text-decoration: none; }
-  a { color: #7fd0ff; }
-  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #2a2620; }
-  th a { color: #e8e6e3; }
-  .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
-  .filters input, .filters select { background:#1c1a16; color:#e8e6e3; border:1px solid #443f36; padding:0.4rem; border-radius:4px; }
-  button { background:#2a2620; color:#e8e6e3; border:1px solid #443f36; padding: 0.4rem 1rem; border-radius: 4px; cursor:pointer; }
-  .counters { color: #b8b3a8; }
-  .pagination { display:flex; gap:1rem; align-items:center; margin-top:1rem; color:#b8b3a8; }
-  .presets { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-top:1rem; }
-  .preset { display:flex; align-items:center; gap:0.35rem; background:#1c1a16; border:1px solid #443f36; border-radius:4px; padding:0.2rem 0.45rem; }
-  .preset form { display:inline; margin:0; }
-  .preset button { padding:0.1rem 0.4rem; font-size:0.8rem; }
-  .share-link { color:#b8b3a8; font-size:0.8rem; width:16rem; background:#141210; color:#e8e6e3; border:1px solid #443f36; padding:0.15rem 0.3rem; border-radius:4px; }
-  .save-preset { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-top:0.5rem; }
-  .save-preset input[type="text"] { background:#1c1a16; color:#e8e6e3; border:1px solid #443f36; padding:0.4rem; border-radius:4px; }
-  .preset-error { color:#f2b544; margin:0.5rem 0 0; }
-</style>`;
+const PAGE_CSS = `
+.hero { margin-bottom: var(--space-5); }
+.hero-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.hero-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); }
+.hero-stat .fig { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 1.7rem; font-weight: 700; color: var(--accent); line-height: 1.15; }
+.hero-stat .fig a { text-decoration: none; }
+.hero-stat .fig.up, .hero-stat .fig.online { color: var(--online); }
+.hero-stat .fig.outage { color: var(--offline); }
+.hero-stat .fig.update, .hero-stat .fig.degraded { color: var(--degraded); }
+.hero-stat .fig.unreachable { color: var(--muted); }
+.hero-stat .lbl { color: var(--muted); font-size: 0.75rem; margin-top: var(--space-1); }
+.filters { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.filters .narrow { width: 6rem; }
+.pagination { display: flex; gap: var(--space-4); align-items: center; margin-top: var(--space-4); color: var(--muted); }
+.presets { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-4); }
+.preset { display: flex; align-items: center; gap: var(--space-2); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2px var(--space-2); }
+.preset form { display: inline; margin: 0; }
+.preset button { padding: 2px var(--space-2); font-size: 0.8rem; }
+.share-link { color: var(--muted); font-size: 0.8rem; width: 16rem; }
+.save-preset { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-2); }
+.preset-error { color: var(--degraded); margin: var(--space-2) 0 0; }
+.browser-table th, .browser-table td { padding: 6px 8px; white-space: nowrap; }
+.browser-table td.name { white-space: normal; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
+.status-dot.online { background: var(--online); }
+.status-dot.offline { background: var(--offline); }
+.cap { display: flex; align-items: center; gap: var(--space-2); }
+.cap-bar { width: 48px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.cap-fill { display: block; height: 100%; background: var(--accent); }
+@media (max-width: 800px) { .hero-stats { grid-template-columns: 1fr 1fr; } }
+`;
+
+const STYLE = `<style>${PAGE_CSS}</style>`;
+
+function dash(value) {
+  if (value === null || value === undefined || value === '') return '\u2014';
+  return String(value);
+}
+
+function statusWord(status) {
+  if (!status) return null;
+  const state = status.state;
+  if (state === 'NORMAL') return { key: 'up', label: 'Normal' };
+  if (state === 'DEGRADED') return { key: 'degraded', label: 'Degraded' };
+  if (state === 'OUTAGE') return { key: 'outage', label: 'Outage' };
+  if (state === 'UPDATE_ROLLOUT') return { key: 'update', label: 'Update' };
+  if (state === 'UNREACHABLE') return { key: 'unreachable', label: 'Unreachable' };
+  const key = status.verdictKey;
+  if (key === 'up') return { key: 'up', label: 'Normal' };
+  if (key === 'outage') return { key: 'outage', label: 'Outage' };
+  if (key === 'update') return { key: 'update', label: 'Update' };
+  if (key === 'unreachable') return { key: 'unreachable', label: 'Unreachable' };
+  return null;
+}
+
+function networkUptime24h(status) {
+  if (!status || typeof status.offlinePct !== 'number' || !Number.isFinite(status.offlinePct)) return null;
+  return Math.round((100 - status.offlinePct) * 10) / 10;
+}
+
+function fig(value, suffix = '') {
+  if (value === null || value === undefined || Number.isNaN(value)) return '\u2014';
+  return `${escapeHtml(String(value))}${suffix}`;
+}
+
+function renderHeroBand({ counters, rosterMeta, status }) {
+  const official =
+    status && typeof status.onlineCount === 'number'
+      ? status.onlineCount
+      : counters && typeof counters.totalOfficial === 'number'
+        ? counters.totalOfficial
+        : rosterMeta && rosterMeta.totalOfficial != null
+          ? rosterMeta.totalOfficial
+          : null;
+  const players = counters && typeof counters.playersOnline === 'number' ? counters.playersOnline : null;
+  const uptime = networkUptime24h(status);
+  const word = statusWord(status);
+  const wordHtml = word
+    ? `<a class="fig ${escapeHtml(word.key)}" href="/is-ark-down">${escapeHtml(word.label)}</a>`
+    : `<a class="fig" href="/is-ark-down">\u2014</a>`;
+
+  const metaLine =
+    rosterMeta && rosterMeta.pveCount != null && rosterMeta.pvpCount != null
+      ? `<p class="note">Tracking <strong class="num">${escapeHtml(String(rosterMeta.totalOfficial))}</strong> official servers ` +
+        `(${escapeHtml(String(rosterMeta.pveCount))} PvE / ${escapeHtml(String(rosterMeta.pvpCount))} PvP). ` +
+        `Last updated ${escapeHtml(String(rosterMeta.generatedAt))}.</p>`
+      : '';
+
+  return `<section class="hero">
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="fig num">${fig(official)}</div><div class="lbl">Official Servers Online</div></div>
+      <div class="hero-stat"><div class="fig num">${fig(players)}</div><div class="lbl">Players Online</div></div>
+      <div class="hero-stat"><div class="fig num">${fig(uptime, '%')}</div><div class="lbl">Network Uptime % (24h)</div></div>
+      <div class="hero-stat">${wordHtml}<div class="lbl">Network Status</div></div>
+    </div>
+    ${metaLine}
+  </section>`;
+}
 
 function sortLink({ currentSort, currentDir, key, label, filters }) {
   const nextDir = currentSort === key && currentDir === 'desc' ? 'asc' : 'desc';
@@ -129,17 +207,29 @@ function sortLink({ currentSort, currentDir, key, label, filters }) {
   return `<a href="/servers?${params.toString()}">${escapeHtml(label)}${arrow}</a>`;
 }
 
+function capacityPct(s) {
+  const now = s.playersNow;
+  const max = s.maxPlayers;
+  if (typeof now !== 'number' || typeof max !== 'number' || max <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((now / max) * 100)));
+}
+
 function renderServerRow(s) {
-  const rankDisplay = typeof s.rankScore === 'number' ? String(s.rankScore) : '\u2014';
+  const online = s.playersNow !== null && s.playersNow !== undefined;
+  const rankDisplay = typeof s.rank === 'number' ? String(s.rank) : typeof s.rankScore === 'number' ? String(s.rankScore) : '\u2014';
+  const ping = typeof s.wildcardReportedPing === 'number' ? `${s.wildcardReportedPing}` : '\u2014';
+  const uptime = typeof s.uptimePercent === 'number' ? `${s.uptimePercent}%` : '\u2014';
+  const pct = capacityPct(s);
   return `<tr>
-      <td><a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a></td>
-      <td>${escapeHtml(rankDisplay)}</td>
+      <td><span class="status-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online' : 'Offline'}"></span></td>
+      <td class="name"><a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a></td>
       <td>${escapeHtml(s.map || '')}</td>
-      <td>${s.gameMode === 'pve' ? 'PvE' : s.gameMode === 'pvp' ? 'PvP' : '\u2014'}</td>
-      <td>${escapeHtml(String(s.playersNow ?? '\u2014'))}/${escapeHtml(String(s.maxPlayers ?? '\u2014'))}</td>
-      <td>${escapeHtml(String(s.day ?? '\u2014'))}</td>
-      <td>${escapeHtml(s.clusterId || '\u2014')}</td>
-      <td>${s.hasPassword ? '\uD83D\uDD12' : ''}</td>
+      <td class="num">${escapeHtml(dash(s.day))}</td>
+      <td class="num">${escapeHtml(s.version || '\u2014')}</td>
+      <td class="num"><div class="cap"><span>${escapeHtml(dash(s.playersNow))} / ${escapeHtml(dash(s.maxPlayers))}</span><span class="cap-bar" aria-hidden="true"><span class="cap-fill" style="width:${pct}%"></span></span></div></td>
+      <td class="num">${escapeHtml(ping)}</td>
+      <td class="num">${escapeHtml(uptime)}</td>
+      <td class="num">${escapeHtml(rankDisplay)}</td>
     </tr>`;
 }
 
@@ -177,25 +267,28 @@ function renderSavePresetForm(currentQuery) {
   </form>`;
 }
 
-function renderBrowserPage({ page, filters, sort, dir, counters, mapOptions, rosterAvailable, presets, loggedIn, shareOrigin, currentQuery, presetError }) {
+function renderBrowserBody({ page, filters, sort, dir, counters, mapOptions, rosterAvailable, presets, loggedIn, shareOrigin, currentQuery, presetError, rosterMeta, status, showHero }) {
   const f = filters || {};
   const query = currentQuery || '';
   const errorText = messageForPresetError(presetError);
   const errorBar = errorText ? `<p class="preset-error">${escapeHtml(errorText)}</p>` : '';
   const presetBar = renderPresetBar({ presets, loggedIn, shareOrigin, currentQuery: query });
   const saveForm = renderSavePresetForm(query);
+  const hero = showHero ? renderHeroBand({ counters, rosterMeta, status }) : '';
 
   const countersBar = rosterAvailable
     ? `<p class="counters">${escapeHtml(String(counters.totalOfficial))} official servers &middot; ` +
       `${escapeHtml(String(counters.playersOnline))} players online &middot; ` +
       `${counters.avgPing !== null ? escapeHtml(String(counters.avgPing)) + 'ms avg ping' : 'ping unavailable'} &middot; ` +
       `${escapeHtml(String(counters.pveCount))} PvE / ${escapeHtml(String(counters.pvpCount))} PvP</p>`
-    : `<p class="counters">Server data isn't available right now (the discovery service may not be running).</p>`;
+    : `<p class="counters">Server roster data isn't available right now (the discovery service may not be running).</p>`;
+  const homeMetaNote =
+    showHero && !rosterMeta
+      ? `<p class="note">Server roster data isn't available right now (the discovery service may not be running).</p>`
+      : '';
 
   if (!rosterAvailable) {
-    return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>ArkHelper \u2014 Servers</title>${STYLE}</head>
-<body><h1><a href="/">ArkHelper</a> &rsaquo; Servers</h1>${countersBar}</body></html>`;
+    return `${hero}<h1>Servers</h1>${countersBar}${homeMetaNote}`;
   }
 
   const filterForm = `
@@ -215,24 +308,25 @@ function renderBrowserPage({ page, filters, sort, dir, counters, mapOptions, ros
     <option value="false" ${f.hasPassword === 'false' ? 'selected' : ''}>Public only</option>
     <option value="true" ${f.hasPassword === 'true' ? 'selected' : ''}>Passworded only</option>
   </select>
-  <input type="number" name="minPlayers" placeholder="Min players" value="${escapeHtml(f.minPlayers || '')}" style="width:6rem">
-  <input type="number" name="maxPlayers" placeholder="Max players" value="${escapeHtml(f.maxPlayers || '')}" style="width:6rem">
+  <input class="narrow" type="number" name="minPlayers" placeholder="Min players" value="${escapeHtml(f.minPlayers || '')}">
+  <input class="narrow" type="number" name="maxPlayers" placeholder="Max players" value="${escapeHtml(f.maxPlayers || '')}">
   <button type="submit">Filter</button>
 </form>`;
 
   const rows = page.items.map(renderServerRow).join('');
 
   const resultsTable = page.items.length
-    ? `<table>
+    ? `<table class="browser-table">
       <thead><tr>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'name', label: 'Name', filters: f })}</th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'rank', label: 'Rank', filters: f })}</th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'map', label: 'Map', filters: f })}</th>
-        <th>Mode</th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'players', label: 'Players', filters: f })}</th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'day', label: 'Day', filters: f })}</th>
-        <th>Cluster</th>
         <th></th>
+        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'name', label: 'Name', filters: f })}</th>
+        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'map', label: 'Map', filters: f })}</th>
+        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'day', label: 'Day', filters: f })}</th>
+        <th>Version</th>
+        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'players', label: 'Players', filters: f })}</th>
+        <th>Ping</th>
+        <th>Uptime</th>
+        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'rank', label: 'Rank', filters: f })}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`
@@ -246,25 +340,37 @@ function renderBrowserPage({ page, filters, sort, dir, counters, mapOptions, ros
     ${page.page < page.totalPages ? `<a href="/servers?${nextParams.toString()}">Next &raquo;</a>` : '<span>Next &raquo;</span>'}
   </p>`;
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ArkHelper \u2014 Servers</title>
-${STYLE}
-</head>
-<body>
-  <h1><a href="/">ArkHelper</a> &rsaquo; Servers</h1>
+  return `${hero}
+  <h1>Servers</h1>
   ${countersBar}
+  ${homeMetaNote}
   ${presetBar}
   ${errorBar}
   ${saveForm}
   ${filterForm}
   ${resultsTable}
-  ${pagination}
-</body>
-</html>`;
+  ${pagination}`;
+}
+
+function renderBrowserPage(opts = {}) {
+  const {
+    account = null,
+    live = null,
+    rosterMeta = null,
+    currentPath = '/servers',
+    showHero = false,
+    rosterAvailable,
+  } = opts;
+  const title = currentPath === '/' ? 'ArkHelper' : 'ArkHelper \u2014 Servers';
+  const footerLive = live || (rosterMeta ? { totalOfficial: rosterMeta.totalOfficial, generatedAt: rosterMeta.generatedAt } : null);
+  return renderPage({
+    title,
+    currentPath,
+    account,
+    live: footerLive,
+    extraCss: PAGE_CSS,
+    body: renderBrowserBody({ ...opts, showHero: showHero || currentPath === '/' }),
+  });
 }
 
 module.exports = {
@@ -275,8 +381,13 @@ module.exports = {
   computeLiveCounters,
   getDistinctMaps,
   renderBrowserPage,
+  renderBrowserBody,
+  renderHeroBand,
   renderPresetBar,
   renderSavePresetForm,
   renderServerRow,
+  statusWord,
+  networkUptime24h,
   STYLE,
+  PAGE_CSS,
 };

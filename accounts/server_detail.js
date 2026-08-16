@@ -15,47 +15,48 @@
  */
 
 const { escapeHtml } = require('./home_page.js');
+const { renderPage } = require('./layout.js');
 const { renderPeakTimesHeatmap, renderDowntimeHeatmap, hasAnyData } = require('./heatmap_svg.js');
 const { buildEmbedSnippets } = require('./badge.js');
 
-const STYLE = `<style>
-  body { background:#141210; color:#e8e6e3; font-family: system-ui, -apple-system, sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-  h1, h1 a { color: #f2b544; text-decoration: none; }
-  a { color: #7fd0ff; }
-  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #2a2620; }
-  .facts td:first-child { color: #b8b3a8; width: 40%; }
-  .note { color: #b8b3a8; font-size: 0.9rem; }
-  .alert-form { display: flex; flex-direction: column; gap: 0.6rem; max-width: 400px; }
-  .alert-form label { display: flex; align-items: center; gap: 0.5rem; }
-  .alert-form input[type="number"] { width: 5rem; background:#1c1a16; color:#e8e6e3; border:1px solid #443f36; padding:0.3rem; border-radius:4px; }
-  button { background:#2a2620; color:#e8e6e3; border:1px solid #443f36; padding: 0.4rem 1rem; border-radius: 4px; cursor:pointer; }
-  .heatmap-wrap { overflow-x: auto; margin-top: 0.5rem; }
-  .embed-box { background:#1c1a16; border:1px solid #443f36; padding:0.6rem; border-radius:4px; font-family: monospace; font-size:0.85rem; overflow-x:auto; white-space: pre; margin: 0.3rem 0; }
-  .change-log li { margin-bottom: 0.3rem; }
-  .rank-badge { display: inline-block; background:#2a2620; border:1px solid #443f36; color:#f2b544; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.85rem; font-variant-numeric: tabular-nums; margin-left: 0.5rem; vertical-align: middle; }
-  .rank-badge a { color: #f2b544; text-decoration: none; }
-</style>`;
+const PAGE_CSS = `
+.facts td:first-child { color: var(--muted); width: 40%; }
+.facts td:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.alert-form { display: flex; flex-direction: column; gap: var(--space-3); max-width: 400px; }
+.alert-form label { display: flex; align-items: center; gap: var(--space-2); }
+.alert-form input[type="number"] { width: 5rem; }
+.heatmap-wrap { overflow-x: auto; margin-top: var(--space-2); }
+.embed-box { background: var(--surface); border: 1px solid var(--border); padding: var(--space-3); border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.85rem; overflow-x: auto; white-space: pre; margin: var(--space-1) 0; }
+.change-log li { margin-bottom: var(--space-1); }
+.rank-badge { display: inline-block; background: var(--surface); border: 1px solid var(--border); color: var(--accent); padding: 2px 10px; border-radius: 999px; font-size: 0.85rem; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-left: var(--space-2); vertical-align: middle; }
+.rank-badge a { color: var(--accent); text-decoration: none; }
+`;
 
-function renderServerNotFoundPage(serverId) {
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>ArkHelper \u2014 Server not found</title>${STYLE}</head>
-<body>
-  <h1><a href="/">ArkHelper</a> &rsaquo; <a href="/servers">Servers</a> &rsaquo; Not found</h1>
-  <p>No server with ID ${escapeHtml(String(serverId))} was found in the current roster. It may have gone offline, been renamed, or the discovery service hasn't refreshed recently.</p>
-</body></html>`;
+function renderServerNotFoundPage(serverId, { account = null, live = null } = {}) {
+  return renderPage({
+    title: 'ArkHelper \u2014 Server not found',
+    currentPath: '/servers',
+    account,
+    live,
+    extraCss: PAGE_CSS,
+    body: `<h1><a href="/servers">Servers</a> &rsaquo; Not found</h1>
+  <p>No server with ID ${escapeHtml(String(serverId))} was found in the current roster. It may have gone offline, been renamed, or the discovery service hasn't refreshed recently.</p>`,
+  });
 }
 
-function renderRosterUnavailablePage() {
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>ArkHelper \u2014 Server</title>${STYLE}</head>
-<body>
-  <h1><a href="/">ArkHelper</a> &rsaquo; <a href="/servers">Servers</a></h1>
-  <p>Server data isn't available right now (the discovery service may not be running).</p>
-</body></html>`;
+function renderRosterUnavailablePage({ account = null, live = null } = {}) {
+  return renderPage({
+    title: 'ArkHelper \u2014 Server',
+    currentPath: '/servers',
+    account,
+    live,
+    extraCss: PAGE_CSS,
+    body: `<h1><a href="/servers">Servers</a></h1>
+  <p>Server data isn't available right now (the discovery service may not be running).</p>`,
+  });
 }
 
-function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, peakTimes, downtimePatterns, badgeUrl }) {
+function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, peakTimes, downtimePatterns, badgeUrl, account = null, live = null }) {
   const modList = server.modIds && server.modIds.length ? server.modIds.map((id) => escapeHtml(id)).join(', ') : 'None (vanilla server)';
 
   const favoriteSection = !loggedIn
@@ -131,16 +132,13 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
       ? `<span class="rank-badge"><a href="/rankings" title="Composite rank score out of 100">#${escapeHtml(String(server.rank ?? '\u2014'))} \u00b7 ${escapeHtml(String(server.rankScore))}</a></span>`
       : '';
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ArkHelper \u2014 ${escapeHtml(server.name || 'Server')}</title>
-${STYLE}
-</head>
-<body>
-  <h1><a href="/">ArkHelper</a> &rsaquo; <a href="/servers">Servers</a> &rsaquo; ${escapeHtml(server.name || '(unnamed)')}${rankBadge}</h1>
+  return renderPage({
+    title: `ArkHelper \u2014 ${server.name || 'Server'}`,
+    currentPath: `/servers/${server.id || ''}`,
+    account,
+    live,
+    extraCss: PAGE_CSS,
+    body: `<h1><a href="/servers">Servers</a> &rsaquo; ${escapeHtml(server.name || '(unnamed)')}${rankBadge}</h1>
 
   ${favoriteSection}
 
@@ -178,9 +176,8 @@ ${STYLE}
   <h2>Embed this server's status</h2>
   ${embedSection}
 
-  ${alertSection}
-</body>
-</html>`;
+  ${alertSection}`,
+  });
 }
 
 module.exports = {
