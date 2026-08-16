@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { openDb, getAlertSettings } = require('./db.js');
-const { parseCookies, buildSetCookie, createAuthServer, SESSION_COOKIE, STATE_COOKIE } = require('./auth_service.js');
+const { parseCookies, buildSetCookie, createAuthServer, SESSION_COOKIE, STATE_COOKIE, PRESET_COOKIE } = require('./auth_service.js');
 
 // ---------------------------------------------------------------------
 // Cookie helpers
@@ -311,6 +311,7 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/servers/:id'));
   assert.ok(body.routes.includes('/servers/:id/badge.svg'));
   assert.ok(body.routes.includes('/stats'));
+  assert.ok(body.routes.includes('/rankings'));
   assert.ok(body.routes.includes('/favorites'));
   assert.ok(body.routes.includes('/alerts/:id'));
 
@@ -948,6 +949,583 @@ test('GET /stats falls back gracefully when a leaderboard entry references a ser
   assert.equal(res.status, 200); // no crash even though the id doesn't resolve
   const html = await res.text();
   assert.match(html, /Server 1/); // shortened-id fallback still renders something sensible
+
+  server.close();
+});
+
+test('GET /stats reads ranking from roster rankScore without a separate rankings query', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: '1', name: 'Best', map: 'M', gameMode: 'pve', playersNow: 5, maxPlayers: 70, rankScore: 90, rank: 1, rankComponents: { reliability: 40, connection: 25, activity: 15, confidence: 10 } },
+      { id: '2', name: 'Worse', map: 'M', gameMode: 'pvp', playersNow: 1, maxPlayers: 70, rankScore: 20, rank: 2, rankComponents: { reliability: 10, connection: 0, activity: 0, confidence: 10 } },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    statsDeps: fakeStatsDeps({ roster, uptimeLeaderboard: null }),
+  });
+
+  const res = await fetch(`${base}/stats`);
+  const html = await res.text();
+  assert.match(html, /Best/);
+  assert.match(html, /90/);
+  assert.match(html, /href="\/rankings"/);
+
+  server.close();
+});
+
+// ---------------------------------------------------------------------
+// GET /rankings
+// ---------------------------------------------------------------------
+test('GET /rankings renders the top servers from roster rankScore', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: '1', name: 'EU-PVE-TheIsland5313', rankScore: 88, rank: 1, rankComponents: { reliability: 36, connection: 25, activity: 17, confidence: 10 } },
+      { id: '2', name: 'NA-PVP-Astraeos2573', rankScore: 40, rank: 2, rankComponents: { reliability: 20, connection: 5, activity: 5, confidence: 10 } },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(roster),
+  });
+
+  const res = await fetch(`${base}/rankings`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.match(html, /88/);
+  assert.match(html, /How the score is built/);
+  assert.match(html, /href="\/servers\/1"/);
+
+  server.close();
+});
+
+test('GET /rankings shows the fallback (200, not a crash) when the discovery feed is unreachable', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/rankings`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /discovery service may not be running/);
+
+  server.close();
+});
+
+test('GET /servers?sort=rank orders by rankScore', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: '1', name: 'Low', map: 'A', gameMode: 'pve', playersNow: 50, maxPlayers: 70, day: 1, clusterId: 'C', hasPassword: false, rankScore: 10 },
+      { id: '2', name: 'High', map: 'B', gameMode: 'pvp', playersNow: 1, maxPlayers: 70, day: 1, clusterId: 'C', hasPassword: false, rankScore: 90 },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(roster),
+  });
+
+  const res = await fetch(`${base}/servers?sort=rank&dir=desc`);
+  const html = await res.text();
+  assert.ok(html.indexOf('High') < html.indexOf('Low'));
+
+  server.close();
+});
+
+// ---------------------------------------------------------------------
+// GET /is-ark-down and /status
+// ---------------------------------------------------------------------
+test('GET /is-ark-down renders the stored status snapshot with a short cache', async () => {
+  const db = openDb(':memory:');
+  const status = {
+    state: 'NORMAL',
+    verdictKey: 'up',
+    offlinePct: 1.2,
+    baselinePct: 2,
+    onlineCount: 3100,
+    totalKnown: 3180,
+    rosterFetchFailed: false,
+    computedAt: '2026-08-15T12:00:00.000Z',
+    activeIncident: null,
+    incidents: [],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    statusDeps: { fetchJsonSafe: async () => status },
+  });
+
+  const res = await fetch(`${base}/is-ark-down`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=30');
+  const html = await res.text();
+  assert.match(html, /ARK official servers look UP/);
+  assert.match(html, /3100 \/ 3180/);
+
+  server.close();
+});
+
+test('GET /status is an alias of /is-ark-down', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    statusDeps: {
+      fetchJsonSafe: async () => ({
+        state: 'UPDATE_ROLLOUT',
+        verdictKey: 'update',
+        offlinePct: 4,
+        baselinePct: 3,
+        onlineCount: 100,
+        totalKnown: 100,
+        computedAt: '2026-08-15T12:00:00.000Z',
+        incidents: [],
+      }),
+    },
+  });
+
+  const res = await fetch(`${base}/status`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=30');
+  assert.match(html, /Update appears to be rolling out/);
+
+  server.close();
+});
+
+test('GET /is-ark-down falls back when discovery status is unreachable (200, not a crash)', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    statusDeps: { fetchJsonSafe: async () => null },
+  });
+
+  const res = await fetch(`${base}/is-ark-down`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Status data isn't available right now/);
+
+  server.close();
+});
+
+// ---------------------------------------------------------------------
+// Filter presets
+// ---------------------------------------------------------------------
+function cookiePair(res, name) {
+  const all = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')].filter(Boolean);
+  const line = all.find((c) => c && c.startsWith(`${name}=`));
+  return line ? line.split(';')[0] : null;
+}
+
+function cookieLine(res, name) {
+  const all = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')].filter(Boolean);
+  return all.find((c) => c && c.startsWith(`${name}=`)) || '';
+}
+
+function sequentialToken(prefix = 'SHARE') {
+  let n = 0;
+  return () => `${prefix}${++n}`;
+}
+
+test('logged-out preset save/apply/delete round-trip via cookie', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+
+  const saveRes = await fetch(`${base}/presets`, {
+    method: 'POST',
+    body: new URLSearchParams({ name: 'PvE', query: 'gameMode=pve&evil=drop' }),
+    redirect: 'manual',
+  });
+  assert.equal(saveRes.status, 302);
+  assert.equal(saveRes.headers.get('location'), '/servers?gameMode=pve');
+  const setLine = cookieLine(saveRes, PRESET_COOKIE);
+  assert.match(setLine, /HttpOnly/);
+  assert.match(setLine, /SameSite=Lax/);
+  assert.match(setLine, /Path=\//);
+  const presetCookie = cookiePair(saveRes, PRESET_COOKIE);
+  assert.ok(presetCookie);
+
+  const listRes = await fetch(`${base}/servers`, { headers: { Cookie: presetCookie } });
+  const listHtml = await listRes.text();
+  assert.match(listHtml, /href="\/servers\?gameMode=pve"/);
+  assert.match(listHtml, />PvE</);
+  assert.doesNotMatch(listHtml, /Copy share link/);
+
+  const applyRes = await fetch(`${base}/servers?gameMode=pve`, { headers: { Cookie: presetCookie } });
+  const applyHtml = await applyRes.text();
+  assert.match(applyHtml, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(applyHtml, /Asia-PVP-LostColony2859/);
+  assert.match(applyHtml, />PvE</);
+
+  const deleteRes = await fetch(`${base}/presets/delete`, {
+    method: 'POST',
+    headers: { Cookie: presetCookie },
+    body: new URLSearchParams({ name: 'PvE', returnQuery: 'gameMode=pve' }),
+    redirect: 'manual',
+  });
+  assert.equal(deleteRes.status, 302);
+  const cleared = cookieLine(deleteRes, PRESET_COOKIE);
+  assert.match(cleared, /Max-Age=0/);
+
+  server.close();
+});
+
+test('GET /servers?gameMode=pve applies the pve filter (preset apply target)', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+
+  const res = await fetch(`${base}/servers?gameMode=pve`);
+  const html = await res.text();
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /Asia-PVP-LostColony2859/);
+  assert.match(html, /Save as preset/);
+
+  server.close();
+});
+
+test('logged-out preset cap of 3 is enforced with a friendly redirect', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+
+  let cookie = '';
+  for (let i = 0; i < 3; i += 1) {
+    const res = await fetch(`${base}/presets`, {
+      method: 'POST',
+      headers: cookie ? { Cookie: cookie } : {},
+      body: new URLSearchParams({ name: `P${i}`, query: `map=M${i}` }),
+      redirect: 'manual',
+    });
+    assert.equal(res.status, 302);
+    cookie = cookiePair(res, PRESET_COOKIE);
+  }
+
+  const rejected = await fetch(`${base}/presets`, {
+    method: 'POST',
+    headers: { Cookie: cookie },
+    body: new URLSearchParams({ name: 'P3', query: 'map=M3' }),
+    redirect: 'manual',
+  });
+  assert.equal(rejected.status, 302);
+  assert.match(rejected.headers.get('location'), /presetError=cookie_cap/);
+
+  const page = await fetch(`${base}/servers?map=M3&presetError=cookie_cap`, { headers: { Cookie: cookie } });
+  const html = await page.text();
+  assert.match(html, /limited to 3/);
+
+  server.close();
+});
+
+test('logged-out preset save rejects a cookie that would exceed ~2KB', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+
+  const res = await fetch(`${base}/presets`, {
+    method: 'POST',
+    body: new URLSearchParams({ name: 'Huge', query: `search=${'x'.repeat(4000)}` }),
+    redirect: 'manual',
+  });
+  assert.equal(res.status, 302);
+  assert.match(res.headers.get('location'), /presetError=cookie_size/);
+  assert.equal(cookiePair(res, PRESET_COOKIE), null);
+
+  server.close();
+});
+
+test('logged-in preset CRUD stores in SQLite and shows a share URL', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+    randomToken: sequentialToken('SHARE'),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base);
+
+  const saveRes = await fetch(`${base}/presets`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ name: 'PvE', query: 'gameMode=pve&unknown=1' }),
+    redirect: 'manual',
+  });
+  assert.equal(saveRes.status, 302);
+  assert.equal(saveRes.headers.get('location'), '/servers?gameMode=pve');
+  assert.equal(cookiePair(saveRes, PRESET_COOKIE), null); // account storage, not cookie
+
+  const listed = db.prepare('SELECT * FROM filter_presets').all();
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].query_string, 'gameMode=pve');
+  assert.equal(listed[0].share_token, 'SHARE1');
+
+  const page = await fetch(`${base}/servers`, { headers: { Cookie: sessionCookie } });
+  const html = await page.text();
+  assert.match(html, />PvE</);
+  assert.match(html, /\/p\/SHARE1/);
+
+  const del = await fetch(`${base}/presets/delete`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ id: String(listed[0].id) }),
+    redirect: 'manual',
+  });
+  assert.equal(del.status, 302);
+  assert.equal(db.prepare('SELECT COUNT(*) as c FROM filter_presets').get().c, 0);
+
+  server.close();
+});
+
+test('logged-in preset cap of 15 is enforced over HTTP', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+    randomToken: sequentialToken('T'),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base);
+
+  for (let i = 0; i < 15; i += 1) {
+    const res = await fetch(`${base}/presets`, {
+      method: 'POST',
+      headers: { Cookie: sessionCookie },
+      body: new URLSearchParams({ name: `P${i}`, query: `map=M${i}` }),
+      redirect: 'manual',
+    });
+    assert.equal(res.status, 302);
+    assert.doesNotMatch(res.headers.get('location'), /presetError=/);
+  }
+
+  const rejected = await fetch(`${base}/presets`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ name: 'overflow', query: 'map=Z' }),
+    redirect: 'manual',
+  });
+  assert.match(rejected.headers.get('location'), /presetError=account_cap/);
+  assert.equal(db.prepare('SELECT COUNT(*) as c FROM filter_presets').get().c, 15);
+
+  server.close();
+});
+
+test('login migrates cookie presets into the account and skips name collisions', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42', username: 'brian' }),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+    randomToken: sequentialToken('MIG'),
+  });
+
+  // First login + save an account preset named PvE
+  const session1 = await loginAndGetSessionCookie(base);
+  await fetch(`${base}/presets`, {
+    method: 'POST',
+    headers: { Cookie: session1 },
+    body: new URLSearchParams({ name: 'PvE', query: 'gameMode=pve' }),
+    redirect: 'manual',
+  });
+  await fetch(`${base}/auth/logout`, { method: 'POST', headers: { Cookie: session1 } });
+
+  // Logged-out cookie presets: colliding PvE + a new Ranked
+  const cookieSave = await fetch(`${base}/presets`, {
+    method: 'POST',
+    body: new URLSearchParams({ name: 'PvE', query: 'gameMode=pve&search=island' }),
+    redirect: 'manual',
+  });
+  let presetCookie = cookiePair(cookieSave, PRESET_COOKIE);
+  const cookieSave2 = await fetch(`${base}/presets`, {
+    method: 'POST',
+    headers: { Cookie: presetCookie },
+    body: new URLSearchParams({ name: 'Ranked', query: 'sort=rank' }),
+    redirect: 'manual',
+  });
+  presetCookie = cookiePair(cookieSave2, PRESET_COOKIE);
+
+  const callbackRes = await fetch(`${base}/auth/discord/callback?code=ABC2&state=FIXED_STATE`, {
+    redirect: 'manual',
+    headers: { Cookie: `${STATE_COOKIE}=FIXED_STATE; ${presetCookie}` },
+  });
+  assert.equal(callbackRes.status, 302);
+  const cleared = cookieLine(callbackRes, PRESET_COOKIE);
+  assert.match(cleared, /Max-Age=0/);
+  const session2 = cookiePair(callbackRes, SESSION_COOKIE);
+
+  const names = db.prepare('SELECT name, query_string FROM filter_presets ORDER BY name').all();
+  assert.deepEqual(names.map((r) => r.name), ['PvE', 'Ranked']);
+  const pve = names.find((r) => r.name === 'PvE');
+  assert.equal(pve.query_string, 'gameMode=pve'); // original account copy, collision skipped
+
+  const page = await fetch(`${base}/servers`, { headers: { Cookie: session2 } });
+  const html = await page.text();
+  assert.match(html, />Ranked</);
+  assert.match(html, />PvE</);
+
+  server.close();
+});
+
+test('GET /p/:token redirects to /servers?<sanitized query>', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+    randomToken: () => 'FIXEDSHARE',
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base);
+  await fetch(`${base}/presets`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ name: 'PvE', query: 'gameMode=pve&hack=1' }),
+    redirect: 'manual',
+  });
+
+  const res = await fetch(`${base}/p/FIXEDSHARE`, { redirect: 'manual' });
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('location'), '/servers?gameMode=pve');
+
+  server.close();
+});
+
+test('GET /p/:token returns the same 404 for unknown and deleted tokens', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+    randomToken: () => 'TO-DELETE',
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base);
+  await fetch(`${base}/presets`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ name: 'PvE', query: 'gameMode=pve' }),
+    redirect: 'manual',
+  });
+  const id = db.prepare('SELECT id FROM filter_presets').get().id;
+  await fetch(`${base}/presets/delete`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ id: String(id) }),
+    redirect: 'manual',
+  });
+
+  const deleted = await fetch(`${base}/p/TO-DELETE`);
+  const unknown = await fetch(`${base}/p/not-a-real-token`);
+  assert.equal(deleted.status, 404);
+  assert.equal(unknown.status, 404);
+  assert.equal(deleted.headers.get('content-type'), unknown.headers.get('content-type'));
+  assert.deepEqual(await deleted.json(), await unknown.json());
+  const body = await fetch(`${base}/p/also-unknown`).then((r) => r.json());
+  assert.equal(body.error, 'not found');
+  assert.equal(body.routes, undefined);
+
+  server.close();
+});
+
+test('share redirect sanitizes stored query strings and never leaves /servers', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base);
+  const account = db.prepare('SELECT id FROM accounts').get();
+  db.prepare(
+    'INSERT INTO filter_presets (account_id, name, query_string, share_token, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(account.id, 'Bad', 'gameMode=pve&redirect=https://evil.example/&next=/login', 'BADTOKEN', 'now');
+
+  const res = await fetch(`${base}/p/BADTOKEN`, { redirect: 'manual' });
+  assert.equal(res.status, 302);
+  const location = res.headers.get('location');
+  assert.equal(location, '/servers?gameMode=pve');
+  assert.match(location, /^\/servers(\?|$)/);
+  assert.doesNotMatch(location, /evil/);
+  assert.doesNotMatch(location, /redirect=/);
+
+  const saveRes = await fetch(`${base}/presets`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ name: 'Trap', query: 'https://evil.example/phish?gameMode=pve' }),
+    redirect: 'manual',
+  });
+  assert.match(saveRes.headers.get('location'), /presetError=empty_query/);
 
   server.close();
 });

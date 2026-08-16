@@ -15,9 +15,14 @@
  *   GET  /auth/discord/callback  -> exchanges code, creates session, redirects home
  *   GET  /auth/me                -> { loggedIn, account } for the current session
  *   POST /auth/logout            -> clears the session
+ *   POST /presets                -> save current filters as a named preset
+ *   POST /presets/delete         -> delete a preset (cookie or account)
+ *   GET  /p/:token               -> public share-link redirect to /servers?...
+ *   GET  /is-ark-down            -> public network status page (alias GET /status)
  */
 
 const http = require('http');
+const crypto = require('node:crypto');
 const {
   buildAuthorizeUrl,
   exchangeCodeForToken,
@@ -34,6 +39,11 @@ const {
   listFavorites,
   upsertAlertSettings,
   getAlertSettings,
+  addFilterPreset,
+  listFilterPresets,
+  deleteFilterPreset,
+  getFilterPresetByShareToken,
+  migrateCookiePresetsToAccount,
 } = require('./db.js');
 const { renderHomepage, fetchRosterMetaSafe } = require('./home_page.js');
 const { fetchJsonSafe } = require('./local_fetch.js');
@@ -45,9 +55,20 @@ const {
   getDistinctMaps,
   renderBrowserPage,
 } = require('./server_browser.js');
+const {
+  PRESET_COOKIE,
+  PRESET_COOKIE_MAX_AGE_SECONDS,
+  messageForPresetError,
+  sanitizeQueryString,
+  serversLocation,
+  parsePresetCookie,
+  addCookiePreset,
+  deleteCookiePreset,
+} = require('./presets.js');
 const { renderServerDetailPage, renderServerNotFoundPage, renderRosterUnavailablePage } = require('./server_detail.js');
 const { renderBadgeSvg, renderUnknownBadgeSvg } = require('./badge.js');
 const { renderFavoritesPage } = require('./favorites_page.js');
+const { rankingFromRoster, renderRankingsPage } = require('./rankings_page.js');
 const {
   computeModeStats,
   computeMapStats,
@@ -56,6 +77,7 @@ const {
   getTopServersByPlayers,
   renderStatsPage,
 } = require('./stats_page.js');
+const { renderStatusPage } = require('./status_page.js');
 
 const SESSION_COOKIE = 'ark_session';
 const STATE_COOKIE = 'ark_oauth_state';
@@ -111,6 +133,25 @@ function readFormBody(req, { maxBytes = 1_000_000 } = {}) {
   });
 }
 
+function shareOriginFromReq(req, cookieSecure) {
+  const host = req.headers.host || 'localhost';
+  const forwarded = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const proto = cookieSecure || forwarded === 'https' ? 'https' : 'http';
+  return `${proto}://${host}`;
+}
+
+function notFoundShare(res) {
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'not found' }));
+}
+
+function redirectWithPresetError(res, query, code) {
+  const base = serversLocation(query);
+  const location = `${base}${base.includes('?') ? '&' : '?'}presetError=${encodeURIComponent(code)}`;
+  res.writeHead(302, { Location: location });
+  res.end();
+}
+
 // ---------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------
@@ -126,11 +167,14 @@ function createAuthServer({
   historyUrlBase = 'http://localhost:8792/history',
   uptimeLeaderboardUrl = 'http://localhost:8792/leaderboards/uptime',
   rankingUrl = 'http://localhost:8792/rankings',
+  incidentStatusUrl = 'http://localhost:8792/incidents/status',
   discordDeps = { buildAuthorizeUrl, exchangeCodeForToken, fetchDiscordUser, generateState },
   homeDeps = { fetchRosterMetaSafe },
   browserDeps = { fetchJsonSafe },
   detailDeps = { fetchJsonSafe },
   statsDeps = { fetchJsonSafe },
+  statusDeps = { fetchJsonSafe },
+  randomToken = () => crypto.randomBytes(32).toString('hex'),
 }) {
   if (!db) throw new Error('createAuthServer: db is required');
   if (!clientId || !clientSecret) throw new Error('createAuthServer: clientId and clientSecret are required');
@@ -141,6 +185,26 @@ function createAuthServer({
     const cookies = parseCookies(req.headers.cookie);
 
     try {
+      const shareMatch = req.method === 'GET' && url.pathname.match(/^\/p\/([^/]+)$/);
+      if (shareMatch) {
+        let token;
+        try {
+          token = decodeURIComponent(shareMatch[1]);
+        } catch {
+          notFoundShare(res);
+          return;
+        }
+        const preset = getFilterPresetByShareToken(db, token);
+        if (!preset) {
+          notFoundShare(res);
+          return;
+        }
+        const location = serversLocation(preset.queryString);
+        res.writeHead(302, { Location: location });
+        res.end();
+        return;
+      }
+
       const badgeMatch = req.method === 'GET' && url.pathname.match(/^\/servers\/([^/]+)\/badge\.svg$/);
       if (badgeMatch) {
         const serverId = decodeURIComponent(badgeMatch[1]);
@@ -287,8 +351,11 @@ function createAuthServer({
         const uptimeLeaderboard = await statsDeps.fetchJsonSafe(`${uptimeLeaderboardUrl}?minRuns=3`);
         const enrichedUptimeLeaderboard = uptimeLeaderboard ? { ...uptimeLeaderboard, servers: enrichWithRosterNames(uptimeLeaderboard.servers) } : undefined;
 
-        const ranking = await statsDeps.fetchJsonSafe(`${rankingUrl}?minRuns=3&limit=25`);
-        const enrichedRanking = ranking ? { ...ranking, servers: enrichWithRosterNames(ranking.servers) } : undefined;
+        const rankedPreview = rankingFromRoster(roster.servers, { limit: 25 });
+        const rankingAvailable = rankedPreview.totalRanked > 0;
+        const enrichedRanking = rankingAvailable
+          ? { servers: rankedPreview.servers, totalRanked: rankedPreview.totalRanked }
+          : undefined;
 
         // Compute the body BEFORE writeHead — if rendering throws, we want
         // the outer catch block to still be able to send a clean 502
@@ -304,9 +371,36 @@ function createAuthServer({
           topByPlayers: getTopServersByPlayers(roster.servers),
           uptimeAvailable: Boolean(uptimeLeaderboard),
           uptimeLeaderboard: enrichedUptimeLeaderboard,
-          rankingAvailable: Boolean(ranking),
+          rankingAvailable,
           ranking: enrichedRanking,
         });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
+      if (req.method === 'GET' && (url.pathname === '/is-ark-down' || url.pathname === '/status')) {
+        const status = await statusDeps.fetchJsonSafe(incidentStatusUrl);
+        const body = renderStatusPage({ statusAvailable: Boolean(status), status });
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'public, max-age=30',
+        });
+        res.end(body);
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/rankings') {
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        if (!roster || !Array.isArray(roster.servers)) {
+          const body = renderRankingsPage({ rosterAvailable: false });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const ranking = rankingFromRoster(roster.servers);
+        const body = renderRankingsPage({ rosterAvailable: true, ranking });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
         return;
@@ -337,6 +431,21 @@ function createAuthServer({
         const sorted = sortServers(filtered, sort, dir);
         const page = paginateServers(sorted, pageNum);
 
+        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
+        const setCookies = [];
+        if (account && cookies[PRESET_COOKIE]) {
+          const cookiePresets = parsePresetCookie(cookies[PRESET_COOKIE]);
+          if (cookiePresets.length) {
+            migrateCookiePresetsToAccount(db, account.id, cookiePresets, { randomToken });
+          }
+          setCookies.push(buildSetCookie(PRESET_COOKIE, '', { clear: true, secure: cookieSecure }));
+        }
+
+        const presets = account ? listFilterPresets(db, account.id) : parsePresetCookie(cookies[PRESET_COOKIE]);
+        const currentQuery = sanitizeQueryString(url.search);
+        const errorCode = url.searchParams.get('presetError');
+        const presetError = messageForPresetError(errorCode) ? errorCode : '';
+
         const body = renderBrowserPage({
           page,
           filters,
@@ -345,8 +454,15 @@ function createAuthServer({
           counters: computeLiveCounters(roster.servers),
           mapOptions: getDistinctMaps(roster.servers),
           rosterAvailable: true,
+          presets,
+          loggedIn: Boolean(account),
+          shareOrigin: shareOriginFromReq(req, cookieSecure),
+          currentQuery,
+          presetError,
         });
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+        if (setCookies.length) headers['Set-Cookie'] = setCookies.length === 1 ? setCookies[0] : setCookies;
+        res.writeHead(200, headers);
         res.end(body);
         return;
       }
@@ -406,13 +522,21 @@ function createAuthServer({
         });
         const session = createSession(db, account.id);
 
+        const setCookies = [
+          buildSetCookie(STATE_COOKIE, '', { clear: true, secure: cookieSecure }),
+          buildSetCookie(SESSION_COOKIE, session.token, { maxAgeSeconds: SESSION_MAX_AGE_SECONDS, secure: cookieSecure }),
+        ];
+        if (cookies[PRESET_COOKIE]) {
+          const cookiePresets = parsePresetCookie(cookies[PRESET_COOKIE]);
+          if (cookiePresets.length) {
+            migrateCookiePresetsToAccount(db, account.id, cookiePresets, { randomToken });
+          }
+          setCookies.push(buildSetCookie(PRESET_COOKIE, '', { clear: true, secure: cookieSecure }));
+        }
+
         res.writeHead(302, {
           Location: successRedirect,
-          // Clear the state cookie (single-use) and set the real session cookie in one response
-          'Set-Cookie': [
-            buildSetCookie(STATE_COOKIE, '', { clear: true, secure: cookieSecure }),
-            buildSetCookie(SESSION_COOKIE, session.token, { maxAgeSeconds: SESSION_MAX_AGE_SECONDS, secure: cookieSecure }),
-          ],
+          'Set-Cookie': setCookies,
         });
         res.end();
         return;
@@ -444,8 +568,64 @@ function createAuthServer({
         return;
       }
 
+      if (req.method === 'POST' && url.pathname === '/presets') {
+        const form = await readFormBody(req);
+        const query = sanitizeQueryString(form.query);
+        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
+
+        if (account) {
+          const result = addFilterPreset(db, account.id, { name: form.name, queryString: query }, { randomToken });
+          if (result.error) {
+            redirectWithPresetError(res, query, result.error);
+            return;
+          }
+          res.writeHead(302, { Location: serversLocation(query) });
+          res.end();
+          return;
+        }
+
+        const existing = parsePresetCookie(cookies[PRESET_COOKIE]);
+        const result = addCookiePreset(existing, { name: form.name, query }, { secure: cookieSecure });
+        if (result.error) {
+          redirectWithPresetError(res, query, result.error);
+          return;
+        }
+        res.writeHead(302, {
+          Location: serversLocation(query),
+          'Set-Cookie': buildSetCookie(PRESET_COOKIE, result.serialized, {
+            maxAgeSeconds: PRESET_COOKIE_MAX_AGE_SECONDS,
+            secure: cookieSecure,
+          }),
+        });
+        res.end();
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/presets/delete') {
+        const form = await readFormBody(req);
+        const account = getAccountBySessionToken(db, cookies[SESSION_COOKIE]);
+        const returnLoc = serversLocation(form.returnQuery);
+
+        if (account) {
+          const id = Number(form.id);
+          if (Number.isInteger(id) && id > 0) deleteFilterPreset(db, account.id, id);
+          res.writeHead(302, { Location: returnLoc });
+          res.end();
+          return;
+        }
+
+        const existing = parsePresetCookie(cookies[PRESET_COOKIE]);
+        const result = deleteCookiePreset(existing, form.name);
+        const cookie = result.presets.length
+          ? buildSetCookie(PRESET_COOKIE, result.serialized, { maxAgeSeconds: PRESET_COOKIE_MAX_AGE_SECONDS, secure: cookieSecure })
+          : buildSetCookie(PRESET_COOKIE, '', { clear: true, secure: cookieSecure });
+        res.writeHead(302, { Location: returnLoc, 'Set-Cookie': cookie });
+        res.end();
+        return;
+      }
+
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/stats', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/stats', '/rankings', '/is-ark-down', '/status', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));
@@ -499,4 +679,5 @@ module.exports = {
   createAuthServer,
   SESSION_COOKIE,
   STATE_COOKIE,
+  PRESET_COOKIE,
 };

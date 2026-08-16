@@ -4,9 +4,10 @@
 
 ```
 discovery/    — port 8792. Pulls the live official ARK:SA roster, records history, computes
-                 uptime/rankings/heatmaps. Has no UI — it's a data/API layer other things read from.
+                 uptime/rankings/heatmaps/incidents. Has no UI — it's a data/API layer other things read from.
 accounts/     — port 8793. Everything a browser actually loads: login, homepage, server
-                 browser, detail pages, favorites, alerts (settings only), stats.
+                 browser, detail pages, favorites, alerts (settings only), stats, rankings,
+                 status ("Is ARK down?").
 ```
 
 They're separate Node processes, talking over plain local HTTP — `accounts/` fetches from
@@ -20,23 +21,28 @@ crashing — every page has a tested "roster unavailable" fallback state.
 |---|---|
 | `ark_official_api.js` | Fetches Wildcard's own official server list (no key needed) |
 | `discovery_service.js` | CLI + scheduler + the HTTP server exposing everything below |
-| `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, wipe/version detection, heatmaps, ranking |
+| `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, wipe/version detection, heatmaps; gathers ranking inputs and stamps scores onto the roster; records network incidents |
+| `ranking.js` | Pure composite rank scorer (no DB / network / clock) — weights live here |
+| `incidents.js` | Pure incident classifier (thresholds, hysteresis, consecutive-fetch-failure counting) |
 | `geo_lookup.js` | GeoLite2/MaxMind country lookups — built, not yet configured (see `PROJECT_STATUS.md`) |
 
-**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/history/:id`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`
+**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/history/:id`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`
 
 ## accounts/
 
 | File | Role |
 |---|---|
-| `db.js` | SQLite (`node:sqlite`) — accounts, sessions, favorites, alert settings |
+| `db.js` | SQLite (`node:sqlite`) — accounts, sessions, favorites, alert settings, filter presets |
 | `discord_oauth.js` | Discord OAuth2 request-building/parsing |
 | `auth_service.js` | The actual HTTP server — every route lives here |
 | `home_page.js` | Homepage rendering + `escapeHtml` (imported everywhere else too) |
 | `server_browser.js` | Filter/sort/paginate + the `/servers` list page |
+| `presets.js` | Named filter snapshots — query sanitization, cookie cap/size guards; share tokens live in db.js |
 | `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
 | `favorites_page.js` | The `/favorites` page |
-| `stats_page.js` | The `/stats` page — network breakdowns + leaderboards + ranking |
+| `rankings_page.js` | The `/rankings` page — top 100 with score breakdowns |
+| `stats_page.js` | The `/stats` page — network breakdowns + leaderboards + ranking preview |
+| `status_page.js` | The `/is-ark-down` (alias `/status`) page — renders the stored incident snapshot |
 | `heatmap_svg.js` | Renders peak-time/downtime grids as inline SVG |
 | `badge.js` | The embeddable live-status SVG badge |
 | `local_fetch.js` | Shared "fetch JSON from discovery, never throw" helper |

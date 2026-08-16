@@ -53,8 +53,12 @@ const {
   computeDowntimePatterns,
   computeTopUptimeServers,
   computeNetworkRanking,
+  applyRankingToServers,
   getRankNeighborhood,
+  recordIncidentCycle,
+  getIncidentStatus,
 } = require('./history.js');
+const { RANKING_WINDOW_DAYS } = require('./ranking.js');
 
 // ---------------------------------------------------------------------
 // Persistence (atomic write: write to a temp file, then rename over the
@@ -109,13 +113,37 @@ async function refreshCycle({
   fsDeps = {},
   geoReader,
   historyDb,
+  now = () => new Date().toISOString(),
 } = {}) {
   const previous = readRosterIfExists(outPath, fsDeps);
-  const snapshot = await buildRosterSnapshot(discoveryOpts, { geoReader });
+  let snapshot;
+  try {
+    snapshot = await buildRosterSnapshot(discoveryOpts, { geoReader });
+  } catch (err) {
+    if (historyDb) {
+      try {
+        recordIncidentCycle(historyDb, { rosterFetchFailed: true, now });
+      } catch {
+        // never mask the original fetch failure
+      }
+    }
+    throw err;
+  }
   const diff = previous ? diffRoster(previous.servers || [], snapshot.servers) : null;
 
+  if (historyDb) {
+    // Record this cycle first so ranking sees the latest snapshot,
+    // then stamp scores onto the in-memory roster before persisting
+    // so /roster already carries rankScore for the accounts service.
+    recordSnapshotRun(historyDb, snapshot.servers, { now });
+    applyRankingToServers(snapshot.servers, historyDb);
+    recordIncidentCycle(historyDb, {
+      rosterFetchFailed: false,
+      presentServerIds: snapshot.servers.map((s) => s && s.id).filter(Boolean),
+      now,
+    });
+  }
   persistRosterAtomic(outPath, snapshot, fsDeps);
-  if (historyDb) recordSnapshotRun(historyDb, snapshot.servers);
 
   return {
     snapshot,
@@ -241,9 +269,11 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb }) {
         return;
       }
       const days = Number(parsedUrl.searchParams.get('days'));
-      const sinceIso = Number.isFinite(days) && days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString() : undefined;
+      const windowDays = Number.isFinite(days) && days > 0 ? days : RANKING_WINDOW_DAYS;
+      const sinceIso = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
       const limit = Number(parsedUrl.searchParams.get('limit')) || 100;
-      const minRuns = Number(parsedUrl.searchParams.get('minRuns')) || 5;
+      const minRunsRaw = parsedUrl.searchParams.get('minRuns');
+      const minRuns = minRunsRaw != null && minRunsRaw !== '' ? Number(minRunsRaw) || 0 : 0;
 
       const ranking = computeNetworkRanking(historyDb, { sinceIso, limit, minRuns });
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -260,8 +290,10 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb }) {
       }
       const serverId = decodeURIComponent(rankMatch[1]);
       const days = Number(parsedUrl.searchParams.get('days'));
-      const sinceIso = Number.isFinite(days) && days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString() : undefined;
-      const minRuns = Number(parsedUrl.searchParams.get('minRuns')) || 5;
+      const windowDays = Number.isFinite(days) && days > 0 ? days : RANKING_WINDOW_DAYS;
+      const sinceIso = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+      const minRunsRaw = parsedUrl.searchParams.get('minRuns');
+      const minRuns = minRunsRaw != null && minRunsRaw !== '' ? Number(minRunsRaw) || 0 : 0;
       const radius = Number(parsedUrl.searchParams.get('radius')) || 5;
 
       // No limit here — need the FULL ranking to find one server's position in it
@@ -273,8 +305,26 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb }) {
       return;
     }
 
+    if (parsedUrl.pathname === '/incidents/status') {
+      if (!historyDb) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'history tracking is not enabled on this instance' }));
+        return;
+      }
+      const status = getIncidentStatus(historyDb);
+      if (!status) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'incident status not computed yet' }));
+        return;
+      }
+      const body = JSON.stringify(status);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=30' });
+      res.end(body);
+      return;
+    }
+
     res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id'] }));
+    res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status'] }));
   });
 }
 

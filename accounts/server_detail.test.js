@@ -244,6 +244,23 @@ test('renderServerDetailPage renders the downtime SVG when data exists', () => {
 // ---------------------------------------------------------------------
 // renderServerDetailPage — embeddable badge
 // ---------------------------------------------------------------------
+test('renderServerDetailPage shows a rank badge when the server has a rankScore', () => {
+  const html = renderServerDetailPage({
+    server: makeServer({ rankScore: 87.5, rank: 12 }),
+    uptime: null,
+    history: [],
+  });
+  assert.match(html, /class="rank-badge"/);
+  assert.match(html, /#12/);
+  assert.match(html, /87\.5/);
+  assert.match(html, /href="\/rankings"/);
+});
+
+test('renderServerDetailPage omits the rank badge when the server has no score yet', () => {
+  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [] });
+  assert.doesNotMatch(html, /class="rank-badge"/);
+});
+
 test('renderServerDetailPage omits the embed section when no badgeUrl is given', () => {
   const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [] });
   assert.doesNotMatch(html, /Markdown:/);

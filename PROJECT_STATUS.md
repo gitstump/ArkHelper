@@ -1,10 +1,12 @@
 # ArkHelper — Project Status
 
-*Update this file whenever a phase completes or priorities shift. Any new agent session should read this first.*
+Last updated: 2026-08-15 — 457 tests passing — In flight: none
+
+*Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
 ## Success bar
 
-Full feature parity with arkstatus.com is the **neutral baseline**, not the goal — falling short is failure, matching it is neutral, exceeding it (without degrading anything) is success. Full parity checklist context lives in the original planning doc if you need the exhaustive arkstatus.com feature inventory; this file tracks what's actually built.
+Full public-feature parity with arkstatus.com is the neutral baseline — falling short is failure, matching is neutral. Success additionally means: parity with BattleMetrics' PUBLIC pages (server stats/graphs; their RCON/admin suite is explicitly OUT of scope), and parity with the ARK wiki's TOOLS (calculators, reference data, maps) built clean-room from game facts and original assets — the wiki's CC BY-NC-SA license means we never copy its text or images. Exceeding all of this without degrading anything is the actual goal.
 
 ## What's built and working (live-verified, not just tested)
 
@@ -12,9 +14,12 @@ Full feature parity with arkstatus.com is the **neutral baseline**, not the goal
 - **Accounts** (`accounts/`) — real Discord OAuth login, SQLite-backed accounts/sessions.
 - **Homepage** — login state, live roster stats.
 - **Server browser** (`/servers`) — search, filter (map/mode/password/player range), sort, pagination.
+- **Filter presets** — named snapshots of the current browser query string. Logged-out: up to 3 in an HttpOnly cookie (~2KB guard). Logged-in: up to 15 in SQLite, cookie presets migrate on login (name collisions skipped), shareable via public `/p/<token>` → `/servers?...` redirects.
 - **Server detail pages** (`/servers/:id`) — full facts, uptime %, history table, activity log (wipe/version changes), peak-time & downtime heatmaps (inline SVG), embeddable live-status badge (`/servers/:id/badge.svg`) with markdown/HTML snippets.
 - **Favorites** — add/remove per account, `/favorites` page. This is the actual point of having accounts at all — confirmed working end to end.
-- **Stats & leaderboards** (`/stats`) — network breakdowns (mode/map/platform/cluster), most-populated-servers leaderboard, uptime leaderboard, and a composite ranking algorithm (45% reliability/uptime + 35% activity/relative players + 20% connection stability/ping consistency).
+- **Stats & leaderboards** (`/stats`) — network breakdowns (mode/map/platform/cluster), most-populated-servers leaderboard, uptime leaderboard, and a preview of the composite ranking (see Rankings below).
+- **Rankings** (`/rankings`) — composite rank score 0–100 per official server, recomputed every discovery cycle (40% 7-day uptime + 25% ping quality + 25% mean population % + 10% history-age confidence). Surfaced as a Rank sort in the server browser, a rank badge on each detail page, and a top-100 leaderboard with score breakdowns. Pure scorer lives in `discovery/ranking.js`; scores are stamped onto the roster feed so accounts doesn't need a second query.
+- **Incident detection & status** (`/is-ark-down`, alias `/status`) — each discovery cycle classifies the official network as NORMAL / DEGRADED / OUTAGE / UPDATE_ROLLOUT from roster presence, 24h offline baseline, version-change coverage, and consecutive CDN fetch failures. Incidents persist in the history SQLite (hysteresis: 3 consecutive NORMAL cycles to close). The public page renders the latest stored snapshot (`Cache-Control: public, max-age=30`), not a per-request recompute.
 
 ## Explicitly paused (not forgotten, not blocking)
 
@@ -22,10 +27,8 @@ Full feature parity with arkstatus.com is the **neutral baseline**, not the goal
 
 ## Known real gaps vs. arkstatus.com (confirmed via a live re-scan, not guessed)
 
-- Rank/percentile display on individual detail pages (the discovery endpoint exists — `/rankings/:id` — just not wired into the UI yet)
+- Rank/percentile neighborhood on individual detail pages (the discovery endpoint exists — `/rankings/:id` — the detail page now shows a rank-score badge, but not the nearby-ranked-servers table)
 - Full leaderboard suite: per-map and per-region leaderboard variants (we have one global ranked list, not the "leaderboards for every map/region" pattern arkstatus uses)
-- Incident/status monitoring pages (`/status/`-style dashboard, `/is-ark-down/`-style explainer) — not started
-- Saved filter presets (local + account-tied) — filters are currently just live query strings, nothing persists
 - Compare tool (multi-select servers side by side)
 - Wider filter set in the browser UI: country/region (GeoLite2 is built but not configured — see below), ping range, min uptime %, cluster ID filter
 - News mirror, rates poller, mod-adoption aggregation, derived lists (Ready to Join / Available Now / Recently Wiped) — all confirmed to be data-engineering, not writing, when researched; still unbuilt

@@ -21,6 +21,16 @@
  */
 
 const { DatabaseSync } = require('node:sqlite');
+const { scoreServer, RANKING_WINDOW_DAYS } = require('./ranking.js');
+const {
+  THRESHOLDS,
+  advanceDetector,
+  computeOfflineStats,
+  verdictKeyForState,
+  round1,
+} = require('./incidents.js');
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS snapshot_runs (
@@ -49,6 +59,40 @@ CREATE TABLE IF NOT EXISTS change_log (
   new_value TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_change_log_server ON change_log(server_id, seen_at);
+
+CREATE TABLE IF NOT EXISTS incidents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  peak_offline_pct REAL,
+  servers_affected INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_incidents_started ON incidents(started_at DESC);
+
+CREATE TABLE IF NOT EXISTS incident_observations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  offline_pct REAL,
+  online_count INTEGER,
+  total_known INTEGER,
+  roster_fetch_failed INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_incident_obs_at ON incident_observations(observed_at);
+
+CREATE TABLE IF NOT EXISTS incident_detector_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  consecutive_fetch_failures INTEGER NOT NULL DEFAULT 0,
+  consecutive_normal_cycles INTEGER NOT NULL DEFAULT 0,
+  active_incident_id INTEGER,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS incident_status (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  payload TEXT NOT NULL,
+  computed_at TEXT NOT NULL
+);
 `;
 
 function openHistoryDb(dbPath) {
@@ -328,91 +372,140 @@ function computeTopUptimeServers(db, { sinceIso, limit = 20, minRuns = 5 } = {})
 }
 
 // ---------------------------------------------------------------------
-// Composite ranking algorithm.
+// Composite ranking.
 //
-// Modeled on the same three factors arkstatus.com documents using for
-// its own leaderboards (reliability, activity, connection stability),
-// weighted the same way (45/35/20) — but this is our own
-// implementation, not a copy of theirs; the exact normalization
-// approach below is a design choice, not a reverse-engineered formula.
-// Worth knowing that if you ever compare our ranks to arkstatus's
-// directly, they won't match exactly even for the same server.
+// Scoring itself is pure and lives in ranking.js. This gathers the
+// inputs from history (one bulk SQL pass — looping per-server would
+// be too slow at a few thousand tracked servers) and hands them to
+// scoreServer. Uptime is computed over runs since the server was
+// first seen in the window ("use what exists" when history is thin);
+// confidence, not a minRuns gate, is what stops a brand-new server
+// from outranking an established one on a single lucky snapshot.
 //
-//   Reliability (45%)  — uptime % in the window (same metric the
-//                         uptime leaderboard already uses)
-//   Activity (35%)     — average player count, normalized against the
-//                         highest average seen among eligible servers
-//                         in this same computation (so it's relative
-//                         to the current network, not an absolute
-//                         player-count threshold)
-//   Stability (20%)    — inverse of ping variance (std deviation),
-//                         normalized the same relative way. Servers
-//                         with fewer than 2 ping samples get a neutral
-//                         50 rather than being penalized for missing
-//                         data they haven't had time to accumulate.
-//
-// This runs as ONE bulk SQL pass across every eligible server rather
-// than looping per-server — with thousands of tracked servers, N
-// separate queries each would be far too slow.
+// pingByServerId, when provided, is the live roster ping (the
+// monitoring-path value). Without it we fall back to the average
+// ping stored on snapshots.
 // ---------------------------------------------------------------------
-function computeNetworkRanking(db, { sinceIso, minRuns = 5, limit } = {}) {
-  const totalRuns = sinceIso
-    ? db.prepare('SELECT COUNT(*) as c FROM snapshot_runs WHERE run_at >= ?').get(sinceIso).c
-    : db.prepare('SELECT COUNT(*) as c FROM snapshot_runs').get().c;
+function latestRunAt(db) {
+  const row = db.prepare('SELECT MAX(run_at) as t FROM snapshot_runs').get();
+  return row && row.t ? row.t : null;
+}
 
-  if (totalRuns === 0) return { totalRuns: 0, servers: [] };
+function countRunsOnOrAfter(runAts, firstSeen) {
+  let count = 0;
+  for (const t of runAts) {
+    if (t >= firstSeen) count += 1;
+  }
+  return count;
+}
 
-  const query = `
-    SELECT
-      server_id,
-      COUNT(*) as present_count,
-      AVG(players_now) as avg_players,
-      AVG(CASE WHEN ping IS NOT NULL THEN ping END) as avg_ping,
-      AVG(CASE WHEN ping IS NOT NULL THEN ping * ping END) as avg_ping_sq,
-      SUM(CASE WHEN ping IS NOT NULL THEN 1 ELSE 0 END) as ping_sample_count
-    FROM server_snapshots
-    ${sinceIso ? 'WHERE seen_at >= ?' : ''}
-    GROUP BY server_id
-    HAVING present_count >= ?
-  `;
-  const rows = sinceIso ? db.prepare(query).all(sinceIso, minRuns) : db.prepare(query).all(minRuns);
+function gatherRankingStats(db, { sinceIso, nowIso } = {}) {
+  const now = nowIso || latestRunAt(db);
+  if (!now) return { nowIso: null, sinceIso: sinceIso || null, runAts: [], byServerId: new Map(), totalRuns: 0 };
 
-  const withRaw = rows.map((r) => {
-    let stdDev = null;
-    if (r.ping_sample_count >= 2) {
-      const variance = Math.max(0, r.avg_ping_sq - r.avg_ping * r.avg_ping); // clamp tiny negative float error to 0
-      stdDev = Math.sqrt(variance);
-    }
-    return {
+  const windowStart = sinceIso || new Date(Date.parse(now) - RANKING_WINDOW_DAYS * DAY_MS).toISOString();
+  const runAts = db
+    .prepare('SELECT run_at FROM snapshot_runs WHERE run_at >= ? ORDER BY run_at ASC')
+    .all(windowStart)
+    .map((r) => r.run_at);
+
+  if (runAts.length === 0) {
+    return { nowIso: now, sinceIso: windowStart, runAts, byServerId: new Map(), totalRuns: 0 };
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT
+         server_id,
+         COUNT(*) as present_count,
+         MIN(seen_at) as first_seen,
+         AVG(CASE WHEN max_players > 0 THEN CAST(players_now AS REAL) / max_players END) as avg_pop_ratio,
+         AVG(CASE WHEN ping IS NOT NULL THEN ping END) as avg_ping
+       FROM server_snapshots
+       WHERE seen_at >= ?
+       GROUP BY server_id`
+    )
+    .all(windowStart);
+
+  const byServerId = new Map();
+  for (const r of rows) {
+    const firstSeen = r.first_seen;
+    const runsSinceFirst = Math.max(1, countRunsOnOrAfter(runAts, firstSeen));
+    byServerId.set(r.server_id, {
       serverId: r.server_id,
       presentCount: r.present_count,
-      reliabilityScore: (r.present_count / totalRuns) * 100,
-      avgPlayers: r.avg_players ?? 0,
-      pingStdDev: stdDev,
-    };
-  });
+      uptimePercent: (r.present_count / runsSinceFirst) * 100,
+      avgPopulationPercent: (r.avg_pop_ratio ?? 0) * 100,
+      avgPing: r.avg_ping,
+      historyAgeDays: Math.max(0, (Date.parse(now) - Date.parse(firstSeen)) / DAY_MS),
+    });
+  }
 
-  const maxAvgPlayers = Math.max(0, ...withRaw.map((r) => r.avgPlayers));
-  const maxPingStdDev = Math.max(0, ...withRaw.filter((r) => r.pingStdDev !== null).map((r) => r.pingStdDev));
+  return { nowIso: now, sinceIso: windowStart, runAts, byServerId, totalRuns: runAts.length };
+}
 
-  const scored = withRaw.map((r) => {
-    const activityScore = maxAvgPlayers > 0 ? (r.avgPlayers / maxAvgPlayers) * 100 : 0;
-    const stabilityScore = r.pingStdDev === null ? 50 : maxPingStdDev > 0 ? 100 - (r.pingStdDev / maxPingStdDev) * 100 : 100;
-    const compositeScore = r.reliabilityScore * 0.45 + activityScore * 0.35 + stabilityScore * 0.2;
-    return {
-      serverId: r.serverId,
-      reliabilityScore: Math.round(r.reliabilityScore * 10) / 10,
-      activityScore: Math.round(activityScore * 10) / 10,
-      stabilityScore: Math.round(stabilityScore * 10) / 10,
-      compositeScore: Math.round(compositeScore * 10) / 10,
-    };
-  });
+function computeNetworkRanking(db, { sinceIso, nowIso, minRuns = 0, limit, pingByServerId } = {}) {
+  const gathered = gatherRankingStats(db, { sinceIso, nowIso });
+  if (gathered.totalRuns === 0) return { totalRuns: 0, eligibleServerCount: 0, servers: [] };
 
-  scored.sort((a, b) => b.compositeScore - a.compositeScore);
+  const scored = [];
+  for (const stats of gathered.byServerId.values()) {
+    if (stats.presentCount < minRuns) continue;
+    const pingMs = pingByServerId && pingByServerId.has(stats.serverId) ? pingByServerId.get(stats.serverId) : stats.avgPing;
+    const result = scoreServer({
+      uptimePercent: stats.uptimePercent,
+      pingMs,
+      avgPopulationPercent: stats.avgPopulationPercent,
+      historyAgeDays: stats.historyAgeDays,
+    });
+    scored.push({
+      serverId: stats.serverId,
+      rankScore: result.rankScore,
+      components: result.components,
+    });
+  }
+
+  scored.sort((a, b) => b.rankScore - a.rankScore || String(a.serverId).localeCompare(String(b.serverId)));
   const limited = typeof limit === 'number' ? scored.slice(0, limit) : scored;
   const ranked = limited.map((s, i) => ({ ...s, rank: i + 1 }));
 
-  return { totalRuns, eligibleServerCount: scored.length, servers: ranked };
+  return { totalRuns: gathered.totalRuns, eligibleServerCount: scored.length, servers: ranked };
+}
+
+// Stamps rankScore / rank / rankComponents onto the live roster
+// servers (mutates in place, same pattern as country enrichment) so
+// the accounts service can sort and render ranks from /roster without
+// a second query. Ordinal `rank` is among the current roster, not
+// among historical servers that have since dropped off.
+function applyRankingToServers(servers, db, { sinceIso, nowIso } = {}) {
+  const pingByServerId = new Map();
+  for (const s of servers) {
+    if (s && s.id) pingByServerId.set(s.id, s.wildcardReportedPing);
+  }
+
+  const ranking = computeNetworkRanking(db, { sinceIso, nowIso, pingByServerId });
+  const byId = new Map(ranking.servers.map((r) => [r.serverId, r]));
+
+  const withScores = [];
+  for (const s of servers) {
+    const r = s && s.id ? byId.get(s.id) : null;
+    if (r) {
+      withScores.push({ server: s, rankScore: r.rankScore, components: r.components });
+    } else if (s) {
+      s.rankScore = null;
+      s.rank = null;
+      s.rankComponents = null;
+    }
+  }
+
+  withScores.sort((a, b) => b.rankScore - a.rankScore || String(a.server.id).localeCompare(String(b.server.id)));
+  withScores.forEach((entry, i) => {
+    entry.server.rankScore = entry.rankScore;
+    entry.server.rank = i + 1;
+    entry.server.rankComponents = entry.components;
+  });
+
+  return ranking;
 }
 
 // Finds one server's rank plus its neighbors in the full ranking —
@@ -432,6 +525,181 @@ function getRankNeighborhood(rankedServers, serverId, { radius = 5 } = {}) {
   };
 }
 
+// ---------------------------------------------------------------------
+// Incident detection (runs after a snapshot is recorded, or on a
+// failed roster fetch). The public status page reads the stored
+// snapshot — it never recomputes these numbers per request.
+// ---------------------------------------------------------------------
+function isoMinus(nowIso, ms) {
+  return new Date(Date.parse(nowIso) - ms).toISOString();
+}
+
+function listKnownServerIds(db, sinceIso) {
+  return db.prepare('SELECT DISTINCT server_id FROM server_snapshots WHERE seen_at >= ?').all(sinceIso).map((r) => r.server_id);
+}
+
+function getBaselineOfflinePct(db, { sinceIso, beforeIso }) {
+  const row = db
+    .prepare(
+      `SELECT AVG(offline_pct) as avg_pct FROM incident_observations
+       WHERE observed_at >= ? AND observed_at < ? AND roster_fetch_failed = 0 AND offline_pct IS NOT NULL`
+    )
+    .get(sinceIso, beforeIso);
+  return row && typeof row.avg_pct === 'number' && Number.isFinite(row.avg_pct) ? row.avg_pct : 0;
+}
+
+function getVersionRolloutPct(db, { sinceIso, totalKnown }) {
+  if (!totalKnown) return 0;
+  const row = db.prepare("SELECT COUNT(DISTINCT server_id) as c FROM change_log WHERE change_type = 'version' AND seen_at >= ?").get(sinceIso);
+  return (((row && row.c) || 0) / totalKnown) * 100;
+}
+
+function ensureDetectorState(db, nowIso) {
+  db.prepare(
+    `INSERT OR IGNORE INTO incident_detector_state (id, consecutive_fetch_failures, consecutive_normal_cycles, active_incident_id, updated_at)
+     VALUES (1, 0, 0, NULL, ?)`
+  ).run(nowIso);
+  return db.prepare('SELECT * FROM incident_detector_state WHERE id = 1').get();
+}
+
+function getActiveIncident(db) {
+  return rowToIncident(db.prepare('SELECT * FROM incidents WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1').get());
+}
+
+function listIncidents(db, { limit = 20 } = {}) {
+  return db
+    .prepare('SELECT * FROM incidents ORDER BY started_at DESC, id DESC LIMIT ?')
+    .all(limit)
+    .map(rowToIncident);
+}
+
+function rowToIncident(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: row.type,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    peakOfflinePct: row.peak_offline_pct,
+    serversAffected: row.servers_affected,
+  };
+}
+
+function durationMs(startedAt, endedAt) {
+  const start = Date.parse(startedAt);
+  const end = Date.parse(endedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  return end - start;
+}
+
+function getIncidentStatus(db) {
+  const row = db.prepare('SELECT payload FROM incident_status WHERE id = 1').get();
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload);
+  } catch {
+    return null;
+  }
+}
+
+function recordIncidentCycle(db, { rosterFetchFailed = false, presentServerIds = [], now = () => new Date().toISOString() } = {}) {
+  const nowIso = now();
+  const detector = ensureDetectorState(db, nowIso);
+  const active = detector.active_incident_id
+    ? rowToIncident(db.prepare('SELECT * FROM incidents WHERE id = ?').get(detector.active_incident_id))
+    : getActiveIncident(db);
+
+  let offlinePct = null;
+  let onlineCount = null;
+  let totalKnown = 0;
+  let serversAffected = 0;
+  let versionRolloutPct = 0;
+
+  if (!rosterFetchFailed) {
+    const knownIds = listKnownServerIds(db, isoMinus(nowIso, THRESHOLDS.KNOWN_SERVERS_LOOKBACK_MS));
+    const stats = computeOfflineStats(knownIds, presentServerIds);
+    offlinePct = stats.offlinePct;
+    onlineCount = stats.onlineCount;
+    totalKnown = stats.totalKnown;
+    serversAffected = stats.serversAffected;
+    versionRolloutPct = getVersionRolloutPct(db, {
+      sinceIso: isoMinus(nowIso, THRESHOLDS.VERSION_ROLLOUT_WINDOW_MS),
+      totalKnown: totalKnown || presentServerIds.length,
+    });
+  }
+
+  const baselinePct = round1(getBaselineOfflinePct(db, { sinceIso: isoMinus(nowIso, THRESHOLDS.BASELINE_WINDOW_MS), beforeIso: nowIso })) || 0;
+
+  db.prepare(
+    'INSERT INTO incident_observations (observed_at, offline_pct, online_count, total_known, roster_fetch_failed) VALUES (?, ?, ?, ?, ?)'
+  ).run(nowIso, offlinePct, onlineCount, totalKnown || null, rosterFetchFailed ? 1 : 0);
+
+  const next = advanceDetector({
+    consecutiveFetchFailures: detector.consecutive_fetch_failures,
+    consecutiveNormalCycles: detector.consecutive_normal_cycles,
+    activeIncident: active,
+    rosterFetchFailed,
+    offlinePct,
+    baselinePct,
+    versionRolloutPct: round1(versionRolloutPct) || 0,
+    serversAffected,
+  });
+
+  let activeIncidentId = detector.active_incident_id || (active && active.id) || null;
+
+  if (next.closeIncident && activeIncidentId) {
+    db.prepare('UPDATE incidents SET ended_at = ? WHERE id = ? AND ended_at IS NULL').run(nowIso, activeIncidentId);
+    activeIncidentId = null;
+  } else if (next.openNew && next.incident) {
+    const result = db
+      .prepare('INSERT INTO incidents (type, started_at, ended_at, peak_offline_pct, servers_affected) VALUES (?, ?, NULL, ?, ?)')
+      .run(next.incident.type, nowIso, next.incident.peakOfflinePct, next.incident.serversAffected);
+    activeIncidentId = Number(result.lastInsertRowid);
+  } else if (next.incident && activeIncidentId) {
+    db.prepare('UPDATE incidents SET type = ?, peak_offline_pct = ?, servers_affected = ? WHERE id = ? AND ended_at IS NULL').run(
+      next.incident.type,
+      next.incident.peakOfflinePct,
+      next.incident.serversAffected,
+      activeIncidentId
+    );
+  }
+
+  db.prepare(
+    `UPDATE incident_detector_state
+     SET consecutive_fetch_failures = ?, consecutive_normal_cycles = ?, active_incident_id = ?, updated_at = ?
+     WHERE id = 1`
+  ).run(next.consecutiveFetchFailures, next.consecutiveNormalCycles, activeIncidentId, nowIso);
+
+  const storedActive = activeIncidentId ? rowToIncident(db.prepare('SELECT * FROM incidents WHERE id = ?').get(activeIncidentId)) : null;
+  const incidents = listIncidents(db, { limit: 20 }).map((inc) => ({
+    ...inc,
+    durationMs: durationMs(inc.startedAt, inc.endedAt || nowIso),
+  }));
+
+  const payload = {
+    state: next.displayedState,
+    verdictKey: verdictKeyForState(next.displayedState, rosterFetchFailed),
+    offlinePct,
+    baselinePct,
+    onlineCount,
+    totalKnown,
+    serversAffected,
+    versionRolloutPct: round1(versionRolloutPct) || 0,
+    rosterFetchFailed: Boolean(rosterFetchFailed),
+    consecutiveFetchFailures: next.consecutiveFetchFailures,
+    computedAt: nowIso,
+    activeIncident: storedActive,
+    incidents,
+  };
+
+  db.prepare(
+    `INSERT INTO incident_status (id, payload, computed_at) VALUES (1, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, computed_at = excluded.computed_at`
+  ).run(JSON.stringify(payload), nowIso);
+
+  return payload;
+}
+
 module.exports = {
   openHistoryDb,
   recordSnapshotRun,
@@ -444,6 +712,11 @@ module.exports = {
   computeDowntimePatterns,
   computeTopUptimeServers,
   computeNetworkRanking,
+  applyRankingToServers,
   getRankNeighborhood,
   pruneOldSnapshots,
+  recordIncidentCycle,
+  getIncidentStatus,
+  getActiveIncident,
+  listIncidents,
 };

@@ -18,9 +18,10 @@
  */
 
 const { escapeHtml } = require('./home_page.js');
+const { hasActiveFilters, messageForPresetError, serversLocation } = require('./presets.js');
 
 const PAGE_SIZE = 25;
-const SORT_KEYS = { name: 'name', players: 'playersNow', day: 'day', map: 'map' };
+const SORT_KEYS = { name: 'name', players: 'playersNow', day: 'day', map: 'map', rank: 'rankScore' };
 
 // ---------------------------------------------------------------------
 // Filtering
@@ -111,6 +112,14 @@ const STYLE = `<style>
   button { background:#2a2620; color:#e8e6e3; border:1px solid #443f36; padding: 0.4rem 1rem; border-radius: 4px; cursor:pointer; }
   .counters { color: #b8b3a8; }
   .pagination { display:flex; gap:1rem; align-items:center; margin-top:1rem; color:#b8b3a8; }
+  .presets { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-top:1rem; }
+  .preset { display:flex; align-items:center; gap:0.35rem; background:#1c1a16; border:1px solid #443f36; border-radius:4px; padding:0.2rem 0.45rem; }
+  .preset form { display:inline; margin:0; }
+  .preset button { padding:0.1rem 0.4rem; font-size:0.8rem; }
+  .share-link { color:#b8b3a8; font-size:0.8rem; width:16rem; background:#141210; color:#e8e6e3; border:1px solid #443f36; padding:0.15rem 0.3rem; border-radius:4px; }
+  .save-preset { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-top:0.5rem; }
+  .save-preset input[type="text"] { background:#1c1a16; color:#e8e6e3; border:1px solid #443f36; padding:0.4rem; border-radius:4px; }
+  .preset-error { color:#f2b544; margin:0.5rem 0 0; }
 </style>`;
 
 function sortLink({ currentSort, currentDir, key, label, filters }) {
@@ -121,8 +130,10 @@ function sortLink({ currentSort, currentDir, key, label, filters }) {
 }
 
 function renderServerRow(s) {
+  const rankDisplay = typeof s.rankScore === 'number' ? String(s.rankScore) : '\u2014';
   return `<tr>
       <td><a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a></td>
+      <td>${escapeHtml(rankDisplay)}</td>
       <td>${escapeHtml(s.map || '')}</td>
       <td>${s.gameMode === 'pve' ? 'PvE' : s.gameMode === 'pvp' ? 'PvP' : '\u2014'}</td>
       <td>${escapeHtml(String(s.playersNow ?? '\u2014'))}/${escapeHtml(String(s.maxPlayers ?? '\u2014'))}</td>
@@ -132,8 +143,47 @@ function renderServerRow(s) {
     </tr>`;
 }
 
-function renderBrowserPage({ page, filters, sort, dir, counters, mapOptions, rosterAvailable }) {
+function renderPresetBar({ presets = [], loggedIn = false, shareOrigin = '', currentQuery = '' }) {
+  if (!presets.length) return '';
+  const items = presets
+    .map((p) => {
+      const href = serversLocation(p.query || p.queryString || '');
+      const deleteField = loggedIn && p.id != null
+        ? `<input type="hidden" name="id" value="${escapeHtml(String(p.id))}">`
+        : `<input type="hidden" name="name" value="${escapeHtml(p.name || '')}">`;
+      const share = loggedIn && p.shareToken
+        ? `<input class="share-link" type="text" readonly value="${escapeHtml(`${shareOrigin}/p/${p.shareToken}`)}" aria-label="Copy share link">`
+        : '';
+      return `<span class="preset">
+        <a href="${escapeHtml(href)}">${escapeHtml(p.name || '')}</a>
+        ${share}
+        <form method="POST" action="/presets/delete">
+          ${deleteField}
+          <input type="hidden" name="returnQuery" value="${escapeHtml(currentQuery)}">
+          <button type="submit" aria-label="Delete preset">\u00d7</button>
+        </form>
+      </span>`;
+    })
+    .join('');
+  return `<div class="presets">${items}</div>`;
+}
+
+function renderSavePresetForm(currentQuery) {
+  if (!hasActiveFilters(currentQuery)) return '';
+  return `<form method="POST" action="/presets" class="save-preset">
+    <input type="hidden" name="query" value="${escapeHtml(currentQuery)}">
+    <input type="text" name="name" maxlength="40" placeholder="Preset name" required>
+    <button type="submit">Save as preset</button>
+  </form>`;
+}
+
+function renderBrowserPage({ page, filters, sort, dir, counters, mapOptions, rosterAvailable, presets, loggedIn, shareOrigin, currentQuery, presetError }) {
   const f = filters || {};
+  const query = currentQuery || '';
+  const errorText = messageForPresetError(presetError);
+  const errorBar = errorText ? `<p class="preset-error">${escapeHtml(errorText)}</p>` : '';
+  const presetBar = renderPresetBar({ presets, loggedIn, shareOrigin, currentQuery: query });
+  const saveForm = renderSavePresetForm(query);
 
   const countersBar = rosterAvailable
     ? `<p class="counters">${escapeHtml(String(counters.totalOfficial))} official servers &middot; ` +
@@ -176,6 +226,7 @@ function renderBrowserPage({ page, filters, sort, dir, counters, mapOptions, ros
     ? `<table>
       <thead><tr>
         <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'name', label: 'Name', filters: f })}</th>
+        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'rank', label: 'Rank', filters: f })}</th>
         <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'map', label: 'Map', filters: f })}</th>
         <th>Mode</th>
         <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'players', label: 'Players', filters: f })}</th>
@@ -206,6 +257,9 @@ ${STYLE}
 <body>
   <h1><a href="/">ArkHelper</a> &rsaquo; Servers</h1>
   ${countersBar}
+  ${presetBar}
+  ${errorBar}
+  ${saveForm}
   ${filterForm}
   ${resultsTable}
   ${pagination}
@@ -221,6 +275,8 @@ module.exports = {
   computeLiveCounters,
   getDistinctMaps,
   renderBrowserPage,
+  renderPresetBar,
+  renderSavePresetForm,
   renderServerRow,
   STYLE,
 };

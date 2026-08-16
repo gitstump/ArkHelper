@@ -50,7 +50,7 @@ function renderHomepage({ account, rosterMeta }) {
 </head>
 <body>
   <h1>ArkHelper</h1>
-  <p><a href="/servers">Browse servers &rsaquo;</a> &middot; <a href="/stats">Stats &amp; leaderboards &rsaquo;</a> &middot; <a href="/favorites">My favorites &rsaquo;</a></p>
+  <p><a href="/servers">Browse servers &rsaquo;</a> &middot; <a href="/is-ark-down">Is ARK down? &rsaquo;</a> &middot; <a href="/rankings">Rankings &rsaquo;</a> &middot; <a href="/stats">Stats &amp; leaderboards &rsaquo;</a> &middot; <a href="/favorites">My favorites &rsaquo;</a></p>
   ${authSection}
   ${statsSection}
 </body>

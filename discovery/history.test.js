@@ -14,8 +14,13 @@ const {
   computeDowntimePatterns,
   computeTopUptimeServers,
   computeNetworkRanking,
+  applyRankingToServers,
   getRankNeighborhood,
   pruneOldSnapshots,
+  recordIncidentCycle,
+  getIncidentStatus,
+  getActiveIncident,
+  listIncidents,
 } = require('./history.js');
 
 function freshDb() {
@@ -413,7 +418,7 @@ test('computeNetworkRanking returns an empty result (not a crash) with no runs y
   assert.deepEqual(result.servers, []);
 });
 
-test('computeNetworkRanking excludes servers below minRuns', () => {
+test('computeNetworkRanking excludes servers below minRuns when asked', () => {
   const db = freshDb();
   recordSnapshotRun(db, [serverWithStats('a'), serverWithStats('b')], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [serverWithStats('a')], { now: () => '2026-08-15T01:00:00.000Z' }); // "b" only appeared once
@@ -422,14 +427,21 @@ test('computeNetworkRanking excludes servers below minRuns', () => {
   assert.deepEqual(result.servers.map((s) => s.serverId), ['a']);
 });
 
-test('computeNetworkRanking gives a perfectly reliable, most-populated, most-stable server the highest composite score', () => {
+test('computeNetworkRanking ranks every server by default (confidence, not minRuns, handles thin history)', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [serverWithStats('a'), serverWithStats('b')], { now: () => '2026-08-15T00:00:00.000Z' });
+  const result = computeNetworkRanking(db);
+  assert.equal(result.eligibleServerCount, 2);
+});
+
+test('computeNetworkRanking gives a perfectly reliable, full, low-ping, established server the highest score', () => {
   const db = freshDb();
   for (let i = 0; i < 5; i += 1) {
     recordSnapshotRun(
       db,
       [
-        serverWithStats('best', { playersNow: 70, wildcardReportedPing: 50 }), // present every run, full pop, rock-steady ping
-        serverWithStats('worst', { playersNow: 1, wildcardReportedPing: 300 }),
+        serverWithStats('best', { playersNow: 70, wildcardReportedPing: 50 }),
+        serverWithStats('worst', { playersNow: 1, wildcardReportedPing: 400 }),
       ],
       { now: () => `2026-08-15T0${i}:00:00.000Z` }
     );
@@ -437,10 +449,15 @@ test('computeNetworkRanking gives a perfectly reliable, most-populated, most-sta
   const result = computeNetworkRanking(db, { minRuns: 1 });
   assert.equal(result.servers[0].serverId, 'best');
   assert.equal(result.servers[0].rank, 1);
-  assert.ok(result.servers[0].compositeScore > result.servers[1].compositeScore);
+  assert.ok(result.servers[0].rankScore > result.servers[1].rankScore);
+  assert.ok('components' in result.servers[0]);
+  assert.ok('reliability' in result.servers[0].components);
+  assert.ok('connection' in result.servers[0].components);
+  assert.ok('activity' in result.servers[0].components);
+  assert.ok('confidence' in result.servers[0].components);
 });
 
-test('computeNetworkRanking reliabilityScore matches presentCount/totalRuns', () => {
+test('computeNetworkRanking reliability uses presence since first seen, not the whole window', () => {
   const db = freshDb();
   recordSnapshotRun(db, [serverWithStats('a')], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [], { now: () => '2026-08-15T01:00:00.000Z' }); // "a" absent
@@ -448,10 +465,11 @@ test('computeNetworkRanking reliabilityScore matches presentCount/totalRuns', ()
 
   const result = computeNetworkRanking(db, { minRuns: 1 });
   const a = result.servers.find((s) => s.serverId === 'a');
-  assert.equal(a.reliabilityScore, Math.round((2 / 3) * 1000) / 10);
+  // 2 of 3 runs since first seen → 66.7% uptime → 26.7 of 40 reliability points
+  assert.equal(a.components.reliability, 26.7);
 });
 
-test('computeNetworkRanking activityScore is relative to the most populated eligible server (100 for the max, 0 for empty)', () => {
+test('computeNetworkRanking activity is mean population % (players/max), not relative to the busiest server', () => {
   const db = freshDb();
   recordSnapshotRun(db, [serverWithStats('full', { playersNow: 70 }), serverWithStats('empty', { playersNow: 0 })], {
     now: () => '2026-08-15T00:00:00.000Z',
@@ -459,28 +477,65 @@ test('computeNetworkRanking activityScore is relative to the most populated elig
   const result = computeNetworkRanking(db, { minRuns: 1 });
   const full = result.servers.find((s) => s.serverId === 'full');
   const empty = result.servers.find((s) => s.serverId === 'empty');
-  assert.equal(full.activityScore, 100);
-  assert.equal(empty.activityScore, 0);
+  assert.equal(full.components.activity, 25); // 100% full → full 25 points
+  assert.equal(empty.components.activity, 0);
 });
 
-test('computeNetworkRanking stabilityScore gives a neutral 50 to servers with fewer than 2 ping samples', () => {
+test('computeNetworkRanking connection is 0 when ping is missing', () => {
   const db = freshDb();
-  recordSnapshotRun(db, [serverWithStats('a', { wildcardReportedPing: 100 })], { now: () => '2026-08-15T00:00:00.000Z' }); // only 1 ping sample ever
+  recordSnapshotRun(db, [serverWithStats('a', { wildcardReportedPing: null })], { now: () => '2026-08-15T00:00:00.000Z' });
   const result = computeNetworkRanking(db, { minRuns: 1 });
-  assert.equal(result.servers[0].stabilityScore, 50);
+  assert.equal(result.servers[0].components.connection, 0);
 });
 
-test('computeNetworkRanking gives a perfectly consistent server a stabilityScore of 100', () => {
+test('computeNetworkRanking connection uses the ping tier (low ping beats high ping)', () => {
   const db = freshDb();
-  // "steady" always pings exactly 100 (zero variance); "jittery" swings wildly
-  recordSnapshotRun(db, [serverWithStats('steady', { wildcardReportedPing: 100 }), serverWithStats('jittery', { wildcardReportedPing: 50 })], { now: () => '2026-08-15T00:00:00.000Z' });
-  recordSnapshotRun(db, [serverWithStats('steady', { wildcardReportedPing: 100 }), serverWithStats('jittery', { wildcardReportedPing: 400 })], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(
+    db,
+    [serverWithStats('fast', { wildcardReportedPing: 40 }), serverWithStats('slow', { wildcardReportedPing: 400 })],
+    { now: () => '2026-08-15T00:00:00.000Z' }
+  );
+  const result = computeNetworkRanking(db, { minRuns: 1 });
+  const fast = result.servers.find((s) => s.serverId === 'fast');
+  const slow = result.servers.find((s) => s.serverId === 'slow');
+  assert.equal(fast.components.connection, 25);
+  assert.equal(slow.components.connection, 2.5);
+});
 
+test('computeNetworkRanking prefers live roster ping over the history average when pingByServerId is passed', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [serverWithStats('a', { wildcardReportedPing: 400 })], { now: () => '2026-08-15T00:00:00.000Z' });
+  const fromHistory = computeNetworkRanking(db, { minRuns: 1 });
+  const fromLive = computeNetworkRanking(db, { minRuns: 1, pingByServerId: new Map([['a', 40]]) });
+  assert.equal(fromHistory.servers[0].components.connection, 2.5);
+  assert.equal(fromLive.servers[0].components.connection, 25);
+});
+
+test('computeNetworkRanking a brand-new server gets 0 confidence', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [serverWithStats('new')], { now: () => '2026-08-15T00:00:00.000Z' });
+  const result = computeNetworkRanking(db, { minRuns: 1 });
+  assert.equal(result.servers[0].components.confidence, 0);
+});
+
+test('computeNetworkRanking a steadily half-full server beats one that spiked once (mean, not peak)', () => {
+  const db = freshDb();
+  const hours = ['00', '01', '02', '03', '04', '05', '06'];
+  for (let i = 0; i < hours.length; i += 1) {
+    recordSnapshotRun(
+      db,
+      [
+        { id: 'steady', playersNow: 35, maxPlayers: 70, wildcardReportedPing: 40 },
+        { id: 'spike', playersNow: i === 0 ? 70 : 0, maxPlayers: 70, wildcardReportedPing: 40 },
+      ],
+      { now: () => `2026-08-15T${hours[i]}:00:00.000Z` }
+    );
+  }
   const result = computeNetworkRanking(db, { minRuns: 1 });
   const steady = result.servers.find((s) => s.serverId === 'steady');
-  const jittery = result.servers.find((s) => s.serverId === 'jittery');
-  assert.equal(steady.stabilityScore, 100);
-  assert.ok(steady.stabilityScore > jittery.stabilityScore);
+  const spike = result.servers.find((s) => s.serverId === 'spike');
+  assert.ok(steady.components.activity > spike.components.activity);
+  assert.ok(steady.rankScore > spike.rankScore);
 });
 
 test('computeNetworkRanking respects the limit while still reporting eligibleServerCount for the full set', () => {
@@ -504,15 +559,31 @@ test('computeNetworkRanking respects a sinceIso window', () => {
   const db = freshDb();
   recordSnapshotRun(db, [serverWithStats('a')], { now: () => '2026-01-01T00:00:00.000Z' });
   recordSnapshotRun(db, [serverWithStats('b')], { now: () => '2026-08-15T00:00:00.000Z' });
-  const result = computeNetworkRanking(db, { minRuns: 1, sinceIso: '2026-06-01T00:00:00.000Z' });
+  const result = computeNetworkRanking(db, { minRuns: 1, sinceIso: '2026-06-01T00:00:00.000Z', nowIso: '2026-08-15T00:00:00.000Z' });
   assert.deepEqual(result.servers.map((s) => s.serverId), ['b']);
+});
+
+test('applyRankingToServers stamps rankScore, rank, and components onto roster servers', () => {
+  const db = freshDb();
+  const roster = [
+    serverWithStats('a', { playersNow: 70, wildcardReportedPing: 40 }),
+    serverWithStats('b', { playersNow: 0, wildcardReportedPing: 400 }),
+  ];
+  recordSnapshotRun(db, roster, { now: () => '2026-08-15T00:00:00.000Z' });
+  applyRankingToServers(roster, db);
+  assert.equal(typeof roster[0].rankScore, 'number');
+  assert.equal(typeof roster[0].rank, 'number');
+  assert.ok(roster[0].rankComponents);
+  assert.equal(roster[0].rank, 1); // full + fast ping beats empty + slow
+  assert.equal(roster[1].rank, 2);
+  assert.ok(roster[0].rankScore > roster[1].rankScore);
 });
 
 // ---------------------------------------------------------------------
 // getRankNeighborhood
 // ---------------------------------------------------------------------
 function fakeRanking(count) {
-  return Array.from({ length: count }, (_, i) => ({ serverId: `s${i + 1}`, rank: i + 1, compositeScore: count - i }));
+  return Array.from({ length: count }, (_, i) => ({ serverId: `s${i + 1}`, rank: i + 1, rankScore: count - i }));
 }
 
 test('getRankNeighborhood returns null for a server not present in the ranking', () => {
@@ -545,4 +616,101 @@ test('getRankNeighborhood gives rank 1 a percentile near 100 and the last rank a
   const bottom = getRankNeighborhood(ranking, 's100');
   assert.ok(top.percentile > bottom.percentile);
   assert.ok(top.percentile > 95);
+});
+
+// ---------------------------------------------------------------------
+// Incident recording
+// ---------------------------------------------------------------------
+test('recordIncidentCycle opens an OUTAGE and sets ended_at only after 3 NORMAL cycles', () => {
+  const db = freshDb();
+  const t0 = '2026-08-15T00:00:00.000Z';
+  const t1 = '2026-08-15T01:00:00.000Z';
+  const later = (h) => `2026-08-15T0${h}:00:00.000Z`;
+
+  recordSnapshotRun(db, servers(['a', 'b', 'c', 'd']), { now: () => t0 });
+  const first = recordIncidentCycle(db, { presentServerIds: ['a', 'b', 'c', 'd'], now: () => t0 });
+  assert.equal(first.state, 'NORMAL');
+  assert.equal(first.offlinePct, 0);
+  assert.equal(getActiveIncident(db), null);
+
+  recordSnapshotRun(db, servers(['a', 'b', 'c']), { now: () => t1 });
+  const outage = recordIncidentCycle(db, { presentServerIds: ['a', 'b', 'c'], now: () => t1 });
+  assert.equal(outage.state, 'OUTAGE');
+  assert.equal(outage.offlinePct, 25);
+  const open = getActiveIncident(db);
+  assert.ok(open);
+  assert.equal(open.type, 'OUTAGE');
+  assert.equal(open.endedAt, null);
+  assert.equal(open.startedAt, t1);
+  assert.equal(open.peakOfflinePct, 25);
+
+  // Two recovered cycles are not enough to close.
+  for (const h of [2, 3]) {
+    recordSnapshotRun(db, servers(['a', 'b', 'c', 'd']), { now: () => later(h) });
+    recordIncidentCycle(db, { presentServerIds: ['a', 'b', 'c', 'd'], now: () => later(h) });
+    assert.equal(getActiveIncident(db).endedAt, null);
+    assert.equal(getIncidentStatus(db).state, 'OUTAGE'); // hysteresis holds the headline
+  }
+
+  recordSnapshotRun(db, servers(['a', 'b', 'c', 'd']), { now: () => later(4) });
+  const closed = recordIncidentCycle(db, { presentServerIds: ['a', 'b', 'c', 'd'], now: () => later(4) });
+  assert.equal(closed.state, 'NORMAL');
+  assert.equal(getActiveIncident(db), null);
+  const listed = listIncidents(db);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].endedAt, later(4));
+  assert.equal(listed[0].startedAt, t1);
+});
+
+test('recordIncidentCycle consecutive fetch-failure counting resets on success', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, servers(['a', 'b']), { now: () => '2026-08-15T00:00:00.000Z' });
+  recordIncidentCycle(db, { presentServerIds: ['a', 'b'], now: () => '2026-08-15T00:00:00.000Z' });
+
+  const fail1 = recordIncidentCycle(db, { rosterFetchFailed: true, now: () => '2026-08-15T01:00:00.000Z' });
+  assert.equal(fail1.consecutiveFetchFailures, 1);
+  assert.equal(fail1.state, 'UNREACHABLE');
+  assert.equal(getActiveIncident(db), null);
+
+  const fail2 = recordIncidentCycle(db, { rosterFetchFailed: true, now: () => '2026-08-15T02:00:00.000Z' });
+  assert.equal(fail2.consecutiveFetchFailures, 2);
+  assert.equal(fail2.state, 'OUTAGE');
+  assert.ok(getActiveIncident(db));
+
+  const ok = recordIncidentCycle(db, { presentServerIds: ['a', 'b'], rosterFetchFailed: false, now: () => '2026-08-15T03:00:00.000Z' });
+  assert.equal(ok.consecutiveFetchFailures, 0);
+  assert.equal(ok.rosterFetchFailed, false);
+});
+
+test('recordIncidentCycle UPDATE_ROLLOUT uses existing version-change rows', () => {
+  const db = freshDb();
+  const ids = ['a', 'b', 'c', 'd', 'e'];
+  recordSnapshotRun(
+    db,
+    ids.map((id) => ({ id, day: 5, version: '1.0' })),
+    { now: () => '2026-08-15T00:00:00.000Z' }
+  );
+  recordIncidentCycle(db, { presentServerIds: ids, now: () => '2026-08-15T00:00:00.000Z' });
+
+  // One server changing version is 20% of 5.
+  recordSnapshotRun(
+    db,
+    ids.map((id) => ({ id, day: 6, version: id === 'a' ? '2.0' : '1.0' })),
+    { now: () => '2026-08-15T01:00:00.000Z' }
+  );
+  const status = recordIncidentCycle(db, { presentServerIds: ids, now: () => '2026-08-15T01:00:00.000Z' });
+  assert.equal(status.state, 'UPDATE_ROLLOUT');
+  assert.equal(status.versionRolloutPct, 20);
+});
+
+test('getIncidentStatus returns the latest stored snapshot, not a live recompute', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, servers(['a']), { now: () => '2026-08-15T00:00:00.000Z' });
+  recordIncidentCycle(db, { presentServerIds: ['a'], now: () => '2026-08-15T00:00:00.000Z' });
+  const stored = getIncidentStatus(db);
+  assert.equal(stored.state, 'NORMAL');
+  assert.equal(stored.computedAt, '2026-08-15T00:00:00.000Z');
+  // Mutating history after the fact does not change the stored snapshot.
+  recordSnapshotRun(db, servers(['a', 'b', 'c', 'd']), { now: () => '2026-08-15T01:00:00.000Z' });
+  assert.equal(getIncidentStatus(db).computedAt, '2026-08-15T00:00:00.000Z');
 });

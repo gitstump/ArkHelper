@@ -17,7 +17,7 @@ const {
   resolveGeoDbPath,
   resolveHistoryDbPath,
 } = require('./discovery_service.js');
-const { openHistoryDb, computeUptimePercent } = require('./history.js');
+const { openHistoryDb, computeUptimePercent, getIncidentStatus } = require('./history.js');
 
 function tmpFile(name) {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ark-tools-discovery-')), name);
@@ -218,7 +218,7 @@ test('roster HTTP server 404s on unknown routes with a helpful body', async () =
   const res = await fetch(`http://127.0.0.1:${port}/nonsense`);
   const body = await res.json();
   assert.equal(res.status, 404);
-  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id']);
+  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status']);
 
   server.close();
 });
@@ -239,6 +239,29 @@ test('refreshCycle records a snapshot into historyDb when one is provided', asyn
   const uptime = computeUptimePercent(historyDb, '1');
   assert.equal(uptime.totalRuns, 1);
   assert.equal(uptime.presentCount, 1);
+});
+
+test('refreshCycle stamps rankScore onto the persisted roster when history is enabled', async () => {
+  const file = tmpFile('roster.json');
+  const historyDb = openHistoryDb(':memory:');
+
+  await refreshCycle({
+    outPath: file,
+    discoveryOpts: { httpGet: fakeOfficialServersGet(), sleep: async () => {} },
+    historyDb,
+  });
+
+  const roster = readRosterIfExists(file);
+  assert.ok(roster.servers.length > 0);
+  for (const s of roster.servers) {
+    assert.equal(typeof s.rankScore, 'number');
+    assert.equal(typeof s.rank, 'number');
+    assert.ok(s.rankComponents);
+    assert.equal(typeof s.rankComponents.reliability, 'number');
+    assert.equal(typeof s.rankComponents.connection, 'number');
+    assert.equal(typeof s.rankComponents.activity, 'number');
+    assert.equal(typeof s.rankComponents.confidence, 'number');
+  }
 });
 
 test('refreshCycle works fine without a historyDb (it stays optional)', async () => {
@@ -334,7 +357,8 @@ test('GET /rankings returns a ranked list once history exists', async () => {
   assert.equal(res.status, 200);
   assert.ok(body.servers.length > 0);
   assert.equal(body.servers[0].rank, 1);
-  assert.ok('compositeScore' in body.servers[0]);
+  assert.ok('rankScore' in body.servers[0]);
+  assert.ok(body.servers[0].components);
 
   server.close();
 });
@@ -397,6 +421,63 @@ test('GET /rankings/:id returns 503 when history tracking is not enabled', async
   assert.equal(res.status, 503);
 
   server.close();
+});
+
+test('GET /incidents/status returns the stored snapshot without recomputing', async () => {
+  const file = tmpFile('roster.json');
+  const historyDb = openHistoryDb(':memory:');
+  await refreshCycle({ outPath: file, discoveryOpts: { httpGet: fakeOfficialServersGet(), sleep: async () => {} }, historyDb });
+  const stored = getIncidentStatus(historyDb);
+  assert.ok(stored);
+  assert.equal(stored.state, 'NORMAL');
+
+  const server = createRosterServer({ outPath: file, historyDb });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const res = await fetch(`http://127.0.0.1:${port}/incidents/status`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=30');
+  const body = await res.json();
+  assert.equal(body.state, stored.state);
+  assert.equal(body.computedAt, stored.computedAt);
+
+  server.close();
+});
+
+test('GET /incidents/status returns 503 when history tracking is not enabled', async () => {
+  const file = tmpFile('roster.json');
+  const server = createRosterServer({ outPath: file });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const res = await fetch(`http://127.0.0.1:${port}/incidents/status`);
+  assert.equal(res.status, 503);
+
+  server.close();
+});
+
+test('refreshCycle records a fetch failure into incident state instead of a fake empty roster', async () => {
+  const file = tmpFile('roster.json');
+  const historyDb = openHistoryDb(':memory:');
+  persistRosterAtomic(file, { servers: [{ id: '1' }] });
+
+  await assert.rejects(
+    () =>
+      refreshCycle({
+        outPath: file,
+        discoveryOpts: { httpGet: async () => ({ status: 500, body: '[]' }), sleep: async () => {}, retry: { attempts: 1, baseDelayMs: 1 } },
+        historyDb,
+      }),
+    /HTTP 500/
+  );
+
+  const status = getIncidentStatus(historyDb);
+  assert.equal(status.rosterFetchFailed, true);
+  assert.equal(status.consecutiveFetchFailures, 1);
+  assert.equal(status.state, 'UNREACHABLE');
+  // Previous roster file is left alone — we did not persist an empty list.
+  assert.equal(readRosterIfExists(file).servers.length, 1);
 });
 
 // ---------------------------------------------------------------------

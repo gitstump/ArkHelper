@@ -243,10 +243,9 @@ test('renderStatsPage renders the ranking table with score breakdown columns whe
     baseStatsArgs({
       rankingAvailable: true,
       ranking: {
-        totalRuns: 10,
-        eligibleServerCount: 2,
+        totalRanked: 2,
         servers: [
-          { rank: 1, serverId: 'abc123', name: 'NA-PVE-TheIsland5313', compositeScore: 95.5, reliabilityScore: 100, activityScore: 90, stabilityScore: 92 },
+          { rank: 1, serverId: 'abc123', name: 'NA-PVE-TheIsland5313', rankScore: 95.5, components: { reliability: 40, connection: 25, activity: 20.5, confidence: 10 } },
         ],
       },
     })
@@ -254,7 +253,8 @@ test('renderStatsPage renders the ranking table with score breakdown columns whe
   assert.match(html, /NA-PVE-TheIsland5313/);
   assert.match(html, /95\.5/);
   assert.match(html, /href="\/servers\/abc123"/);
-  assert.match(html, /45% reliability/);
+  assert.match(html, /40% reliability/);
+  assert.match(html, /href="\/rankings"/);
 });
 
 test('renderStatsPage falls back to a shortened id in the ranking table when no name is available', () => {
@@ -264,7 +264,7 @@ test('renderStatsPage falls back to a shortened id in the ranking table when no 
       ranking: {
         totalRuns: 10,
         eligibleServerCount: 1,
-        servers: [{ rank: 1, serverId: 'abcdefgh12345', compositeScore: 80, reliabilityScore: 80, activityScore: 80, stabilityScore: 80 }],
+        servers: [{ rank: 1, serverId: 'abcdefgh12345', rankScore: 80, components: { reliability: 32, connection: 20, activity: 20, confidence: 8 } }],
       },
     })
   );
@@ -299,7 +299,7 @@ test('renderStatsPage does not throw when a ranking entry is missing serverId en
     renderStatsPage(
       baseStatsArgs({
         rankingAvailable: true,
-        ranking: { totalRuns: 5, eligibleServerCount: 1, servers: [{ rank: 1, compositeScore: 80, reliabilityScore: 80, activityScore: 80, stabilityScore: 80 }] },
+        ranking: { totalRanked: 1, servers: [{ rank: 1, rankScore: 80, components: { reliability: 32, connection: 20, activity: 20, confidence: 8 } }] },
       })
     )
   );

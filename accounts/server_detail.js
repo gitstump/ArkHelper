@@ -33,6 +33,8 @@ const STYLE = `<style>
   .heatmap-wrap { overflow-x: auto; margin-top: 0.5rem; }
   .embed-box { background:#1c1a16; border:1px solid #443f36; padding:0.6rem; border-radius:4px; font-family: monospace; font-size:0.85rem; overflow-x:auto; white-space: pre; margin: 0.3rem 0; }
   .change-log li { margin-bottom: 0.3rem; }
+  .rank-badge { display: inline-block; background:#2a2620; border:1px solid #443f36; color:#f2b544; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.85rem; font-variant-numeric: tabular-nums; margin-left: 0.5rem; vertical-align: middle; }
+  .rank-badge a { color: #f2b544; text-decoration: none; }
 </style>`;
 
 function renderServerNotFoundPage(serverId) {
@@ -124,6 +126,11 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
       })()
     : '';
 
+  const rankBadge =
+    typeof server.rankScore === 'number'
+      ? `<span class="rank-badge"><a href="/rankings" title="Composite rank score out of 100">#${escapeHtml(String(server.rank ?? '\u2014'))} \u00b7 ${escapeHtml(String(server.rankScore))}</a></span>`
+      : '';
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -133,7 +140,7 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
 ${STYLE}
 </head>
 <body>
-  <h1><a href="/">ArkHelper</a> &rsaquo; <a href="/servers">Servers</a> &rsaquo; ${escapeHtml(server.name || '(unnamed)')}</h1>
+  <h1><a href="/">ArkHelper</a> &rsaquo; <a href="/servers">Servers</a> &rsaquo; ${escapeHtml(server.name || '(unnamed)')}${rankBadge}</h1>
 
   ${favoriteSection}
 

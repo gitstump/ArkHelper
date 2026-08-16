@@ -6,9 +6,8 @@
  *
  * Network-wide stats and leaderboards. Built around what we actually
  * have — live player counts (always available), uptime, and a
- * composite ranking (both available once discovery's history has
- * accumulated a few runs; sparse or empty at first, filling in over
- * time).
+ * composite ranking preview (full table lives at /rankings; both
+ * available once discovery's history has accumulated a few runs).
  */
 
 const { escapeHtml } = require('./home_page.js');
@@ -123,16 +122,16 @@ function renderStatsPage({
   const rankingSection = !rankingAvailable
     ? `<h2>Top ranked servers</h2><p class="note">History tracking isn't enabled on the discovery service, so ranking isn't available.</p>`
     : ranking.servers.length === 0
-    ? `<h2>Top ranked servers</h2><p class="note">Not enough history recorded yet — ranking needs a few discovery runs before it's meaningful (based on ${escapeHtml(String(ranking.totalRuns))} run(s) so far).</p>`
+    ? `<h2>Top ranked servers</h2><p class="note">Not enough history recorded yet — ranking needs a few discovery runs before it's meaningful${ranking.totalRuns != null ? ` (based on ${escapeHtml(String(ranking.totalRuns))} run(s) so far)` : ''}.</p>`
     : `<h2>Top ranked servers</h2>
-    <p class="note">Composite score: 45% reliability (uptime) + 35% activity (relative player count) + 20% connection stability (ping consistency). Based on ${escapeHtml(String(ranking.totalRuns))} discovery run(s) across ${escapeHtml(String(ranking.eligibleServerCount))} eligible servers.</p>
+    <p class="note">Composite score out of 100: 40% reliability (uptime) + 25% connection (ping) + 25% activity (average population) + 10% confidence (history age). <a href="/rankings">Full rankings with score breakdowns &rsaquo;</a></p>
     <table>
-      <thead><tr><th>#</th><th>Server</th><th>Score</th><th>Reliability</th><th>Activity</th><th>Stability</th></tr></thead>
+      <thead><tr><th>#</th><th>Server</th><th>Score</th><th>Reliability</th><th>Connection</th><th>Activity</th><th>Confidence</th></tr></thead>
       <tbody>${ranking.servers
-        .map(
-          (s) =>
-            `<tr><td>${s.rank}</td><td><a href="/servers/${encodeURIComponent(s.serverId)}">${escapeHtml(displayNameFor(s))}</a></td><td>${escapeHtml(String(s.compositeScore))}</td><td>${escapeHtml(String(s.reliabilityScore))}</td><td>${escapeHtml(String(s.activityScore))}</td><td>${escapeHtml(String(s.stabilityScore))}</td></tr>`
-        )
+        .map((s) => {
+          const c = s.components || {};
+          return `<tr><td>${s.rank}</td><td><a href="/servers/${encodeURIComponent(s.serverId)}">${escapeHtml(displayNameFor(s))}</a></td><td>${escapeHtml(String(s.rankScore ?? ''))}</td><td>${escapeHtml(String(c.reliability ?? ''))}</td><td>${escapeHtml(String(c.connection ?? ''))}</td><td>${escapeHtml(String(c.activity ?? ''))}</td><td>${escapeHtml(String(c.confidence ?? ''))}</td></tr>`;
+        })
         .join('')}</tbody>
     </table>`;
 

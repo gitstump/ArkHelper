@@ -16,7 +16,14 @@ const {
   upsertAlertSettings,
   getAlertSettings,
   listAlertSettingsForAccount,
+  countFilterPresets,
+  listFilterPresets,
+  getFilterPresetByShareToken,
+  addFilterPreset,
+  deleteFilterPreset,
+  migrateCookiePresetsToAccount,
 } = require('./db.js');
+const { ACCOUNT_PRESET_CAP } = require('./presets.js');
 
 function freshDb() {
   return openDb(':memory:');
@@ -251,4 +258,122 @@ test('listAlertSettingsForAccount returns an empty array when nothing is configu
   const db = freshDb();
   const account = upsertAccount(db, { discordId: '123' });
   assert.deepEqual(listAlertSettingsForAccount(db, account.id), []);
+});
+
+// ---------------------------------------------------------------------
+// Filter presets
+// ---------------------------------------------------------------------
+test('addFilterPreset stores a preset and listFilterPresets reads it back', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  const saved = addFilterPreset(db, account.id, { name: 'PvE', queryString: 'gameMode=pve&evil=1' }, { randomToken: () => 'share-aaa' });
+
+  assert.equal(saved.name, 'PvE');
+  assert.equal(saved.queryString, 'gameMode=pve'); // unknown params dropped on save
+  assert.equal(saved.shareToken, 'share-aaa');
+
+  const listed = listFilterPresets(db, account.id);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].shareToken, 'share-aaa');
+});
+
+test('addFilterPreset trims names, rejects empty, and rejects names over 40 chars', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  assert.equal(addFilterPreset(db, account.id, { name: '  Ranked  ', queryString: 'sort=rank' }).name, 'Ranked');
+  assert.equal(addFilterPreset(db, account.id, { name: '  ', queryString: 'sort=rank' }).error, 'empty_name');
+  assert.equal(addFilterPreset(db, account.id, { name: 'x'.repeat(41), queryString: 'sort=rank' }).error, 'name_too_long');
+});
+
+test('addFilterPreset rejects a query that sanitizes to nothing', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  assert.equal(addFilterPreset(db, account.id, { name: 'Nope', queryString: 'redirect=https://evil.example/' }).error, 'empty_query');
+});
+
+test('addFilterPreset rejects a duplicate name on the same account', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  addFilterPreset(db, account.id, { name: 'PvE', queryString: 'gameMode=pve' });
+  assert.equal(addFilterPreset(db, account.id, { name: 'PvE', queryString: 'gameMode=pvp' }).error, 'duplicate');
+});
+
+test('addFilterPreset enforces the logged-in cap of 15', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  for (let i = 0; i < ACCOUNT_PRESET_CAP; i += 1) {
+    const result = addFilterPreset(db, account.id, { name: `P${i}`, queryString: `map=M${i}` }, { randomToken: () => `tok-${i}` });
+    assert.ok(result.id, `expected preset ${i} to save`);
+  }
+  assert.equal(countFilterPresets(db, account.id), ACCOUNT_PRESET_CAP);
+  assert.equal(addFilterPreset(db, account.id, { name: 'overflow', queryString: 'map=Z' }, { randomToken: () => 'tok-overflow' }).error, 'account_cap');
+});
+
+test('deleteFilterPreset removes a preset and invalidates its share token', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  const saved = addFilterPreset(db, account.id, { name: 'PvE', queryString: 'gameMode=pve' }, { randomToken: () => 'share-del' });
+  assert.ok(getFilterPresetByShareToken(db, 'share-del'));
+
+  assert.equal(deleteFilterPreset(db, account.id, saved.id), true);
+  assert.equal(getFilterPresetByShareToken(db, 'share-del'), null);
+  assert.equal(deleteFilterPreset(db, account.id, saved.id), false);
+});
+
+test('deleteFilterPreset cannot remove another account\'s preset', () => {
+  const db = freshDb();
+  const alice = upsertAccount(db, { discordId: 'alice' });
+  const bob = upsertAccount(db, { discordId: 'bob' });
+  const saved = addFilterPreset(db, alice.id, { name: 'PvE', queryString: 'gameMode=pve' }, { randomToken: () => 'share-alice' });
+  assert.equal(deleteFilterPreset(db, bob.id, saved.id), false);
+  assert.ok(getFilterPresetByShareToken(db, 'share-alice'));
+});
+
+test('getFilterPresetByShareToken returns null for a missing token', () => {
+  const db = freshDb();
+  assert.equal(getFilterPresetByShareToken(db, 'nope'), null);
+  assert.equal(getFilterPresetByShareToken(db, ''), null);
+  assert.equal(getFilterPresetByShareToken(db, null), null);
+});
+
+test('presets are scoped per-account', () => {
+  const db = freshDb();
+  const alice = upsertAccount(db, { discordId: 'alice' });
+  const bob = upsertAccount(db, { discordId: 'bob' });
+  addFilterPreset(db, alice.id, { name: 'PvE', queryString: 'gameMode=pve' }, { randomToken: () => 'a' });
+  addFilterPreset(db, bob.id, { name: 'PvP', queryString: 'gameMode=pvp' }, { randomToken: () => 'b' });
+  assert.deepEqual(listFilterPresets(db, alice.id).map((p) => p.name), ['PvE']);
+  assert.deepEqual(listFilterPresets(db, bob.id).map((p) => p.name), ['PvP']);
+});
+
+test('migrateCookiePresetsToAccount copies cookie presets, skipping name collisions', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  addFilterPreset(db, account.id, { name: 'PvE', queryString: 'gameMode=pve' }, { randomToken: () => 'existing' });
+
+  const migrated = migrateCookiePresetsToAccount(
+    db,
+    account.id,
+    [
+      { name: 'PvE', query: 'gameMode=pve&search=island' }, // collision — skip
+      { name: 'Ranked', query: 'sort=rank&evil=1' },
+      { name: 'Public', query: 'hasPassword=false' },
+    ],
+    { randomToken: () => `mig-${Math.random()}` }
+  );
+
+  assert.equal(migrated, 2);
+  const names = listFilterPresets(db, account.id).map((p) => p.name).sort();
+  assert.deepEqual(names, ['Public', 'PvE', 'Ranked']);
+  const pve = listFilterPresets(db, account.id).find((p) => p.name === 'PvE');
+  assert.equal(pve.queryString, 'gameMode=pve'); // original, not overwritten by the cookie copy
+  const ranked = listFilterPresets(db, account.id).find((p) => p.name === 'Ranked');
+  assert.equal(ranked.queryString, 'sort=rank'); // sanitized on migrate
+});
+
+test('migrateCookiePresetsToAccount is a no-op for an empty cookie', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  assert.equal(migrateCookiePresetsToAccount(db, account.id, []), 0);
+  assert.equal(migrateCookiePresetsToAccount(db, account.id, null), 0);
 });

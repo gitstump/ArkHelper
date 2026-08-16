@@ -118,6 +118,17 @@ test('sortServers does not mutate the input array', () => {
   assert.deepEqual(servers.map((s) => s.id), originalOrder);
 });
 
+test('sortServers by rankScore descending (best rank first)', () => {
+  const servers = [
+    { id: '1', rankScore: 40 },
+    { id: '2', rankScore: 90 },
+    { id: '3', rankScore: 70 },
+    { id: '4', rankScore: null },
+  ];
+  const result = sortServers(servers, 'rank', 'desc');
+  assert.deepEqual(result.map((s) => s.id), ['2', '3', '1', '4']);
+});
+
 test('sortServers falls back to the default sort key for an unknown key', () => {
   const result = sortServers(makeServers(), 'nonsense', 'desc');
   assert.deepEqual(result.map((s) => s.id), ['4', '2', '1', '3']); // same as default players-desc
@@ -252,6 +263,22 @@ test('renderBrowserPage escapes a hostile map/cluster value instead of injecting
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
 });
 
+test('renderBrowserPage includes a Rank sort link', () => {
+  const servers = makeServers();
+  const paged = paginateServers(sortServers(servers), 1, 25);
+  const html = renderBrowserPage({
+    page: paged,
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters(servers),
+    mapOptions: getDistinctMaps(servers),
+    rosterAvailable: true,
+  });
+  assert.match(html, /sort=rank/);
+  assert.match(html, />Rank</);
+});
+
 test('renderBrowserPage pre-fills the filter form with the current search value', () => {
   const paged = paginateServers([], 1, 25);
   const html = renderBrowserPage({
@@ -280,4 +307,99 @@ test('renderBrowserPage disables the Prev link on page 1 and Next link on the la
   assert.doesNotMatch(html, /href="\/servers\?[^"]*page=0"/);
   assert.match(html, /<span>&laquo; Prev<\/span>/);
   assert.match(html, /<span>Next &raquo;<\/span>/);
+});
+
+test('renderBrowserPage shows Save as preset when a filter is active', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: { gameMode: 'pve' },
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    currentQuery: 'gameMode=pve',
+  });
+  assert.match(html, /Save as preset/);
+  assert.match(html, /method="POST" action="\/presets"/);
+  assert.match(html, /name="query" value="gameMode=pve"/);
+});
+
+test('renderBrowserPage hides Save as preset when no filter/sort is active', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    currentQuery: '',
+  });
+  assert.doesNotMatch(html, /Save as preset/);
+});
+
+test('renderBrowserPage renders saved presets as apply links with a delete form', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    presets: [{ name: 'PvE', query: 'gameMode=pve' }],
+    currentQuery: '',
+  });
+  assert.match(html, /href="\/servers\?gameMode=pve"/);
+  assert.match(html, />PvE</);
+  assert.match(html, /method="POST" action="\/presets\/delete"/);
+  assert.doesNotMatch(html, /Copy share link/);
+});
+
+test('renderBrowserPage shows a copy-share-link URL for logged-in presets', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    loggedIn: true,
+    shareOrigin: 'http://example.test',
+    presets: [{ id: 7, name: 'PvE', queryString: 'gameMode=pve', shareToken: 'tok123' }],
+  });
+  assert.match(html, /value="http:\/\/example\.test\/p\/tok123"/);
+  assert.match(html, /name="id" value="7"/);
+});
+
+test('renderBrowserPage escapes a hostile preset name', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    presets: [{ name: '<img src=x onerror=alert(1)>', query: 'gameMode=pve' }],
+  });
+  assert.doesNotMatch(html, /<img src=x onerror=alert\(1\)>/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('renderBrowserPage shows a friendly message for a known presetError code', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: { gameMode: 'pve' },
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    currentQuery: 'gameMode=pve',
+    presetError: 'cookie_cap',
+  });
+  assert.match(html, /limited to 3/);
 });
