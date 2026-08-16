@@ -54,6 +54,26 @@ test('renderHomepage shows roster stats when meta is available', () => {
   assert.match(html, /2026-08-15T16:52:24\.124Z/);
 });
 
+test('renderHomepage adds unofficial count to the tracking line when meta is present', () => {
+  const html = renderHomepage({
+    account: null,
+    rosterMeta: { totalOfficial: 3179, pveCount: 1420, pvpCount: 1759, generatedAt: '2026-08-15T16:52:24.124Z' },
+    unofficialMeta: { count: 56198 },
+  });
+  assert.match(html, /3179/);
+  assert.match(html, /56198/);
+  assert.match(html, /official and .* unofficial servers/);
+});
+
+test('renderHomepage tracking line omits unofficial count when meta is absent', () => {
+  const html = renderHomepage({
+    account: null,
+    rosterMeta: { totalOfficial: 3179, pveCount: 1420, pvpCount: 1759, generatedAt: '2026-08-15T16:52:24.124Z' },
+  });
+  assert.match(html, /Tracking <strong class="num">3179<\/strong> official servers /);
+  assert.doesNotMatch(html, /official and /);
+});
+
 test('renderHomepage shows a fallback message when roster meta is unavailable', () => {
   const html = renderHomepage({ account: null, rosterMeta: null });
   assert.match(html, /roster data isn't available/);

@@ -48,7 +48,7 @@ const {
   migrateCookiePresetsToAccount,
 } = require('./db.js');
 const { renderHomepage, fetchRosterMetaSafe } = require('./home_page.js');
-const { fetchJsonSafe } = require('./local_fetch.js');
+const { fetchJsonSafe, createTtlCache } = require('./local_fetch.js');
 const {
   filterServers,
   sortServers,
@@ -218,6 +218,9 @@ function createAuthServer({
   successRedirect = '/',
   rosterMetaUrl = 'http://localhost:8792/roster/meta',
   rosterUrl = 'http://localhost:8792/roster',
+  unofficialRosterUrl = 'http://localhost:8792/unofficial/roster',
+  unofficialMetaUrl = 'http://localhost:8792/unofficial/meta',
+  unofficialRosterCache,
   historyUrlBase = 'http://localhost:8792/history',
   uptimeLeaderboardUrl = 'http://localhost:8792/leaderboards/uptime',
   rankingUrl = 'http://localhost:8792/rankings',
@@ -233,6 +236,8 @@ function createAuthServer({
   if (!db) throw new Error('createAuthServer: db is required');
   if (!clientId || !clientSecret) throw new Error('createAuthServer: clientId and clientSecret are required');
   if (!redirectUri) throw new Error('createAuthServer: redirectUri is required');
+
+  const rosterCache = unofficialRosterCache || createTtlCache();
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://internal'); // base is irrelevant, we only use path+query
@@ -620,17 +625,23 @@ function createAuthServer({
 
       if (req.method === 'GET' && (url.pathname === '/servers' || url.pathname === '/')) {
         const isHome = url.pathname === '/';
-        const [roster, rosterMeta, status] = await Promise.all([
-          browserDeps.fetchJsonSafe(rosterUrl),
+        const source = url.searchParams.get('source') === 'unofficial' ? 'unofficial' : 'official';
+        const rosterPromise = source === 'unofficial'
+          ? rosterCache.get(unofficialRosterUrl, (target) => browserDeps.fetchJsonSafe(target, { timeoutMs: 15000 }))
+          : browserDeps.fetchJsonSafe(rosterUrl);
+        const [roster, rosterMeta, status, unofficialMeta] = await Promise.all([
+          rosterPromise,
           homeDeps.fetchRosterMetaSafe(rosterMetaUrl),
           statusDeps.fetchJsonSafe(incidentStatusUrl),
+          homeDeps.fetchRosterMetaSafe(unofficialMetaUrl),
         ]);
         const live = liveFromRoster(roster) || liveFromMeta(rosterMeta);
 
         if (!roster || !Array.isArray(roster.servers)) {
+          const fallbackOpts = { account, rosterMeta, unofficialMeta, status, live, rosterAvailable: false, source };
           const body = isHome
-            ? renderHomepage({ account, rosterMeta, status, live, rosterAvailable: false })
-            : renderBrowserPage({ rosterAvailable: false, account, live, rosterMeta, currentPath: '/servers' });
+            ? renderHomepage(fallbackOpts)
+            : renderBrowserPage({ ...fallbackOpts, currentPath: '/servers' });
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(body);
           return;
@@ -641,8 +652,12 @@ function createAuthServer({
         const dir = url.searchParams.get('dir') || 'desc';
         const pageNum = url.searchParams.get('page') || '1';
 
-        const wipeResult = await withWipesIfNeeded(roster.servers, filters, browserDeps.fetchJsonSafe, `${historyUrlBase}/wipes`);
-        const filtered = filterServers(wipeResult.servers, filters);
+        let servers = roster.servers;
+        if (source === 'official') {
+          const wipeResult = await withWipesIfNeeded(roster.servers, filters, browserDeps.fetchJsonSafe, `${historyUrlBase}/wipes`);
+          servers = wipeResult.servers;
+        }
+        const filtered = filterServers(servers, filters);
         const sorted = sortServers(filtered, sort, dir);
         const page = paginateServers(sorted, pageNum);
 
@@ -677,7 +692,10 @@ function createAuthServer({
           account,
           live,
           rosterMeta,
+          unofficialMeta,
           status,
+          source,
+          cyclesTotal: typeof roster.cycles_total === 'number' ? roster.cycles_total : undefined,
           currentPath: isHome ? '/' : '/servers',
           showHero: true,
         };

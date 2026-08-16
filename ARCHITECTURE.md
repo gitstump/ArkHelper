@@ -21,13 +21,15 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | File | Role |
 |---|---|
 | `ark_official_api.js` | Fetches Wildcard's own official server list (no key needed) |
+| `unofficial_api.js` | Fetches Wildcard's unofficial list, trims immediately, rejects oversized bodies |
+| `unofficial_store.js` | Separate SQLite (`unofficial.sqlite`) — latest trimmed fields + first_seen/last_seen/cycles_seen; no per-cycle history |
 | `discovery_service.js` | CLI + scheduler + the HTTP server exposing everything below |
 | `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, wipe/version detection, heatmaps; gathers ranking inputs and stamps scores onto the roster; records network incidents |
 | `ranking.js` | Pure composite rank scorer (no DB / network / clock) — weights live here |
 | `incidents.js` | Pure incident classifier (thresholds, hysteresis, consecutive-fetch-failure counting) |
 | `geo_lookup.js` | GeoLite2/MaxMind country lookups — built, not yet configured (see `PROJECT_STATUS.md`) |
 
-**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/history/:id`, `/history/wipes`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`
+**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/unofficial/roster`, `/unofficial/meta`, `/history/:id`, `/history/wipes`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`
 
 ## accounts/
 
@@ -70,18 +72,20 @@ crashing — every page has a tested "roster unavailable" fallback state.
 ## Data flow (the short version)
 
 ```
-Wildcard's official server list
-        |
-        v
-ark_official_api.js  ->  discovery_service.js  ->  roster.json (atomic write)
-                                |                        |
-                                v                        v
-                          history.js (SQLite)      GET /roster (HTTP)
-                                |                        |
-                                v                        |
-                   GET /history/:id, /rankings, etc  ----+
-                                |
-                                v
-                    accounts/auth_service.js fetches both,
-                    renders pages, serves to the browser
+Wildcard's official server list          Wildcard's unofficial server list
+        |                                          |
+        v                                          v
+ark_official_api.js                    unofficial_api.js (trim + byte cap)
+        |                                          |
+        v                                          v
+discovery_service.js  ->  roster.json    unofficial_store.js (unofficial.sqlite)
+        |                     |                    |
+        v                     v                    v
+  history.js (SQLite)   GET /roster         GET /unofficial/roster
+        |                     |                    |
+        +---------------------+--------------------+
+                              |
+                              v
+              accounts/auth_service.js fetches both,
+              renders pages, serves to the browser
 ```

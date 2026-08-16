@@ -575,3 +575,104 @@ test('renderBrowserPage includes a Server lists index and a Platform filter', ()
   assert.match(html, /PC\+Console/);
 });
 
+test('renderBrowserPage default source matches source=official byte-for-byte', () => {
+  const servers = makeServers();
+  const paged = paginateServers(sortServers(servers), 1, 25);
+  const opts = {
+    page: paged,
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters(servers),
+    mapOptions: getDistinctMaps(servers),
+    rosterAvailable: true,
+    currentPath: '/servers',
+  };
+  assert.equal(renderBrowserPage(opts), renderBrowserPage({ ...opts, source: 'official' }));
+});
+
+test('renderBrowserPage shows an Official/Unofficial toggle', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    currentPath: '/servers',
+  });
+  assert.match(html, /source-toggle/);
+  assert.match(html, /source=unofficial/);
+  assert.match(html, />Official</);
+  assert.match(html, />Unofficial</);
+});
+
+test('unofficial rows render without rank/uptime and may show a seen-rate', () => {
+  const html = renderServerRow(
+    {
+      id: 'u1',
+      name: 'Community Box',
+      map: 'TheIsland_WP',
+      playersNow: 4,
+      maxPlayers: 20,
+      version: '92.41',
+      wildcardReportedPing: 40,
+      cycles_seen: 3,
+      rank: 1,
+      uptimePercent: 99.2,
+    },
+    { source: 'unofficial', cyclesTotal: 4 }
+  );
+  assert.doesNotMatch(html, /href="\/servers\/u1"/);
+  assert.match(html, /Community Box/);
+  const cells = [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
+  assert.equal(cells[7], '75%');
+  assert.equal(cells[8], '\u2014');
+});
+
+test('unofficial rows without cycles_seen render em-dash uptime and rank', () => {
+  const html = renderServerRow(
+    { id: 'u2', name: 'No History', map: 'Extinction_WP', playersNow: 1, maxPlayers: 10 },
+    { source: 'unofficial', cyclesTotal: 4 }
+  );
+  const cells = [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
+  assert.equal(cells[7], '\u2014');
+  assert.equal(cells[8], '\u2014');
+});
+
+test('renderBrowserPage unofficial source uses Seen header and keeps filters working', () => {
+  const servers = [
+    { id: 'u1', name: 'Community Box', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 4, maxPlayers: 20, cycles_seen: 2 },
+  ];
+  const html = renderBrowserPage({
+    page: paginateServers(servers, 1, 25),
+    filters: { gameMode: 'pve' },
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters(servers),
+    mapOptions: ['TheIsland_WP'],
+    rosterAvailable: true,
+    currentPath: '/servers',
+    source: 'unofficial',
+    cyclesTotal: 4,
+  });
+  assert.match(html, />Seen</);
+  assert.doesNotMatch(html, />Uptime</);
+  assert.match(html, /Community Box/);
+  assert.doesNotMatch(html, /href="\/servers\/u1"/);
+  assert.match(html, /name="source" value="unofficial"/);
+  assert.match(html, /unofficial servers/);
+});
+
+test('renderHeroBand includes unofficial count when unofficial meta is present', () => {
+  const html = renderHeroBand({
+    counters: { totalOfficial: 10, playersOnline: 40 },
+    rosterMeta: { totalOfficial: 3093, pveCount: 1400, pvpCount: 1693, generatedAt: 'T' },
+    unofficialMeta: { count: 56198 },
+  });
+  assert.match(html, /3093/);
+  assert.match(html, /56198/);
+  assert.match(html, /official and .* unofficial servers/);
+});
+

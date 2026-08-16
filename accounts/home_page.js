@@ -13,24 +13,12 @@ const { escapeHtml } = require('./theme.js');
 const { realHttpGetLocal, fetchJsonSafe } = require('./local_fetch.js');
 const { renderBrowserPage } = require('./server_browser.js');
 
-function renderHomepage({ account, rosterMeta, status, page, filters, sort, dir, counters, mapOptions, rosterAvailable, presets, loggedIn, shareOrigin, currentQuery, presetError, live }) {
+function renderHomepage(opts = {}) {
   return renderBrowserPage({
-    account,
-    rosterMeta,
-    live: live || rosterMeta,
-    status,
-    page,
-    filters,
-    sort,
-    dir,
-    counters,
-    mapOptions,
-    rosterAvailable: Boolean(rosterAvailable),
-    presets,
-    loggedIn: loggedIn ?? Boolean(account),
-    shareOrigin,
-    currentQuery,
-    presetError,
+    ...opts,
+    live: opts.live || opts.rosterMeta,
+    rosterAvailable: Boolean(opts.rosterAvailable),
+    loggedIn: opts.loggedIn ?? Boolean(opts.account),
     currentPath: '/',
     showHero: true,
   });

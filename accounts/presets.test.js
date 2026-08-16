@@ -93,6 +93,11 @@ test('hasActiveFilters is false for empty / default sort and true for real filte
   assert.equal(hasActiveFilters('gameMode=pve'), true);
   assert.equal(hasActiveFilters('sort=rank'), true);
   assert.equal(hasActiveFilters('dir=asc'), true);
+  assert.equal(hasActiveFilters('source=unofficial'), false);
+});
+
+test('sanitizeQueryString keeps source=unofficial', () => {
+  assert.equal(sanitizeQueryString('source=unofficial&gameMode=pve'), 'gameMode=pve&source=unofficial');
 });
 
 // ---------------------------------------------------------------------

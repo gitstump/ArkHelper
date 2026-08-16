@@ -37,6 +37,7 @@ const KNOWN_PRESET_PARAMS = [
   'wipedWithinDays',
   'sort',
   'dir',
+  'source',
 ];
 
 const PRESET_ERROR_MESSAGES = {
@@ -108,6 +109,7 @@ function hasActiveFilters(queryString) {
     if (!value) continue;
     if (key === 'sort' && value === 'players') continue;
     if (key === 'dir' && value === 'desc') continue;
+    if (key === 'source' && (value === 'official' || value === 'unofficial')) continue;
     return true;
   }
   return false;

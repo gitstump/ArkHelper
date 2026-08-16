@@ -25,9 +25,9 @@ function realHttpGetLocal(url, { timeoutMs = 2000 } = {}) {
   });
 }
 
-async function fetchJsonSafe(url, { httpGet = realHttpGetLocal } = {}) {
+async function fetchJsonSafe(url, { httpGet = realHttpGetLocal, timeoutMs } = {}) {
   try {
-    const res = await httpGet(url, {});
+    const res = await httpGet(url, timeoutMs != null ? { timeoutMs } : {});
     if (res.status !== 200) return null;
     return JSON.parse(res.body);
   } catch {
@@ -35,4 +35,22 @@ async function fetchJsonSafe(url, { httpGet = realHttpGetLocal } = {}) {
   }
 }
 
-module.exports = { realHttpGetLocal, fetchJsonSafe };
+const UNOFFICIAL_ROSTER_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function createTtlCache({ ttlMs = UNOFFICIAL_ROSTER_CACHE_TTL_MS, now = Date.now } = {}) {
+  let cached = null;
+  return {
+    async get(url, fetchFn) {
+      const t = now();
+      if (cached && cached.url === url && t - cached.at < ttlMs) return cached.value;
+      const value = await fetchFn(url);
+      if (value != null) cached = { url, at: t, value };
+      return value;
+    },
+    clear() {
+      cached = null;
+    },
+  };
+}
+
+module.exports = { realHttpGetLocal, fetchJsonSafe, createTtlCache, UNOFFICIAL_ROSTER_CACHE_TTL_MS };

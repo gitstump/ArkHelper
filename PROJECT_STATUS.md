@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-16 — 547 tests passing — In flight: none
+Last updated: 2026-08-16 — 587 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -12,11 +12,11 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 
 ## What's built and working (live-verified, not just tested)
 
-- **Discovery** (`discovery/`) — full official ARK:SA roster (~3,189 servers as of last live run), no API key needed, refreshing on a schedule, history recording (uptime tracking, wipe/version change detection, peak-time and downtime-pattern heatmaps).
+- **Discovery** (`discovery/`) — full official ARK:SA roster (~3,189 servers as of last live run), no API key needed, refreshing on a schedule, history recording (uptime tracking, wipe/version change detection, peak-time and downtime-pattern heatmaps). Unofficial pipeline (Phase A): separate 15-minute fetch of `unofficialserverlist.json`, trimmed in-memory roster, aggregate SQLite (`unofficial.sqlite`) with first_seen/last_seen/cycles_seen, served at `/unofficial/roster` and `/unofficial/meta`. Failures never touch the official cycle.
 - **Accounts** (`accounts/`) — real Discord OAuth login, SQLite-backed accounts/sessions.
 - **Shared UI** — one dark design system (`accounts/theme.js`) and a common page shell (`accounts/layout.js`: header nav, login state, footer sitemap). Every HTML page uses it; badge/heatmap SVG endpoints do not.
-- **Homepage** (`/`) — the server browser itself, with a hero stat band (official servers online, players online, 24h network uptime, network status). `/servers` is the same page.
-- **Server browser** (`/servers`) — search, filter (map/mode/platform/password/player range), sort, pagination; compact rows with status, capacity bar, ping, uptime, rank, and a platform badge (PC / Console / PC+Console from the roster `platformType` field).
+- **Homepage** (`/`) — the server browser itself, with a hero stat band (official servers online, players online, 24h network uptime, network status). Tracking line includes unofficial count from `/unofficial/meta` when that feed is up. `/servers` is the same page.
+- **Server browser** (`/servers`) — search, filter (map/mode/platform/password/player range), sort, pagination; compact rows with status, capacity bar, ping, uptime, rank, and a platform badge (PC / Console / PC+Console from the roster `platformType` field). `source=official|unofficial` (default official — existing URLs unchanged). Unofficial view reuses the same pipeline against a 5-minute cached `/unofficial/roster`; rows omit rank/uptime (em-dash) and show a seen-rate column instead of Uptime. Official/Unofficial toggle sits next to the filters.
 - **Derived server lists** (`/lists/official-pve`, `/lists/official-pvp`, `/lists/low-ping`, `/lists/most-populated`, `/lists/recently-wiped`, `/lists/available-now`) — canonical pre-filtered/pre-sorted views that reuse the browser pipeline. Recently-wiped reads the existing history change log (14-day window). Available-now labels slot counts as observed, not reserved.
 - **Nav** — Servers, Maps, and Stats are CSS `details` dropdowns (hover/focus-within plus tap-to-open); Favorites stays a plain link. Maps dropdown lists every registered map (two columns). Stats dropdown: Rankings, Leaderboards, Map Uptime, PvE vs PvP, Is ARK Down. Footer sitemap includes the Maps index under Server Tools. The ArkHelper wordmark links home (`/`).
 - **Maps** (`/maps`, `/maps/:slug`) — index of every map on the live official roster (server count, players online, avg 7-day uptime) plus per-map pages with original one-liners, telemetry (players, online/total, free slots, avg availability), PvE/PvP and platform-badge counts, observed versions, top-10 by rankScore, and currently-unavailable servers. Unknown/future map IDs get a generated slug and raw name instead of 500ing. SEO titles/meta target queries like "ark aberration servers".
@@ -40,7 +40,7 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - Wider filter set in the browser UI: country/region (GeoLite2 is built but not configured — see below), ping range, min uptime %, cluster ID filter
 - News mirror, rates poller, mod-adoption aggregation — all confirmed to be data-engineering, not writing, when researched; still unbuilt
 - Public API docs, theme toggle (dark-only currently), i18n (English-only)
-- Unofficial server tracking — explicitly deferred as a stretch goal, not baseline
+- Unofficial server tracking — Phase A (aggregate + browser filter) is built; per-cycle history, rankings/leaderboards/incidents/maps inclusion, favoriting, detail pages, GeoIP, and alerting are still out
 - Guides content — the one genuinely-writing (not coding) piece of the whole project, separate track. Per-map pages now have original one-line descriptions; longer guide copy is still unbuilt.
 
 ## Production deployment

@@ -11,6 +11,8 @@ ark_tools.db-*
 *.db
 *.db-shm
 *.db-wal
+unofficial.sqlite
+unofficial.sqlite-*
 
 # Local environment secrets — never commit tokens/keys
 .env

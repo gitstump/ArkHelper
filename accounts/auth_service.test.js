@@ -1905,6 +1905,173 @@ test('GET /servers includes Server lists links and a Platform filter', async () 
   server.close();
 });
 
+function unofficialTestRoster() {
+  return {
+    fetchedAt: '2026-08-16T12:00:00.000Z',
+    count: 1,
+    cycles_total: 4,
+    servers: [
+      {
+        id: 'u1',
+        name: 'Community Box',
+        map: 'TheIsland_WP',
+        gameMode: 'pve',
+        playersNow: 4,
+        maxPlayers: 20,
+        version: '92.41',
+        platformType: 'PC',
+        wildcardReportedPing: 40,
+        hasPassword: false,
+        cycles_seen: 3,
+      },
+    ],
+  };
+}
+
+function fakeSplitBrowserDeps({ official, unofficial }) {
+  return {
+    fetchJsonSafe: async (url) => {
+      if (String(url).includes('/unofficial/roster')) return unofficial;
+      if (String(url).includes('/roster')) return official;
+      return null;
+    },
+  };
+}
+
+function fakeSplitHomeDeps({ official, unofficial }) {
+  return {
+    fetchRosterMetaSafe: async (url) => {
+      if (String(url).includes('/unofficial/meta')) return unofficial;
+      return official;
+    },
+  };
+}
+
+test('GET /servers default query stays official and ignores unofficial names', async () => {
+  const db = openDb(':memory:');
+  const official = { servers: makeTestServers() };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeSplitBrowserDeps({ official, unofficial: unofficialTestRoster() }),
+    homeDeps: fakeSplitHomeDeps({
+      official: { totalOfficial: 2, pveCount: 1, pvpCount: 1, generatedAt: 'T' },
+      unofficial: { count: 1, cycles_total: 4, lastFetchStatus: 'ok' },
+    }),
+  });
+
+  const res = await fetch(`${base}/servers?gameMode=pve`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /Community Box/);
+  assert.match(html, /href="\/servers\/1"/);
+
+  server.close();
+});
+
+test('GET /servers?source=unofficial lists unofficial servers without rank/uptime', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeSplitBrowserDeps({ official: { servers: makeTestServers() }, unofficial: unofficialTestRoster() }),
+    homeDeps: fakeSplitHomeDeps({
+      official: { totalOfficial: 2, pveCount: 1, pvpCount: 1, generatedAt: 'T' },
+      unofficial: { count: 1, cycles_total: 4, lastFetchStatus: 'ok' },
+    }),
+  });
+
+  const res = await fetch(`${base}/servers?source=unofficial`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /Community Box/);
+  assert.doesNotMatch(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /href="\/servers\/u1"/);
+  assert.match(html, />Seen</);
+  assert.match(html, /75%/);
+
+  server.close();
+});
+
+test('GET /servers?source=unofficial shows the roster-unavailable fallback', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeSplitBrowserDeps({ official: { servers: makeTestServers() }, unofficial: null }),
+  });
+
+  const res = await fetch(`${base}/servers?source=unofficial`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /roster data isn't available/);
+
+  server.close();
+});
+
+test('GET / includes unofficial count in the hero when unofficial meta is available', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+    homeDeps: fakeSplitHomeDeps({
+      official: { totalOfficial: 3179, pveCount: 1420, pvpCount: 1759, generatedAt: 'NOW' },
+      unofficial: { count: 56198, cycles_total: 1, lastFetchStatus: 'ok' },
+    }),
+  });
+
+  const res = await fetch(`${base}/`);
+  const html = await res.text();
+  assert.match(html, /3179/);
+  assert.match(html, /56198/);
+  assert.match(html, /official and .* unofficial servers/);
+
+  server.close();
+});
+
+test('unofficial roster cache avoids a second fetch within the TTL', async () => {
+  const db = openDb(':memory:');
+  let unofficialCalls = 0;
+  const { createTtlCache } = require('./local_fetch.js');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    unofficialRosterCache: createTtlCache({ ttlMs: 5 * 60 * 1000, now: () => 1_000 }),
+    browserDeps: {
+      fetchJsonSafe: async (url) => {
+        if (String(url).includes('/unofficial/roster')) {
+          unofficialCalls += 1;
+          return unofficialTestRoster();
+        }
+        return { servers: makeTestServers() };
+      },
+    },
+  });
+
+  await fetch(`${base}/servers?source=unofficial`);
+  await fetch(`${base}/servers?source=unofficial`);
+  assert.equal(unofficialCalls, 1);
+
+  server.close();
+});
+
 function mapsRoster() {
   return {
     generatedAt: '2026-08-16T00:00:00.000Z',

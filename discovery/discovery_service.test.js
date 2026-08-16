@@ -12,11 +12,18 @@ const {
   buildRosterSnapshot,
   refreshCycle,
   startScheduledRefresh,
+  createUnofficialState,
+  refreshUnofficialCycle,
+  startUnofficialScheduledRefresh,
   createRosterServer,
   parseArgs,
   resolveGeoDbPath,
   resolveHistoryDbPath,
+  resolveUnofficialDbPath,
+  resolveUnofficialIntervalMs,
+  DEFAULT_UNOFFICIAL_INTERVAL_MS,
 } = require('./discovery_service.js');
+const { openUnofficialDb, getUnofficialMeta } = require('./unofficial_store.js');
 const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun } = require('./history.js');
 
 function tmpFile(name) {
@@ -218,7 +225,7 @@ test('roster HTTP server 404s on unknown routes with a helpful body', async () =
   const res = await fetch(`http://127.0.0.1:${port}/nonsense`);
   const body = await res.json();
   assert.equal(res.status, 404);
-  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status']);
+  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status']);
 
   server.close();
 });
@@ -562,4 +569,172 @@ test('resolveHistoryDbPath falls back to HISTORY_DB_PATH', () => {
 test('resolveHistoryDbPath returns null when --no-history is passed', () => {
   const args = parseArgs(['run', '--no-history']);
   assert.equal(resolveHistoryDbPath(args, { HISTORY_DB_PATH: '/from/env.db' }), null);
+});
+
+// ---------------------------------------------------------------------
+// Unofficial pipeline (Phase A)
+// ---------------------------------------------------------------------
+function fakeUnofficialServers() {
+  return {
+    servers: [
+      { id: 'u1', name: 'Community PvE', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 4, maxPlayers: 20, version: '92.41', platformType: 'PC', ping: 40, wildcardReportedPing: 40, hasPassword: false },
+      { id: 'u2', name: 'Community PvP', map: 'Extinction_WP', gameMode: 'pvp', playersNow: 8, maxPlayers: 30, version: '92.41', platformType: 'PC+PS5', ping: 90, wildcardReportedPing: 90, hasPassword: true },
+    ],
+    count: 2,
+  };
+}
+
+test('refreshUnofficialCycle stores one trimmed roster and stamps cycles_seen', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const roster = await refreshUnofficialCycle({
+    unofficialState,
+    unofficialDb,
+    fetchUnofficial: async () => fakeUnofficialServers(),
+    now: () => '2026-08-16T10:00:00.000Z',
+  });
+  assert.equal(roster.count, 2);
+  assert.equal(roster.cycles_total, 1);
+  assert.equal(unofficialState.roster.servers[0].cycles_seen, 1);
+  assert.equal(unofficialState.lastFetchStatus, 'ok');
+});
+
+test('unofficial fetch failure leaves official cycle untouched', async () => {
+  const file = tmpFile('roster.json');
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  let officialCycles = 0;
+  let unofficialErrors = 0;
+  const fakeSetInterval = () => 'fake-timer-handle';
+
+  const official = startScheduledRefresh({
+    outPath: file,
+    intervalMs: 999999,
+    discoveryOpts: { httpGet: fakeOfficialServersGet(), sleep: async () => {} },
+    onCycle: () => {
+      officialCycles += 1;
+    },
+    setIntervalFn: fakeSetInterval,
+  });
+
+  const unofficial = startUnofficialScheduledRefresh({
+    unofficialState,
+    unofficialDb,
+    intervalMs: 999999,
+    fetchUnofficial: async () => {
+      throw new Error('cdn down');
+    },
+    onError: () => {
+      unofficialErrors += 1;
+    },
+    setIntervalFn: fakeSetInterval,
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(officialCycles, 1);
+  assert.equal(unofficialErrors, 1);
+  assert.ok(readRosterIfExists(file));
+  assert.equal(readRosterIfExists(file).totalOfficial, 2);
+  assert.equal(unofficialState.roster, null);
+  assert.match(unofficialState.lastFetchStatus, /cdn down/);
+  assert.equal(getUnofficialMeta(unofficialDb).cycles_total, 0);
+
+  official.stop();
+  unofficial.stop();
+});
+
+test('GET /unofficial/roster and /unofficial/meta serve the last good fetch', async () => {
+  const file = tmpFile('roster.json');
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  await refreshUnofficialCycle({
+    unofficialState,
+    unofficialDb,
+    fetchUnofficial: async () => fakeUnofficialServers(),
+    now: () => '2026-08-16T11:00:00.000Z',
+  });
+
+  const server = createRosterServer({ outPath: file, unofficialState, unofficialDb });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const rosterRes = await fetch(`http://127.0.0.1:${port}/unofficial/roster`);
+  const roster = await rosterRes.json();
+  assert.equal(rosterRes.status, 200);
+  assert.equal(roster.count, 2);
+  assert.equal(roster.fetchedAt, '2026-08-16T11:00:00.000Z');
+  assert.equal(roster.cycles_total, 1);
+  assert.equal(roster.servers.length, 2);
+  assert.equal(roster.servers[0].name, 'Community PvE');
+
+  const metaRes = await fetch(`http://127.0.0.1:${port}/unofficial/meta`);
+  const meta = await metaRes.json();
+  assert.equal(metaRes.status, 200);
+  assert.equal(meta.count, 2);
+  assert.equal(meta.cycles_total, 1);
+  assert.equal(meta.lastFetchAt, '2026-08-16T11:00:00.000Z');
+  assert.equal(meta.lastFetchStatus, 'ok');
+  assert.equal(meta.servers, undefined);
+
+  server.close();
+});
+
+test('GET /unofficial/roster is 503 before the first good fetch; meta still has a shape', async () => {
+  const file = tmpFile('roster.json');
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const server = createRosterServer({ outPath: file, unofficialState, unofficialDb });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const rosterRes = await fetch(`http://127.0.0.1:${port}/unofficial/roster`);
+  assert.equal(rosterRes.status, 503);
+
+  const metaRes = await fetch(`http://127.0.0.1:${port}/unofficial/meta`);
+  const meta = await metaRes.json();
+  assert.equal(metaRes.status, 200);
+  assert.equal(meta.count, 0);
+  assert.equal(meta.cycles_total, 0);
+  assert.equal(meta.lastFetchAt, null);
+  assert.equal(meta.lastFetchStatus, null);
+
+  server.close();
+});
+
+test('failed unofficial cycle keeps the last good in-memory roster', async () => {
+  const unofficialState = createUnofficialState();
+  await refreshUnofficialCycle({
+    unofficialState,
+    fetchUnofficial: async () => fakeUnofficialServers(),
+    now: () => '2026-08-16T12:00:00.000Z',
+  });
+  await assert.rejects(
+    () =>
+      refreshUnofficialCycle({
+        unofficialState,
+        fetchUnofficial: async () => {
+          throw new Error('later fail');
+        },
+        now: () => '2026-08-16T12:15:00.000Z',
+      }),
+    /later fail/
+  );
+  assert.equal(unofficialState.roster.count, 2);
+  assert.equal(unofficialState.roster.fetchedAt, '2026-08-16T12:00:00.000Z');
+  assert.match(unofficialState.lastFetchStatus, /later fail/);
+});
+
+test('resolveUnofficialIntervalMs prefers env milliseconds over the minutes flag', () => {
+  const args = parseArgs(['run', '--unofficial-interval', '20']);
+  assert.equal(resolveUnofficialIntervalMs(args, { UNOFFICIAL_INTERVAL_MS: '45000' }), 45000);
+  assert.equal(resolveUnofficialIntervalMs(args, {}), 20 * 60 * 1000);
+  assert.equal(resolveUnofficialIntervalMs(parseArgs(['run']), {}), DEFAULT_UNOFFICIAL_INTERVAL_MS);
+});
+
+test('resolveUnofficialDbPath defaults to unofficial.sqlite', () => {
+  assert.equal(resolveUnofficialDbPath(parseArgs(['run']), {}), 'unofficial.sqlite');
+  assert.equal(resolveUnofficialDbPath(parseArgs(['run', '--unofficial-db', '/from/flag.db']), { UNOFFICIAL_DB_PATH: '/from/env.db' }), '/from/flag.db');
+  assert.equal(resolveUnofficialDbPath(parseArgs(['run']), { UNOFFICIAL_DB_PATH: '/from/env.db' }), '/from/env.db');
 });

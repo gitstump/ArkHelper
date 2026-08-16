@@ -229,6 +229,16 @@ const PAGE_CSS = `
 .list-intro { color: var(--muted); margin: 0 0 var(--space-3); }
 .list-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 var(--space-3); }
 .wipe-meta { color: var(--muted); font-size: 0.78rem; }
+.source-toggle { display: flex; gap: var(--space-2); margin: var(--space-4) 0 0; }
+.source-toggle a {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--muted);
+  background: var(--surface);
+}
+.source-toggle a.active { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 800px) { .hero-stats { grid-template-columns: 1fr 1fr; } }
 `;
 
@@ -265,7 +275,22 @@ function fig(value, suffix = '') {
   return `${escapeHtml(String(value))}${suffix}`;
 }
 
-function renderHeroBand({ counters, rosterMeta, status }) {
+function unofficialCountFromMeta(unofficialMeta) {
+  if (!unofficialMeta || typeof unofficialMeta !== 'object') return null;
+  if (typeof unofficialMeta.count === 'number' && Number.isFinite(unofficialMeta.count)) return unofficialMeta.count;
+  return null;
+}
+
+function seenRatePercent(cyclesSeen, cyclesTotal) {
+  if (typeof cyclesSeen !== 'number' || typeof cyclesTotal !== 'number' || cyclesTotal <= 0) return null;
+  return Math.round((cyclesSeen / cyclesTotal) * 100);
+}
+
+function withSource(filters, source) {
+  return source === 'unofficial' ? { ...filters, source: 'unofficial' } : filters;
+}
+
+function renderHeroBand({ counters, rosterMeta, status, unofficialMeta }) {
   const official =
     status && typeof status.onlineCount === 'number'
       ? status.onlineCount
@@ -281,9 +306,14 @@ function renderHeroBand({ counters, rosterMeta, status }) {
     ? `<a class="fig ${escapeHtml(word.key)}" href="/is-ark-down">${escapeHtml(word.label)}</a>`
     : `<a class="fig" href="/is-ark-down">\u2014</a>`;
 
+  const unofficialCount = unofficialCountFromMeta(unofficialMeta);
+  const unofficialBit =
+    unofficialCount != null
+      ? ` and <strong class="num">${escapeHtml(String(unofficialCount))}</strong> unofficial`
+      : '';
   const metaLine =
     rosterMeta && rosterMeta.pveCount != null && rosterMeta.pvpCount != null
-      ? `<p class="note">Tracking <strong class="num">${escapeHtml(String(rosterMeta.totalOfficial))}</strong> official servers ` +
+      ? `<p class="note">Tracking <strong class="num">${escapeHtml(String(rosterMeta.totalOfficial))}</strong> official${unofficialBit} servers ` +
         `(${escapeHtml(String(rosterMeta.pveCount))} PvE / ${escapeHtml(String(rosterMeta.pvpCount))} PvP). ` +
         `Last updated ${escapeHtml(String(rosterMeta.generatedAt))}.</p>`
       : '';
@@ -299,9 +329,9 @@ function renderHeroBand({ counters, rosterMeta, status }) {
   </section>`;
 }
 
-function sortLink({ currentSort, currentDir, key, label, filters, basePath = '/servers' }) {
+function sortLink({ currentSort, currentDir, key, label, filters, basePath = '/servers', source }) {
   const nextDir = currentSort === key && currentDir === 'desc' ? 'asc' : 'desc';
-  const params = new URLSearchParams({ ...filters, sort: key, dir: nextDir });
+  const params = new URLSearchParams({ ...withSource(filters, source), sort: key, dir: nextDir });
   const arrow = currentSort === key ? (currentDir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
   return `<a href="${basePath}?${params.toString()}">${escapeHtml(label)}${arrow}</a>`;
 }
@@ -319,11 +349,25 @@ function formatWipeDate(iso) {
   return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : iso;
 }
 
-function renderServerRow(s, { showWipeDate = false } = {}) {
+function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesTotal } = {}) {
+  const unofficial = source === 'unofficial';
   const online = isOnline(s);
-  const rankDisplay = typeof s.rank === 'number' ? String(s.rank) : typeof s.rankScore === 'number' ? String(s.rankScore) : '\u2014';
-  const ping = typeof s.wildcardReportedPing === 'number' ? `${s.wildcardReportedPing}` : '\u2014';
-  const uptime = typeof s.uptimePercent === 'number' ? `${s.uptimePercent}%` : '\u2014';
+  const rankDisplay = unofficial
+    ? '\u2014'
+    : typeof s.rank === 'number'
+      ? String(s.rank)
+      : typeof s.rankScore === 'number'
+        ? String(s.rankScore)
+        : '\u2014';
+  const ping = typeof s.wildcardReportedPing === 'number' ? `${s.wildcardReportedPing}` : typeof s.ping === 'number' ? `${s.ping}` : '\u2014';
+  const seen = seenRatePercent(s.cycles_seen, cyclesTotal);
+  const uptime = unofficial
+    ? seen != null
+      ? `${seen}%`
+      : '\u2014'
+    : typeof s.uptimePercent === 'number'
+      ? `${s.uptimePercent}%`
+      : '\u2014';
   const pct = capacityPct(s);
   const badge = platformBadge(s.platformType);
   const badgeHtml = badge ? `<span class="platform-badge">${escapeHtml(badge)}</span>` : '';
@@ -331,9 +375,12 @@ function renderServerRow(s, { showWipeDate = false } = {}) {
     showWipeDate && s.wipeDetectedAt
       ? `<div class="wipe-meta">Wiped ${escapeHtml(formatWipeDate(s.wipeDetectedAt))} \u00b7 Day ${escapeHtml(dash(s.day))}</div>`
       : '';
+  const nameHtml = unofficial
+    ? escapeHtml(s.name || '(unnamed)')
+    : `<a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a>`;
   return `<tr>
       <td><span class="status-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online' : 'Offline'}"></span></td>
-      <td class="name"><a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a>${badgeHtml}${wipeHtml}</td>
+      <td class="name">${nameHtml}${badgeHtml}${wipeHtml}</td>
       <td>${escapeHtml(s.map || '')}</td>
       <td class="num">${escapeHtml(dash(s.day))}</td>
       <td class="num">${escapeHtml(s.version || '\u2014')}</td>
@@ -386,6 +433,18 @@ function renderListIndex() {
   </nav>`;
 }
 
+function renderSourceToggle({ source, filters, sort, dir, basePath = '/servers' }) {
+  const rest = { ...(filters || {}) };
+  delete rest.source;
+  const officialParams = new URLSearchParams({ ...rest, sort, dir });
+  const unofficialParams = new URLSearchParams({ ...rest, sort, dir, source: 'unofficial' });
+  const officialHref = officialParams.toString() ? `${basePath}?${officialParams.toString()}` : basePath;
+  return `<nav class="source-toggle" aria-label="Server source">
+    <a href="${escapeHtml(officialHref)}" class="${source === 'unofficial' ? '' : 'active'}">Official</a>
+    <a href="${escapeHtml(`${basePath}?${unofficialParams.toString()}`)}" class="${source === 'unofficial' ? 'active' : ''}">Unofficial</a>
+  </nav>`;
+}
+
 function renderBrowserBody({
   page,
   filters,
@@ -402,6 +461,7 @@ function renderBrowserBody({
   presetError,
   rosterMeta,
   status,
+  unofficialMeta,
   showHero,
   heading = 'Servers',
   intro = '',
@@ -413,6 +473,9 @@ function renderBrowserBody({
   browserLink = '',
   showWipeDate = false,
   lockedFilterKeys = [],
+  source = 'official',
+  cyclesTotal,
+  showSourceToggle = false,
 }) {
   const f = filters || {};
   const query = currentQuery || '';
@@ -423,7 +486,9 @@ function renderBrowserBody({
   const errorBar = errorText ? `<p class="preset-error">${escapeHtml(errorText)}</p>` : '';
   const presetBar = showPresets ? renderPresetBar({ presets, loggedIn, shareOrigin, currentQuery: query }) : '';
   const saveForm = showPresets ? renderSavePresetForm(query) : '';
-  const hero = showHero ? renderHeroBand({ counters, rosterMeta, status }) : '';
+  const hero = showHero ? renderHeroBand({ counters, rosterMeta, status, unofficialMeta }) : '';
+  const sourceKind = source === 'unofficial' ? 'unofficial' : 'official';
+  const toggle = showSourceToggle ? renderSourceToggle({ source: sourceKind, filters: f, sort, dir, basePath }) : '';
   const listIndex = showListIndex ? renderListIndex() : '';
   const introHtml = intro ? `<p class="list-intro">${escapeHtml(intro)}</p>` : '';
   const noteHtml = extraNote ? `<p class="list-note">${escapeHtml(extraNote)}</p>` : '';
@@ -433,8 +498,9 @@ function renderBrowserBody({
     .map((key) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(String(f[key]))}">`)
     .join('');
 
+  const listLabel = sourceKind === 'unofficial' ? 'unofficial servers' : 'official servers';
   const countersBar = rosterAvailable
-    ? `<p class="counters">${escapeHtml(String(counters.totalOfficial))} official servers &middot; ` +
+    ? `<p class="counters">${escapeHtml(String(counters.totalOfficial))} ${listLabel} &middot; ` +
       `${escapeHtml(String(counters.playersOnline))} players online &middot; ` +
       `${counters.avgPing !== null ? escapeHtml(String(counters.avgPing)) + 'ms avg ping' : 'ping unavailable'} &middot; ` +
       `${escapeHtml(String(counters.pveCount))} PvE / ${escapeHtml(String(counters.pvpCount))} PvP</p>`
@@ -447,7 +513,7 @@ function renderBrowserBody({
     page && typeof page.totalCount === 'number' ? `<p class="counters">${escapeHtml(String(page.totalCount))} matching servers.</p>` : '';
 
   if (!rosterAvailable) {
-    return `${hero}<h1>${escapeHtml(heading)}</h1>${introHtml}${countersBar}${homeMetaNote}`;
+    return `${hero}<h1>${escapeHtml(heading)}</h1>${introHtml}${toggle}${countersBar}${homeMetaNote}`;
   }
 
   const gameModeSelect = locked.has('gameMode')
@@ -463,9 +529,11 @@ function renderBrowserBody({
     ${platforms.map((p) => `<option value="${escapeHtml(p)}" ${f.platform === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
   </select>`;
 
+  const sourceField = sourceKind === 'unofficial' ? '<input type="hidden" name="source" value="unofficial">' : '';
   const filterForm = `
 <form method="GET" action="${escapeHtml(formAction)}" class="filters">
   ${hiddenLocked}
+  ${sourceField}
   <input type="text" name="search" placeholder="Search server name" value="${escapeHtml(f.search || '')}">
   <select name="map">
     <option value="">All maps</option>
@@ -483,8 +551,9 @@ function renderBrowserBody({
   <button type="submit">Filter</button>
 </form>`;
 
-  const rows = page.items.map((s) => renderServerRow(s, { showWipeDate })).join('');
-  const linkOpts = { currentSort: sort, currentDir: dir, filters: f, basePath };
+  const rows = page.items.map((s) => renderServerRow(s, { showWipeDate, source: sourceKind, cyclesTotal })).join('');
+  const linkOpts = { currentSort: sort, currentDir: dir, filters: f, basePath, source: sourceKind };
+  const uptimeHeader = sourceKind === 'unofficial' ? 'Seen' : 'Uptime';
 
   const resultsTable = page.items.length
     ? `<table class="browser-table">
@@ -496,15 +565,16 @@ function renderBrowserBody({
         <th>Version</th>
         <th>${sortLink({ ...linkOpts, key: 'players', label: 'Players' })}</th>
         <th>Ping</th>
-        <th>Uptime</th>
+        <th>${uptimeHeader}</th>
         <th>${sortLink({ ...linkOpts, key: 'rank', label: 'Rank' })}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`
     : `<p>No servers match these filters.</p>`;
 
-  const prevParams = new URLSearchParams({ ...f, sort, dir, page: String(page.page - 1) });
-  const nextParams = new URLSearchParams({ ...f, sort, dir, page: String(page.page + 1) });
+  const pageFilters = withSource(f, sourceKind);
+  const prevParams = new URLSearchParams({ ...pageFilters, sort, dir, page: String(page.page - 1) });
+  const nextParams = new URLSearchParams({ ...pageFilters, sort, dir, page: String(page.page + 1) });
   const pagination = `<p class="pagination">
     ${page.page > 1 ? `<a href="${basePath}?${prevParams.toString()}">&laquo; Prev</a>` : '<span>&laquo; Prev</span>'}
     Page ${page.page} of ${page.totalPages} (${page.totalCount} matching)
@@ -523,6 +593,7 @@ function renderBrowserBody({
   ${presetBar}
   ${errorBar}
   ${saveForm}
+  ${toggle}
   ${filterForm}
   ${resultsTable}
   ${pagination}`;
@@ -552,6 +623,7 @@ function renderBrowserPage(opts = {}) {
       ...opts,
       showHero: showHero || currentPath === '/',
       showListIndex: opts.showListIndex !== undefined ? opts.showListIndex : Boolean(rosterAvailable) && (currentPath === '/' || currentPath === '/servers'),
+      showSourceToggle: opts.showSourceToggle !== undefined ? opts.showSourceToggle : currentPath === '/' || currentPath === '/servers',
     }),
   });
 }
@@ -575,8 +647,11 @@ module.exports = {
   renderSavePresetForm,
   renderServerRow,
   renderListIndex,
+  renderSourceToggle,
   statusWord,
   networkUptime24h,
+  seenRatePercent,
+  unofficialCountFromMeta,
   STYLE,
   PAGE_CSS,
 };

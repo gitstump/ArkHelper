@@ -60,6 +60,15 @@ const {
   getIncidentStatus,
 } = require('./history.js');
 const { RANKING_WINDOW_DAYS } = require('./ranking.js');
+const { fetchUnofficialRoster } = require('./unofficial_api.js');
+const {
+  openUnofficialDb,
+  recordUnofficialCycle,
+  recordUnofficialFetchFailure,
+  getUnofficialMeta,
+} = require('./unofficial_store.js');
+
+const DEFAULT_UNOFFICIAL_INTERVAL_MS = 15 * 60 * 1000;
 
 // ---------------------------------------------------------------------
 // Persistence (atomic write: write to a temp file, then rename over the
@@ -193,10 +202,95 @@ function startScheduledRefresh({
   };
 }
 
+function createUnofficialState() {
+  return { roster: null, lastFetchAt: null, lastFetchStatus: null };
+}
+
+async function refreshUnofficialCycle({
+  unofficialState,
+  unofficialDb,
+  fetchUnofficial = fetchUnofficialRoster,
+  fetchOpts = {},
+  now = () => new Date().toISOString(),
+} = {}) {
+  if (!unofficialState) throw new Error('refreshUnofficialCycle: unofficialState is required');
+  const fetchedAt = now();
+  try {
+    const result = await fetchUnofficial(fetchOpts);
+    const servers = result && Array.isArray(result.servers) ? result.servers : [];
+    let cyclesTotal = 0;
+    if (unofficialDb) {
+      const meta = recordUnofficialCycle(unofficialDb, servers, { now: () => fetchedAt });
+      cyclesTotal = meta.cycles_total;
+    }
+    unofficialState.roster = {
+      servers,
+      fetchedAt,
+      count: servers.length,
+      cycles_total: cyclesTotal,
+    };
+    unofficialState.lastFetchAt = fetchedAt;
+    unofficialState.lastFetchStatus = 'ok';
+    return unofficialState.roster;
+  } catch (err) {
+    unofficialState.lastFetchAt = fetchedAt;
+    unofficialState.lastFetchStatus = `error: ${err.message}`;
+    if (unofficialDb) {
+      try {
+        recordUnofficialFetchFailure(unofficialDb, { now: () => fetchedAt, error: err.message });
+      } catch {
+        // never mask the original fetch failure
+      }
+    }
+    throw err;
+  }
+}
+
+function startUnofficialScheduledRefresh({
+  unofficialState,
+  unofficialDb,
+  intervalMs,
+  fetchUnofficial = fetchUnofficialRoster,
+  fetchOpts = {},
+  onCycle = () => {},
+  onError = (err) => console.error('[discovery] unofficial refresh failed:', err.message),
+  setIntervalFn = setInterval,
+  runImmediately = true,
+  now = () => new Date().toISOString(),
+}) {
+  let stopped = false;
+
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const result = await refreshUnofficialCycle({
+        unofficialState,
+        unofficialDb,
+        fetchUnofficial,
+        fetchOpts,
+        now,
+      });
+      onCycle(result);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const timer = setIntervalFn(tick, intervalMs);
+  if (runImmediately) tick();
+
+  return {
+    stop() {
+      stopped = true;
+      clearInterval(timer);
+    },
+  };
+}
+
 // ---------------------------------------------------------------------
 // Tiny HTTP feed
 // ---------------------------------------------------------------------
-function createRosterServer({ outPath, fsDeps = {}, historyDb }) {
+function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, unofficialDb }) {
   return http.createServer((req, res) => {
     const parsedUrl = new URL(req.url, 'http://internal');
 
@@ -322,6 +416,38 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb }) {
       return;
     }
 
+    if (parsedUrl.pathname === '/unofficial/roster') {
+      const roster = unofficialState && unofficialState.roster;
+      if (!roster) {
+        const body = JSON.stringify({ error: 'unofficial roster not generated yet' });
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(body);
+        return;
+      }
+      const body = JSON.stringify(roster);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(body);
+      return;
+    }
+
+    if (parsedUrl.pathname === '/unofficial/meta') {
+      const dbMeta = unofficialDb ? getUnofficialMeta(unofficialDb) : null;
+      const roster = unofficialState && unofficialState.roster;
+      const body = JSON.stringify({
+        count: roster ? roster.count : 0,
+        cycles_total: roster && typeof roster.cycles_total === 'number'
+          ? roster.cycles_total
+          : dbMeta
+            ? dbMeta.cycles_total
+            : 0,
+        lastFetchAt: (unofficialState && unofficialState.lastFetchAt) || (dbMeta && dbMeta.last_fetch_at) || null,
+        lastFetchStatus: (unofficialState && unofficialState.lastFetchStatus) || (dbMeta && dbMeta.last_fetch_status) || null,
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(body);
+      return;
+    }
+
     if (parsedUrl.pathname === '/incidents/status') {
       if (!historyDb) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
@@ -341,7 +467,7 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb }) {
     }
 
     res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status'] }));
   });
 }
 
@@ -387,6 +513,24 @@ function resolveHistoryDbPath(args, env = process.env) {
   if (args['history-db'] && typeof args['history-db'] === 'string') return args['history-db'];
   if (env.HISTORY_DB_PATH) return env.HISTORY_DB_PATH;
   return 'ark_history.db';
+}
+
+function resolveUnofficialDbPath(args, env = process.env) {
+  if (args['unofficial-db'] && typeof args['unofficial-db'] === 'string') return args['unofficial-db'];
+  if (env.UNOFFICIAL_DB_PATH) return env.UNOFFICIAL_DB_PATH;
+  return 'unofficial.sqlite';
+}
+
+function resolveUnofficialIntervalMs(args, env = process.env) {
+  if (env.UNOFFICIAL_INTERVAL_MS) {
+    const fromEnv = Number(env.UNOFFICIAL_INTERVAL_MS);
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  }
+  if (args['unofficial-interval'] && args['unofficial-interval'] !== true) {
+    const minutes = Number(args['unofficial-interval']);
+    if (Number.isFinite(minutes) && minutes > 0) return minutes * 60 * 1000;
+  }
+  return DEFAULT_UNOFFICIAL_INTERVAL_MS;
 }
 
 async function openGeoReaderIfConfigured(args) {
@@ -452,6 +596,14 @@ async function main() {
     } else {
       console.log('[discovery] history tracking disabled (--no-history) — uptime/history endpoints will report unavailable');
     }
+    const unofficialDbPath = resolveUnofficialDbPath(args);
+    const unofficialDb = unofficialDbPath ? openUnofficialDb(unofficialDbPath) : undefined;
+    const unofficialState = createUnofficialState();
+    const unofficialIntervalMs = resolveUnofficialIntervalMs(args);
+    if (unofficialDb) {
+      console.log(`[discovery] unofficial tracking on -> ${unofficialDbPath} (interval ${unofficialIntervalMs}ms)`);
+    }
+
     console.log(
       `[discovery] starting scheduled service — refresh every ${intervalMinutes}m, roster file ${outPath}, HTTP on :${port}`
     );
@@ -471,12 +623,22 @@ async function main() {
       },
     });
 
-    const server = createRosterServer({ outPath, historyDb });
+    const unofficialScheduler = startUnofficialScheduledRefresh({
+      unofficialState,
+      unofficialDb,
+      intervalMs: unofficialIntervalMs,
+      onCycle: (result) => {
+        console.log(`[discovery] unofficial refreshed: ${result.count} servers (cycle ${result.cycles_total})`);
+      },
+    });
+
+    const server = createRosterServer({ outPath, historyDb, unofficialState, unofficialDb });
     server.listen(port);
 
     const shutdown = () => {
       console.log('[discovery] shutting down');
       scheduler.stop();
+      unofficialScheduler.stop();
       server.close();
       process.exit(0);
     };
@@ -487,7 +649,7 @@ async function main() {
 
   console.log('Usage:');
   console.log('  node discovery_service.js discover-once [--out roster.json] [--debug] [--geo-db path]');
-  console.log('  node discovery_service.js run [--port 8792] [--interval-minutes 60] [--out roster.json] [--geo-db path] [--history-db path] [--no-history]');
+  console.log('  node discovery_service.js run [--port 8792] [--interval-minutes 60] [--out roster.json] [--geo-db path] [--history-db path] [--no-history] [--unofficial-interval minutes] [--unofficial-db path]');
   process.exitCode = 1;
 }
 
@@ -504,8 +666,14 @@ module.exports = {
   buildRosterSnapshot,
   refreshCycle,
   startScheduledRefresh,
+  createUnofficialState,
+  refreshUnofficialCycle,
+  startUnofficialScheduledRefresh,
   createRosterServer,
   parseArgs,
   resolveGeoDbPath,
   resolveHistoryDbPath,
+  resolveUnofficialDbPath,
+  resolveUnofficialIntervalMs,
+  DEFAULT_UNOFFICIAL_INTERVAL_MS,
 };
