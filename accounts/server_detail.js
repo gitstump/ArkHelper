@@ -18,6 +18,7 @@ const { escapeHtml } = require('./home_page.js');
 const { renderPage } = require('./layout.js');
 const { renderPeakTimesHeatmap, renderDowntimeHeatmap, hasAnyData } = require('./heatmap_svg.js');
 const { buildEmbedSnippets } = require('./badge.js');
+const { platformBadge } = require('./server_browser.js');
 
 const PAGE_CSS = `
 .facts td:first-child { color: var(--muted); width: 40%; }
@@ -150,7 +151,11 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
     <tr><td>Day</td><td>${escapeHtml(String(server.day ?? '\u2014'))}</td></tr>
     <tr><td>Version</td><td>${escapeHtml(server.version || '\u2014')}</td></tr>
     <tr><td>Cluster</td><td>${escapeHtml(server.clusterId || '\u2014')}</td></tr>
-    <tr><td>Platforms</td><td>${escapeHtml(server.platformType || '\u2014')}</td></tr>
+    <tr><td>Platforms</td><td>${(() => {
+      const badge = platformBadge(server.platformType);
+      const raw = escapeHtml(server.platformType || '\u2014');
+      return badge ? `<span class="platform-badge">${escapeHtml(badge)}</span> ${raw}` : raw;
+    })()}</td></tr>
     <tr><td>Password protected</td><td>${server.hasPassword ? 'Yes' : 'No'}</td></tr>
     <tr><td>BattlEye</td><td>${server.battleye ? 'Enabled' : 'Disabled'}</td></tr>
     <tr><td>IP : Port</td><td>${escapeHtml(server.ip || '\u2014')} : ${escapeHtml(String(server.port ?? '\u2014'))}</td></tr>

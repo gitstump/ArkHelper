@@ -156,6 +156,26 @@ function getChangeLog(db, serverId, { limit = 20 } = {}) {
     .map((r) => ({ seenAt: r.seen_at, changeType: r.change_type, oldValue: r.old_value, newValue: r.new_value }));
 }
 
+function getRecentWipes(db, { sinceIso, limit = 5000 } = {}) {
+  const rows = sinceIso
+    ? db
+        .prepare(
+          `SELECT server_id, MAX(seen_at) as seen_at FROM change_log
+           WHERE change_type = 'wipe' AND seen_at >= ?
+           GROUP BY server_id ORDER BY seen_at DESC LIMIT ?`
+        )
+        .all(sinceIso, limit)
+    : db
+        .prepare(
+          `SELECT server_id, MAX(seen_at) as seen_at FROM change_log
+           WHERE change_type = 'wipe'
+           GROUP BY server_id ORDER BY seen_at DESC LIMIT ?`
+        )
+        .all(limit);
+
+  return rows.map((r) => ({ serverId: r.server_id, seenAt: r.seen_at }));
+}
+
 // ---------------------------------------------------------------------
 // Recording
 // ---------------------------------------------------------------------
@@ -705,6 +725,7 @@ module.exports = {
   recordSnapshotRun,
   detectAndLogChanges,
   getChangeLog,
+  getRecentWipes,
   computeUptimePercent,
   getServerHistory,
   getServerRunHistory,

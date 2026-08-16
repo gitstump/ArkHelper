@@ -310,7 +310,7 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/servers'));
   assert.ok(body.routes.includes('/servers/:id'));
   assert.ok(body.routes.includes('/servers/:id/badge.svg'));
-  assert.ok(body.routes.includes('/stats'));
+  assert.ok(body.routes.includes('/lists/:slug'));
   assert.ok(body.routes.includes('/rankings'));
   assert.ok(body.routes.includes('/favorites'));
   assert.ok(body.routes.includes('/alerts/:id'));
@@ -1048,9 +1048,8 @@ test('GET /servers?sort=rank orders by rankScore', async () => {
 
   const res = await fetch(`${base}/servers?sort=rank&dir=desc`);
   const html = await res.text();
-  assert.ok(html.indexOf('High') < html.indexOf('Low'));
-
   server.close();
+  assert.ok(html.indexOf('>High<') < html.indexOf('>Low<'), 'High-ranked server should appear before Low-ranked in the table');
 });
 
 // ---------------------------------------------------------------------
@@ -1526,6 +1525,165 @@ test('share redirect sanitizes stored query strings and never leaves /servers', 
     redirect: 'manual',
   });
   assert.match(saveRes.headers.get('location'), /presetError=empty_query/);
+
+  server.close();
+});
+
+function listRoster() {
+  return {
+    servers: [
+      { id: 'pve', name: 'EU-PVE-TheIsland5313', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 5, maxPlayers: 70, day: 100, rankScore: 80, wildcardReportedPing: 180, platformType: 'PC+XSX+WINGDK+PS5' },
+      { id: 'pvp', name: 'Asia-PVP-LostColony2859', map: 'LostColony_WP', gameMode: 'pvp', playersNow: 20, maxPlayers: 70, day: 50, rankScore: 40, wildcardReportedPing: 40, platformType: 'PC+PS5+XSX' },
+      { id: 'full', name: 'NA-PVP-Full1', map: 'Astraeos_WP', gameMode: 'pvp', playersNow: 70, maxPlayers: 70, day: 10, rankScore: 90, wildcardReportedPing: 12, platformType: 'XSX+PS5' },
+    ],
+    totalOfficial: 3,
+    generatedAt: '2026-08-16T00:00:00.000Z',
+  };
+}
+
+function fakeListDeps({ roster = listRoster(), wipes = { wipes: [] } } = {}) {
+  return {
+    fetchJsonSafe: async (url) => {
+      if (String(url).includes('/history/wipes')) return wipes;
+      return roster;
+    },
+  };
+}
+
+test('GET /lists/official-pve renders PvE servers and omits PvP', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeListDeps(),
+  });
+
+  const res = await fetch(`${base}/lists/official-pve`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<title>ARK Official PvE Servers/);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /Asia-PVP-LostColony2859/);
+  assert.match(html, /<summary class="active">Servers<\/summary>/);
+
+  server.close();
+});
+
+test('GET /lists/available-now excludes a full server', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeListDeps(),
+  });
+
+  const res = await fetch(`${base}/lists/available-now`);
+  const html = await res.text();
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.match(html, /Asia-PVP-LostColony2859/);
+  assert.doesNotMatch(html, /NA-PVP-Full1/);
+  assert.match(html, /observed/);
+
+  server.close();
+});
+
+test('GET /lists/recently-wiped shows in-window wipes and hides older ones', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeListDeps({
+      wipes: {
+        wipes: [
+          { serverId: 'pve', seenAt: new Date().toISOString() },
+          { serverId: 'pvp', seenAt: '2020-01-01T00:00:00.000Z' },
+        ],
+      },
+    }),
+  });
+
+  const res = await fetch(`${base}/lists/recently-wiped`);
+  const html = await res.text();
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /Asia-PVP-LostColony2859/);
+  assert.match(html, /Wiped /);
+
+  server.close();
+});
+
+test('GET /lists/low-ping paginates on the list URL', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: Array.from({ length: 26 }, (_, i) => ({
+      id: String(i),
+      name: `Srv${String(i).padStart(2, '0')}`,
+      map: 'TheIsland_WP',
+      gameMode: 'pve',
+      playersNow: 1,
+      maxPlayers: 70,
+      wildcardReportedPing: i + 1,
+      platformType: 'PC+PS5+XSX',
+    })),
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeListDeps({ roster }),
+  });
+
+  const res = await fetch(`${base}/lists/low-ping?page=2`);
+  const html = await res.text();
+  assert.match(html, /Page 2 of 2/);
+  assert.match(html, /href="\/lists\/low-ping\?/);
+  assert.match(html, /Srv25/);
+
+  server.close();
+});
+
+test('GET /lists/unknown-slug 404s', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const res = await fetch(`${base}/lists/not-a-list`);
+  assert.equal(res.status, 404);
+
+  server.close();
+});
+
+test('GET /servers includes Server lists links and a Platform filter', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(listRoster()),
+  });
+
+  const res = await fetch(`${base}/servers`);
+  const html = await res.text();
+  assert.match(html, /Server lists/);
+  assert.match(html, /href="\/lists\/official-pve"/);
+  assert.match(html, /name="platform"/);
 
   server.close();
 });

@@ -4,6 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { renderPage, renderNav, renderAuth, renderFooter, pathMatches, GITHUB_REPO } = require('./layout.js');
 
+test('renderPage includes a meta description when one is provided', () => {
+  const html = renderPage({ title: 'Low ping', description: 'Find ARK low ping servers.', currentPath: '/', body: '<p>x</p>' });
+  assert.match(html, /<meta name="description" content="Find ARK low ping servers.">/);
+});
+
 test('renderPage wraps body in the shared shell with theme CSS', () => {
   const html = renderPage({ title: 'ArkHelper', currentPath: '/', body: '<p>hello</p>' });
   assert.match(html, /^<!doctype html>/);
@@ -16,21 +21,34 @@ test('renderPage wraps body in the shared shell with theme CSS', () => {
   assert.match(html, /<\/html>$/);
 });
 
-test('renderNav marks the current page active and lists the five links', () => {
+test('renderNav groups Servers and Stats into details dropdowns and keeps Favorites as a link', () => {
   const html = renderNav('/rankings');
+  assert.match(html, /<details class="nav-drop">/);
+  assert.match(html, /<summary class="active">Stats<\/summary>/);
   assert.match(html, /href="\/servers"/);
+  assert.match(html, /href="\/lists\/official-pve"/);
+  assert.match(html, /href="\/lists\/low-ping"/);
+  assert.match(html, /href="\/lists\/available-now"/);
   assert.match(html, /href="\/rankings"/);
   assert.match(html, /href="\/stats"/);
   assert.match(html, /href="\/is-ark-down"/);
   assert.match(html, /href="\/favorites"/);
   assert.match(html, /class="active" href="\/rankings"/);
   assert.doesNotMatch(html, /class="active" href="\/stats"/);
+  assert.match(html, />Favorites<\/a>/);
+});
+
+test('renderNav marks the Servers group active on derived list pages', () => {
+  const html = renderNav('/lists/low-ping');
+  assert.match(html, /<summary class="active">Servers<\/summary>/);
+  assert.match(html, /class="active" href="\/lists\/low-ping"/);
 });
 
 test('pathMatches treats / and /servers as the Servers section, including detail paths', () => {
   assert.equal(pathMatches('/', ['/', '/servers']), true);
   assert.equal(pathMatches('/servers', ['/', '/servers']), true);
   assert.equal(pathMatches('/servers/abc', ['/', '/servers']), true);
+  assert.equal(pathMatches('/lists/official-pve', ['/', '/servers', '/lists']), true);
   assert.equal(pathMatches('/stats', ['/', '/servers']), false);
   assert.equal(pathMatches('/status', ['/is-ark-down', '/status']), true);
 });
@@ -60,6 +78,12 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   const html = renderFooter({ totalOfficial: 3179, generatedAt: '2026-08-15T16:52:24.124Z' });
   assert.match(html, /Server Tools/);
   assert.match(html, /href="\/servers">Browser/);
+  assert.match(html, /href="\/lists\/official-pve">Official PvE/);
+  assert.match(html, /href="\/lists\/official-pvp">Official PvP/);
+  assert.match(html, /href="\/lists\/low-ping">Low Ping/);
+  assert.match(html, /href="\/lists\/most-populated">Most Populated/);
+  assert.match(html, /href="\/lists\/recently-wiped">Recently Wiped/);
+  assert.match(html, /href="\/lists\/available-now">Available Now/);
   assert.match(html, /href="\/rankings">Rankings/);
   assert.match(html, /href="\/stats">Stats/);
   assert.match(html, /href="\/is-ark-down">Is ARK Down/);

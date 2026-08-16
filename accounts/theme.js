@@ -75,15 +75,70 @@ h1 a, h2 a { text-decoration: none; }
 .wordmark:hover { color: var(--accent); }
 .tagline { margin: 0; color: var(--muted); font-size: 0.78rem; }
 .nav { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; flex: 1; }
-.nav a {
+.nav a, .nav summary {
   color: var(--muted);
   text-decoration: none;
   font-size: 0.92rem;
   padding: var(--space-1) 0;
   border-bottom: 2px solid transparent;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: inherit;
 }
-.nav a:hover { color: var(--text); }
-.nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+.nav a:hover, .nav summary:hover { color: var(--text); }
+.nav a.active, .nav summary.active { color: var(--accent); border-bottom-color: var(--accent); }
+.nav-drop { position: relative; }
+.nav-drop > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.nav-drop > summary::-webkit-details-marker { display: none; }
+.nav-drop > summary::marker { content: none; }
+.nav-drop > summary::after { content: " \\25BE"; font-size: 0.75em; }
+.nav-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 13rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  z-index: 40;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-drop:hover > .nav-menu,
+.nav-drop:focus-within > .nav-menu,
+.nav-drop[open] > .nav-menu {
+  display: flex;
+}
+.nav-menu a {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: none;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.nav-menu a:hover { background: var(--bg); color: var(--text); }
+.nav-menu a.active { border-bottom: none; background: var(--bg); }
+.platform-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+  white-space: nowrap;
+}
 .auth { margin-left: auto; display: flex; align-items: center; gap: var(--space-3); font-size: 0.88rem; }
 .auth form { margin: 0; }
 .site-main {

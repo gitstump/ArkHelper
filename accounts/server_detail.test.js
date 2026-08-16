@@ -57,6 +57,8 @@ test('renderServerDetailPage shows the core facts', () => {
   assert.match(html, /PVECrossplay/);
   assert.match(html, /5\.62\.112\.69/);
   assert.match(html, /7779/);
+  assert.match(html, /platform-badge/);
+  assert.match(html, /PC\+Console/);
 });
 
 test('renderServerDetailPage shows "None (vanilla server)" when there are no mods', () => {

@@ -49,6 +49,7 @@ const {
   computeUptimePercent,
   getServerHistory,
   getChangeLog,
+  getRecentWipes,
   computePeakTimes,
   computeDowntimePatterns,
   computeTopUptimeServers,
@@ -223,6 +224,21 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb }) {
       return;
     }
 
+    if (parsedUrl.pathname === '/history/wipes') {
+      if (!historyDb) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'history tracking is not enabled on this instance' }));
+        return;
+      }
+      const days = Number(parsedUrl.searchParams.get('days'));
+      const windowDays = Number.isFinite(days) && days > 0 ? days : 14;
+      const sinceIso = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+      const wipes = getRecentWipes(historyDb, { sinceIso });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ sinceIso, wipes }));
+      return;
+    }
+
     const historyMatch = parsedUrl.pathname.match(/^\/history\/(.+)$/);
     if (historyMatch) {
       if (!historyDb) {
@@ -324,7 +340,7 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb }) {
     }
 
     res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status'] }));
   });
 }
 

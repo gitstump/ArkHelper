@@ -8,6 +8,8 @@ const {
   paginateServers,
   computeLiveCounters,
   getDistinctMaps,
+  getDistinctPlatforms,
+  platformBadge,
   renderBrowserPage,
   renderHeroBand,
   renderServerRow,
@@ -446,3 +448,109 @@ test('renderBrowserPage shows a friendly message for a known presetError code', 
   });
   assert.match(html, /limited to 3/);
 });
+
+test('platformBadge maps PlatformType tokens to compact PC / Console / PC+Console labels', () => {
+  assert.equal(platformBadge('PC+XSX+WINGDK+PS5'), 'PC+Console');
+  assert.equal(platformBadge('PC+PS5+XSX'), 'PC+Console');
+  assert.equal(platformBadge('XSX+PS5'), 'Console');
+  assert.equal(platformBadge('PS5+XSX'), 'Console');
+  assert.equal(platformBadge('PC'), 'PC');
+  assert.equal(platformBadge('PC+WINGDK'), 'PC');
+  assert.equal(platformBadge(null), null);
+  assert.equal(platformBadge(''), null);
+});
+
+test('getDistinctPlatforms returns compact badges present in the roster, in stable order', () => {
+  const badges = getDistinctPlatforms([
+    { platformType: 'XSX+PS5' },
+    { platformType: 'PC+PS5+XSX' },
+    { platformType: 'XSX+PS5' },
+    { platformType: null },
+  ]);
+  assert.deepEqual(badges, ['Console', 'PC+Console']);
+});
+
+test('filterServers compact platform filter matches the badge, not a PC substring', () => {
+  const servers = [
+    { id: 'pc', platformType: 'PC' },
+    { id: 'cross', platformType: 'PC+PS5+XSX' },
+    { id: 'cons', platformType: 'XSX+PS5' },
+  ];
+  assert.deepEqual(filterServers(servers, { platform: 'PC' }).map((s) => s.id), ['pc']);
+  assert.deepEqual(filterServers(servers, { platform: 'Console' }).map((s) => s.id), ['cons']);
+  assert.deepEqual(filterServers(servers, { platform: 'PC+Console' }).map((s) => s.id), ['cross']);
+});
+
+test('filterServers online / hasPing / minFreeSlots / notFull', () => {
+  const servers = [
+    { id: 'a', playersNow: 10, maxPlayers: 70, wildcardReportedPing: 40 },
+    { id: 'b', playersNow: 68, maxPlayers: 70, wildcardReportedPing: null },
+    { id: 'c', playersNow: 70, maxPlayers: 70, wildcardReportedPing: 20 },
+    { id: 'd', playersNow: null, maxPlayers: 70, wildcardReportedPing: 10 },
+  ];
+  assert.deepEqual(filterServers(servers, { online: 'true' }).map((s) => s.id), ['a', 'b', 'c']);
+  assert.deepEqual(filterServers(servers, { hasPing: 'true' }).map((s) => s.id), ['a', 'c', 'd']);
+  assert.deepEqual(filterServers(servers, { minFreeSlots: '5', notFull: 'true', online: 'true' }).map((s) => s.id), ['a']);
+});
+
+test('filterServers wipedWithinDays keeps wipes inside the window and drops older ones', () => {
+  const now = () => Date.parse('2026-08-16T00:00:00.000Z');
+  const servers = [
+    { id: 'in', wipeDetectedAt: '2026-08-10T00:00:00.000Z' },
+    { id: 'out', wipeDetectedAt: '2026-07-01T00:00:00.000Z' },
+    { id: 'none' },
+  ];
+  const result = filterServers(servers, { wipedWithinDays: '14' }, { now });
+  assert.deepEqual(result.map((s) => s.id), ['in']);
+});
+
+test('sortServers by ping ascending puts missing ping last', () => {
+  const servers = [
+    { id: 'a', wildcardReportedPing: 180 },
+    { id: 'b', wildcardReportedPing: null },
+    { id: 'c', wildcardReportedPing: 40 },
+  ];
+  assert.deepEqual(sortServers(servers, 'ping', 'asc').map((s) => s.id), ['c', 'a', 'b']);
+});
+
+test('sortServers by freeSlots descending', () => {
+  const servers = [
+    { id: 'a', playersNow: 60, maxPlayers: 70 },
+    { id: 'b', playersNow: 10, maxPlayers: 70 },
+    { id: 'c', playersNow: null, maxPlayers: 70 },
+  ];
+  assert.deepEqual(sortServers(servers, 'freeSlots', 'desc').map((s) => s.id), ['b', 'a', 'c']);
+});
+
+test('renderServerRow shows a compact platform badge', () => {
+  const html = renderServerRow({
+    id: '1',
+    name: 'EU-PVE-TheIsland5313',
+    map: 'TheIsland_WP',
+    playersNow: 5,
+    maxPlayers: 70,
+    platformType: 'PC+XSX+WINGDK+PS5',
+  });
+  assert.match(html, /platform-badge/);
+  assert.match(html, /PC\+Console/);
+});
+
+test('renderBrowserPage includes a Server lists index and a Platform filter', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    platformOptions: ['PC+Console', 'Console'],
+    rosterAvailable: true,
+    currentPath: '/servers',
+  });
+  assert.match(html, /Server lists/);
+  assert.match(html, /href="\/lists\/official-pve"/);
+  assert.match(html, /href="\/lists\/available-now"/);
+  assert.match(html, /name="platform"/);
+  assert.match(html, /PC\+Console/);
+});
+

@@ -7,6 +7,7 @@ const {
   recordSnapshotRun,
   detectAndLogChanges,
   getChangeLog,
+  getRecentWipes,
   computeUptimePercent,
   getServerHistory,
   getServerRunHistory,
@@ -295,6 +296,19 @@ test('getChangeLog is scoped per-server', () => {
 
   assert.equal(getChangeLog(db, 'a').length, 1);
   assert.equal(getChangeLog(db, 'b').length, 0);
+});
+
+test('getRecentWipes returns the latest wipe per server inside the window', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', day: 45, version: '1' }], { now: () => '2026-08-01T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', day: 1, version: '1' }], { now: () => '2026-08-01T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'b', day: 45, version: '1' }], { now: () => '2026-08-10T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'b', day: 1, version: '1' }], { now: () => '2026-08-10T01:00:00.000Z' });
+
+  const recent = getRecentWipes(db, { sinceIso: '2026-08-05T00:00:00.000Z' });
+  assert.equal(recent.length, 1);
+  assert.equal(recent[0].serverId, 'b');
+  assert.equal(recent[0].seenAt, '2026-08-10T01:00:00.000Z');
 });
 
 // ---------------------------------------------------------------------

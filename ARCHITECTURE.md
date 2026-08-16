@@ -7,7 +7,7 @@ discovery/    — port 8792. Pulls the live official ARK:SA roster, records hist
                  uptime/rankings/heatmaps/incidents. Has no UI — it's a data/API layer other things read from.
 accounts/     — port 8793. Everything a browser actually loads: login, homepage, server
                  browser, detail pages, favorites, alerts (settings only), stats, rankings,
-                 status ("Is ARK down?").
+                 status ("Is ARK down?"), derived server lists.
 ```
 
 They're separate Node processes, talking over plain local HTTP — `accounts/` fetches from
@@ -26,7 +26,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `incidents.js` | Pure incident classifier (thresholds, hysteresis, consecutive-fetch-failure counting) |
 | `geo_lookup.js` | GeoLite2/MaxMind country lookups — built, not yet configured (see `PROJECT_STATUS.md`) |
 
-**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/history/:id`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`
+**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/history/:id`, `/history/wipes`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`
 
 ## accounts/
 
@@ -39,6 +39,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `layout.js` | Shared page shell — header nav, footer sitemap, document wrapper |
 | `home_page.js` | Homepage is the server browser + hero stats; still exports `escapeHtml` |
 | `server_browser.js` | Filter/sort/paginate + the `/` and `/servers` list page |
+| `server_lists.js` | Canonical derived list pages (`/lists/...`) — pre-filtered views that reuse the browser pipeline |
 | `presets.js` | Named filter snapshots — query sanitization, cookie cap/size guards; share tokens live in db.js |
 | `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
 | `favorites_page.js` | The `/favorites` page |

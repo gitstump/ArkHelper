@@ -18,28 +18,121 @@
  */
 
 const { escapeHtml } = require('./theme.js');
-const { renderPage } = require('./layout.js');
+const { renderPage, LIST_NAV } = require('./layout.js');
 const { hasActiveFilters, messageForPresetError, serversLocation } = require('./presets.js');
 
 const PAGE_SIZE = 25;
-const SORT_KEYS = { name: 'name', players: 'playersNow', day: 'day', map: 'map', rank: 'rankScore' };
+const SORT_KEYS = { name: 'name', players: 'playersNow', day: 'day', map: 'map', rank: 'rankScore', ping: 'wildcardReportedPing' };
+const PC_TOKENS = new Set(['PC', 'WINGDK']);
+const CONSOLE_TOKENS = new Set(['XSX', 'XSS', 'PS5', 'PS4']);
+const PLATFORM_BADGE_ORDER = ['PC', 'Console', 'PC+Console'];
+const COMPACT_PLATFORM_FILTERS = new Set(PLATFORM_BADGE_ORDER);
+
+function isOnline(s) {
+  return s.playersNow !== null && s.playersNow !== undefined;
+}
+
+function freeSlots(s) {
+  if (typeof s.playersNow !== 'number' || typeof s.maxPlayers !== 'number') return null;
+  return s.maxPlayers - s.playersNow;
+}
+
+function platformBadge(platformType) {
+  if (!platformType || typeof platformType !== 'string') return null;
+  const tokens = platformType
+    .split('+')
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean);
+  if (!tokens.length) return null;
+  let pc = false;
+  let cons = false;
+  for (const t of tokens) {
+    if (PC_TOKENS.has(t)) pc = true;
+    if (CONSOLE_TOKENS.has(t)) cons = true;
+  }
+  if (pc && cons) return 'PC+Console';
+  if (cons) return 'Console';
+  if (pc) return 'PC';
+  return null;
+}
+
+function getDistinctPlatforms(servers) {
+  const present = new Set();
+  for (const s of servers) {
+    const badge = platformBadge(s.platformType);
+    if (badge) present.add(badge);
+  }
+  return PLATFORM_BADGE_ORDER.filter((label) => present.has(label));
+}
+
+function platformMatches(s, platform) {
+  if (!platform) return true;
+  if (COMPACT_PLATFORM_FILTERS.has(platform)) return platformBadge(s.platformType) === platform;
+  return (s.platformType || '').toUpperCase().includes(platform.toUpperCase());
+}
+
+function sortValue(s, sortKey) {
+  if (sortKey === 'freeSlots') return freeSlots(s);
+  if (sortKey === 'wipedAt' || sortKey === 'wipeDetectedAt') return s.wipeDetectedAt || null;
+  const field = SORT_KEYS[sortKey] || SORT_KEYS.players;
+  return s[field];
+}
+
+function filtersFromSearchParams(params) {
+  return {
+    search: params.get('search') || '',
+    map: params.get('map') || '',
+    gameMode: params.get('gameMode') || '',
+    platform: params.get('platform') || '',
+    hasPassword: params.get('hasPassword') || '',
+    minPlayers: params.get('minPlayers') || '',
+    maxPlayers: params.get('maxPlayers') || '',
+    clusterId: params.get('clusterId') || '',
+    online: params.get('online') || '',
+    hasPing: params.get('hasPing') || '',
+    minFreeSlots: params.get('minFreeSlots') || '',
+    notFull: params.get('notFull') || '',
+    wipedWithinDays: params.get('wipedWithinDays') || '',
+  };
+}
 
 // ---------------------------------------------------------------------
 // Filtering
 // ---------------------------------------------------------------------
-function filterServers(servers, filters = {}) {
-  const { search, map, gameMode, platform, hasPassword, minPlayers, maxPlayers, clusterId } = filters;
+function filterServers(servers, filters = {}, { now = Date.now } = {}) {
+  const { search, map, gameMode, platform, hasPassword, minPlayers, maxPlayers, clusterId, online, hasPing, minFreeSlots, notFull, wipedWithinDays } = filters;
+
+  let wipeCutoff = null;
+  if (wipedWithinDays !== undefined && wipedWithinDays !== '') {
+    const days = Number(wipedWithinDays);
+    if (Number.isFinite(days) && days > 0) {
+      wipeCutoff = new Date(now() - days * 24 * 60 * 60 * 1000).toISOString();
+    }
+  }
 
   return servers.filter((s) => {
     if (search && !(s.name || '').toLowerCase().includes(search.toLowerCase())) return false;
     if (map && s.map !== map) return false;
     if (gameMode && s.gameMode !== gameMode) return false;
-    if (platform && !(s.platformType || '').toUpperCase().includes(platform.toUpperCase())) return false;
+    if (!platformMatches(s, platform)) return false;
     if (hasPassword === 'true' && s.hasPassword !== true) return false;
     if (hasPassword === 'false' && s.hasPassword !== false) return false;
     if (minPlayers !== undefined && minPlayers !== '' && (s.playersNow ?? -Infinity) < Number(minPlayers)) return false;
     if (maxPlayers !== undefined && maxPlayers !== '' && (s.playersNow ?? Infinity) > Number(maxPlayers)) return false;
     if (clusterId && s.clusterId !== clusterId) return false;
+    if (online === 'true' && !isOnline(s)) return false;
+    if (hasPing === 'true' && typeof s.wildcardReportedPing !== 'number') return false;
+    if (notFull === 'true') {
+      if (typeof s.playersNow !== 'number' || typeof s.maxPlayers !== 'number' || s.playersNow >= s.maxPlayers) return false;
+    }
+    if (minFreeSlots !== undefined && minFreeSlots !== '') {
+      const min = Number(minFreeSlots);
+      const slots = freeSlots(s);
+      if (slots === null || slots < min) return false;
+    }
+    if (wipeCutoff) {
+      if (!s.wipeDetectedAt || s.wipeDetectedAt < wipeCutoff) return false;
+    }
     return true;
   });
 }
@@ -48,12 +141,12 @@ function filterServers(servers, filters = {}) {
 // Sorting (never mutates the input array)
 // ---------------------------------------------------------------------
 function sortServers(servers, sortKey = 'players', sortDir = 'desc') {
-  const field = SORT_KEYS[sortKey] || SORT_KEYS.players;
+  const key = sortKey === 'freeSlots' || sortKey === 'wipedAt' || sortKey === 'wipeDetectedAt' || SORT_KEYS[sortKey] ? sortKey : 'players';
   const dir = sortDir === 'asc' ? 1 : -1;
 
   return [...servers].sort((a, b) => {
-    const av = a[field];
-    const bv = b[field];
+    const av = sortValue(a, key);
+    const bv = sortValue(b, key);
     // Nulls always sort last regardless of direction, rather than
     // jumping to the front on a "desc" sort where null coerces to 0.
     if (av === null || av === undefined) return bv === null || bv === undefined ? 0 : 1;
@@ -130,6 +223,12 @@ const PAGE_CSS = `
 .cap { display: flex; align-items: center; gap: var(--space-2); }
 .cap-bar { width: 48px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
 .cap-fill { display: block; height: 100%; background: var(--accent); }
+.server-lists { margin: var(--space-4) 0 var(--space-2); }
+.server-lists h2 { margin: 0 0 var(--space-2); }
+.server-lists ul { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); list-style: none; padding: 0; margin: 0; }
+.list-intro { color: var(--muted); margin: 0 0 var(--space-3); }
+.list-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 var(--space-3); }
+.wipe-meta { color: var(--muted); font-size: 0.78rem; }
 @media (max-width: 800px) { .hero-stats { grid-template-columns: 1fr 1fr; } }
 `;
 
@@ -200,11 +299,11 @@ function renderHeroBand({ counters, rosterMeta, status }) {
   </section>`;
 }
 
-function sortLink({ currentSort, currentDir, key, label, filters }) {
+function sortLink({ currentSort, currentDir, key, label, filters, basePath = '/servers' }) {
   const nextDir = currentSort === key && currentDir === 'desc' ? 'asc' : 'desc';
   const params = new URLSearchParams({ ...filters, sort: key, dir: nextDir });
   const arrow = currentSort === key ? (currentDir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
-  return `<a href="/servers?${params.toString()}">${escapeHtml(label)}${arrow}</a>`;
+  return `<a href="${basePath}?${params.toString()}">${escapeHtml(label)}${arrow}</a>`;
 }
 
 function capacityPct(s) {
@@ -214,15 +313,27 @@ function capacityPct(s) {
   return Math.max(0, Math.min(100, Math.round((now / max) * 100)));
 }
 
-function renderServerRow(s) {
-  const online = s.playersNow !== null && s.playersNow !== undefined;
+function formatWipeDate(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const day = iso.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : iso;
+}
+
+function renderServerRow(s, { showWipeDate = false } = {}) {
+  const online = isOnline(s);
   const rankDisplay = typeof s.rank === 'number' ? String(s.rank) : typeof s.rankScore === 'number' ? String(s.rankScore) : '\u2014';
   const ping = typeof s.wildcardReportedPing === 'number' ? `${s.wildcardReportedPing}` : '\u2014';
   const uptime = typeof s.uptimePercent === 'number' ? `${s.uptimePercent}%` : '\u2014';
   const pct = capacityPct(s);
+  const badge = platformBadge(s.platformType);
+  const badgeHtml = badge ? `<span class="platform-badge">${escapeHtml(badge)}</span>` : '';
+  const wipeHtml =
+    showWipeDate && s.wipeDetectedAt
+      ? `<div class="wipe-meta">Wiped ${escapeHtml(formatWipeDate(s.wipeDetectedAt))} \u00b7 Day ${escapeHtml(dash(s.day))}</div>`
+      : '';
   return `<tr>
       <td><span class="status-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online' : 'Offline'}"></span></td>
-      <td class="name"><a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a></td>
+      <td class="name"><a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a>${badgeHtml}${wipeHtml}</td>
       <td>${escapeHtml(s.map || '')}</td>
       <td class="num">${escapeHtml(dash(s.day))}</td>
       <td class="num">${escapeHtml(s.version || '\u2014')}</td>
@@ -267,14 +378,60 @@ function renderSavePresetForm(currentQuery) {
   </form>`;
 }
 
-function renderBrowserBody({ page, filters, sort, dir, counters, mapOptions, rosterAvailable, presets, loggedIn, shareOrigin, currentQuery, presetError, rosterMeta, status, showHero }) {
+function renderListIndex() {
+  const items = LIST_NAV.map((item) => `<li><a href="${item.href}">${escapeHtml(item.label)}</a></li>`).join('');
+  return `<nav class="server-lists" aria-label="Server lists">
+    <h2>Server lists</h2>
+    <ul>${items}</ul>
+  </nav>`;
+}
+
+function renderBrowserBody({
+  page,
+  filters,
+  sort,
+  dir,
+  counters,
+  mapOptions,
+  platformOptions,
+  rosterAvailable,
+  presets,
+  loggedIn,
+  shareOrigin,
+  currentQuery,
+  presetError,
+  rosterMeta,
+  status,
+  showHero,
+  heading = 'Servers',
+  intro = '',
+  extraNote = '',
+  formAction = '/servers',
+  basePath = '/servers',
+  showPresets = true,
+  showListIndex = false,
+  browserLink = '',
+  showWipeDate = false,
+  lockedFilterKeys = [],
+}) {
   const f = filters || {};
   const query = currentQuery || '';
+  const maps = mapOptions || [];
+  const platforms = platformOptions || [];
+  const locked = new Set(lockedFilterKeys);
   const errorText = messageForPresetError(presetError);
   const errorBar = errorText ? `<p class="preset-error">${escapeHtml(errorText)}</p>` : '';
-  const presetBar = renderPresetBar({ presets, loggedIn, shareOrigin, currentQuery: query });
-  const saveForm = renderSavePresetForm(query);
+  const presetBar = showPresets ? renderPresetBar({ presets, loggedIn, shareOrigin, currentQuery: query }) : '';
+  const saveForm = showPresets ? renderSavePresetForm(query) : '';
   const hero = showHero ? renderHeroBand({ counters, rosterMeta, status }) : '';
+  const listIndex = showListIndex ? renderListIndex() : '';
+  const introHtml = intro ? `<p class="list-intro">${escapeHtml(intro)}</p>` : '';
+  const noteHtml = extraNote ? `<p class="list-note">${escapeHtml(extraNote)}</p>` : '';
+  const backLink = browserLink ? `<p class="note"><a href="${escapeHtml(browserLink)}">View these filters in the full server browser</a></p>` : '';
+  const hiddenLocked = [...locked]
+    .filter((key) => f[key] !== undefined && f[key] !== '')
+    .map((key) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(String(f[key]))}">`)
+    .join('');
 
   const countersBar = rosterAvailable
     ? `<p class="counters">${escapeHtml(String(counters.totalOfficial))} official servers &middot; ` +
@@ -286,23 +443,36 @@ function renderBrowserBody({ page, filters, sort, dir, counters, mapOptions, ros
     showHero && !rosterMeta
       ? `<p class="note">Server roster data isn't available right now (the discovery service may not be running).</p>`
       : '';
+  const matchCount =
+    page && typeof page.totalCount === 'number' ? `<p class="counters">${escapeHtml(String(page.totalCount))} matching servers.</p>` : '';
 
   if (!rosterAvailable) {
-    return `${hero}<h1>Servers</h1>${countersBar}${homeMetaNote}`;
+    return `${hero}<h1>${escapeHtml(heading)}</h1>${introHtml}${countersBar}${homeMetaNote}`;
   }
 
-  const filterForm = `
-<form method="GET" action="/servers" class="filters">
-  <input type="text" name="search" placeholder="Search server name" value="${escapeHtml(f.search || '')}">
-  <select name="map">
-    <option value="">All maps</option>
-    ${mapOptions.map((m) => `<option value="${escapeHtml(m)}" ${f.map === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
-  </select>
-  <select name="gameMode">
+  const gameModeSelect = locked.has('gameMode')
+    ? ''
+    : `<select name="gameMode">
     <option value="">All modes</option>
     <option value="pve" ${f.gameMode === 'pve' ? 'selected' : ''}>PvE</option>
     <option value="pvp" ${f.gameMode === 'pvp' ? 'selected' : ''}>PvP</option>
+  </select>`;
+
+  const platformSelect = `<select name="platform" aria-label="Platform">
+    <option value="">Any platform</option>
+    ${platforms.map((p) => `<option value="${escapeHtml(p)}" ${f.platform === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
+  </select>`;
+
+  const filterForm = `
+<form method="GET" action="${escapeHtml(formAction)}" class="filters">
+  ${hiddenLocked}
+  <input type="text" name="search" placeholder="Search server name" value="${escapeHtml(f.search || '')}">
+  <select name="map">
+    <option value="">All maps</option>
+    ${maps.map((m) => `<option value="${escapeHtml(m)}" ${f.map === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
   </select>
+  ${gameModeSelect}
+  ${platformSelect}
   <select name="hasPassword">
     <option value="">Any</option>
     <option value="false" ${f.hasPassword === 'false' ? 'selected' : ''}>Public only</option>
@@ -313,20 +483,21 @@ function renderBrowserBody({ page, filters, sort, dir, counters, mapOptions, ros
   <button type="submit">Filter</button>
 </form>`;
 
-  const rows = page.items.map(renderServerRow).join('');
+  const rows = page.items.map((s) => renderServerRow(s, { showWipeDate })).join('');
+  const linkOpts = { currentSort: sort, currentDir: dir, filters: f, basePath };
 
   const resultsTable = page.items.length
     ? `<table class="browser-table">
       <thead><tr>
         <th></th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'name', label: 'Name', filters: f })}</th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'map', label: 'Map', filters: f })}</th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'day', label: 'Day', filters: f })}</th>
+        <th>${sortLink({ ...linkOpts, key: 'name', label: 'Name' })}</th>
+        <th>${sortLink({ ...linkOpts, key: 'map', label: 'Map' })}</th>
+        <th>${sortLink({ ...linkOpts, key: 'day', label: 'Day' })}</th>
         <th>Version</th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'players', label: 'Players', filters: f })}</th>
+        <th>${sortLink({ ...linkOpts, key: 'players', label: 'Players' })}</th>
         <th>Ping</th>
         <th>Uptime</th>
-        <th>${sortLink({ currentSort: sort, currentDir: dir, key: 'rank', label: 'Rank', filters: f })}</th>
+        <th>${sortLink({ ...linkOpts, key: 'rank', label: 'Rank' })}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`
@@ -335,15 +506,20 @@ function renderBrowserBody({ page, filters, sort, dir, counters, mapOptions, ros
   const prevParams = new URLSearchParams({ ...f, sort, dir, page: String(page.page - 1) });
   const nextParams = new URLSearchParams({ ...f, sort, dir, page: String(page.page + 1) });
   const pagination = `<p class="pagination">
-    ${page.page > 1 ? `<a href="/servers?${prevParams.toString()}">&laquo; Prev</a>` : '<span>&laquo; Prev</span>'}
+    ${page.page > 1 ? `<a href="${basePath}?${prevParams.toString()}">&laquo; Prev</a>` : '<span>&laquo; Prev</span>'}
     Page ${page.page} of ${page.totalPages} (${page.totalCount} matching)
-    ${page.page < page.totalPages ? `<a href="/servers?${nextParams.toString()}">Next &raquo;</a>` : '<span>Next &raquo;</span>'}
+    ${page.page < page.totalPages ? `<a href="${basePath}?${nextParams.toString()}">Next &raquo;</a>` : '<span>Next &raquo;</span>'}
   </p>`;
 
   return `${hero}
-  <h1>Servers</h1>
+  <h1>${escapeHtml(heading)}</h1>
+  ${introHtml}
+  ${matchCount}
+  ${noteHtml}
+  ${backLink}
   ${countersBar}
   ${homeMetaNote}
+  ${listIndex}
   ${presetBar}
   ${errorBar}
   ${saveForm}
@@ -360,16 +536,23 @@ function renderBrowserPage(opts = {}) {
     currentPath = '/servers',
     showHero = false,
     rosterAvailable,
+    documentTitle,
+    metaDescription,
   } = opts;
-  const title = currentPath === '/' ? 'ArkHelper' : 'ArkHelper \u2014 Servers';
+  const title = documentTitle || (currentPath === '/' ? 'ArkHelper' : 'ArkHelper \u2014 Servers');
   const footerLive = live || (rosterMeta ? { totalOfficial: rosterMeta.totalOfficial, generatedAt: rosterMeta.generatedAt } : null);
   return renderPage({
     title,
+    description: metaDescription,
     currentPath,
     account,
     live: footerLive,
     extraCss: PAGE_CSS,
-    body: renderBrowserBody({ ...opts, showHero: showHero || currentPath === '/' }),
+    body: renderBrowserBody({
+      ...opts,
+      showHero: showHero || currentPath === '/',
+      showListIndex: opts.showListIndex !== undefined ? opts.showListIndex : Boolean(rosterAvailable) && (currentPath === '/' || currentPath === '/servers'),
+    }),
   });
 }
 
@@ -380,12 +563,18 @@ module.exports = {
   paginateServers,
   computeLiveCounters,
   getDistinctMaps,
+  getDistinctPlatforms,
+  platformBadge,
+  filtersFromSearchParams,
+  isOnline,
+  freeSlots,
   renderBrowserPage,
   renderBrowserBody,
   renderHeroBand,
   renderPresetBar,
   renderSavePresetForm,
   renderServerRow,
+  renderListIndex,
   statusWord,
   networkUptime24h,
   STYLE,

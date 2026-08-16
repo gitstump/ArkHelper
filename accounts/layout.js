@@ -13,11 +13,30 @@ const { THEME_CSS, escapeHtml } = require('./theme.js');
 
 const GITHUB_REPO = 'https://github.com/gitstump/ArkHelper';
 
+const LIST_NAV = [
+  { href: '/lists/official-pve', label: 'Official PvE' },
+  { href: '/lists/official-pvp', label: 'Official PvP' },
+  { href: '/lists/low-ping', label: 'Low Ping' },
+  { href: '/lists/most-populated', label: 'Most Populated' },
+  { href: '/lists/recently-wiped', label: 'Recently Wiped' },
+  { href: '/lists/available-now', label: 'Available Now' },
+];
+
 const NAV = [
-  { href: '/servers', label: 'Servers', match: ['/', '/servers'] },
-  { href: '/rankings', label: 'Rankings', match: ['/rankings'] },
-  { href: '/stats', label: 'Stats', match: ['/stats'] },
-  { href: '/is-ark-down', label: 'Is ARK Down', match: ['/is-ark-down', '/status'] },
+  {
+    label: 'Servers',
+    match: ['/', '/servers', '/lists'],
+    children: [{ href: '/servers', label: 'Server Browser', match: ['/', '/servers'] }, ...LIST_NAV],
+  },
+  {
+    label: 'Stats',
+    match: ['/rankings', '/stats', '/is-ark-down', '/status'],
+    children: [
+      { href: '/rankings', label: 'Rankings', match: ['/rankings'] },
+      { href: '/stats', label: 'Leaderboards & Stats', match: ['/stats'] },
+      { href: '/is-ark-down', label: 'Is ARK Down', match: ['/is-ark-down', '/status'] },
+    ],
+  },
   { href: '/favorites', label: 'Favorites', match: ['/favorites'] },
 ];
 
@@ -30,11 +49,23 @@ function pathMatches(currentPath, match) {
   return false;
 }
 
+function renderNavLink(item, currentPath) {
+  const match = item.match || [item.href];
+  const active = pathMatches(currentPath, match) ? ' active' : '';
+  return `<a class="${active.trim()}" href="${item.href}">${escapeHtml(item.label)}</a>`;
+}
+
+function renderNavGroup(item, currentPath) {
+  const groupActive = pathMatches(currentPath, item.match) ? ' active' : '';
+  const links = item.children.map((child) => renderNavLink(child, currentPath)).join('');
+  return `<details class="nav-drop">
+      <summary class="${groupActive.trim()}">${escapeHtml(item.label)}</summary>
+      <div class="nav-menu">${links}</div>
+    </details>`;
+}
+
 function renderNav(currentPath) {
-  return NAV.map((item) => {
-    const active = pathMatches(currentPath, item.match) ? ' active' : '';
-    return `<a class="${active.trim()}" href="${item.href}">${escapeHtml(item.label)}</a>`;
-  }).join('');
+  return NAV.map((item) => (item.children ? renderNavGroup(item, currentPath) : renderNavLink(item, currentPath))).join('');
 }
 
 function renderAuth(account) {
@@ -61,6 +92,7 @@ function formatLiveUpdated(live) {
 }
 
 function renderFooter(live) {
+  const listItems = LIST_NAV.map((item) => `<li><a href="${item.href}">${escapeHtml(item.label)}</a></li>`).join('');
   return `<footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-cols">
@@ -68,6 +100,7 @@ function renderFooter(live) {
         <h2>Server Tools</h2>
         <ul>
           <li><a href="/servers">Browser</a></li>
+          ${listItems}
           <li><a href="/rankings">Rankings</a></li>
           <li><a href="/stats">Stats</a></li>
           <li><a href="/is-ark-down">Is ARK Down</a></li>
@@ -95,14 +128,17 @@ function renderFooter(live) {
 </footer>`;
 }
 
-function renderPage({ title, currentPath, account, live, extraCss = '', body }) {
+function renderPage({ title, description, currentPath, account, live, extraCss = '', body }) {
+  const metaDescription = description
+    ? `<meta name="description" content="${escapeHtml(description)}">\n`
+    : '';
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title || 'ArkHelper')}</title>
-<style>
+${metaDescription}<style>
 ${THEME_CSS}
 ${extraCss}
 </style>
@@ -131,6 +167,7 @@ ${extraCss}
 module.exports = {
   GITHUB_REPO,
   NAV,
+  LIST_NAV,
   pathMatches,
   renderNav,
   renderAuth,

@@ -53,8 +53,11 @@ const {
   paginateServers,
   computeLiveCounters,
   getDistinctMaps,
+  getDistinctPlatforms,
+  filtersFromSearchParams,
   renderBrowserPage,
 } = require('./server_browser.js');
+const { getListDef, attachWipes, applyList, renderListPage } = require('./server_lists.js');
 const {
   PRESET_COOKIE,
   PRESET_COOKIE_MAX_AGE_SECONDS,
@@ -148,6 +151,15 @@ function liveFromRoster(roster) {
 function liveFromMeta(meta) {
   if (!meta) return null;
   return { totalOfficial: meta.totalOfficial, generatedAt: meta.generatedAt };
+}
+
+async function withWipesIfNeeded(servers, filters, fetchJsonSafe, wipesUrl) {
+  if (!filters || !filters.wipedWithinDays) return { servers, wipesAvailable: true };
+  const days = Number(filters.wipedWithinDays);
+  const url = `${wipesUrl}?days=${Number.isFinite(days) && days > 0 ? days : 14}`;
+  const data = await fetchJsonSafe(url);
+  if (!data || !Array.isArray(data.wipes)) return { servers, wipesAvailable: false };
+  return { servers: attachWipes(servers, data.wipes), wipesAvailable: true };
 }
 
 function shareOriginFromReq(req, cookieSecure) {
@@ -432,6 +444,69 @@ function createAuthServer({
         return;
       }
 
+      const listMatch = req.method === 'GET' && url.pathname.match(/^\/lists\/([^/]+)$/);
+      if (listMatch) {
+        const def = getListDef(listMatch[1]);
+        if (!def) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'not found' }));
+          return;
+        }
+
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const live = liveFromRoster(roster);
+        if (!roster || !Array.isArray(roster.servers)) {
+          const body = renderListPage({
+            list: def,
+            rosterAvailable: false,
+            account,
+            live,
+            filters: def.filters,
+            page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+            sort: def.sort,
+            dir: def.dir,
+            counters: computeLiveCounters([]),
+            mapOptions: [],
+            platformOptions: [],
+          });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const queryFilters = filtersFromSearchParams(url.searchParams);
+        const wipesUrl = `${historyUrlBase}/wipes`;
+        let servers = roster.servers;
+        let extraNote;
+        if (def.needsWipes || queryFilters.wipedWithinDays) {
+          const wipeResult = await withWipesIfNeeded(servers, { wipedWithinDays: def.filters.wipedWithinDays || queryFilters.wipedWithinDays }, browserDeps.fetchJsonSafe, wipesUrl);
+          servers = wipeResult.servers;
+          if (!wipeResult.wipesAvailable) {
+            extraNote = 'Wipe history isn\'t available right now (the discovery history feed may not be running).';
+            servers = servers.map((s) => ({ ...s }));
+          }
+        }
+
+        const view = applyList(servers, def, queryFilters, { page: url.searchParams.get('page') || '1' });
+        const body = renderListPage({
+          list: def,
+          page: view.page,
+          filters: view.filters,
+          sort: view.sort,
+          dir: view.dir,
+          counters: computeLiveCounters(roster.servers),
+          mapOptions: getDistinctMaps(roster.servers),
+          platformOptions: getDistinctPlatforms(roster.servers),
+          rosterAvailable: true,
+          account,
+          live,
+          extraNote,
+        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
       if (req.method === 'GET' && (url.pathname === '/servers' || url.pathname === '/')) {
         const isHome = url.pathname === '/';
         const [roster, rosterMeta, status] = await Promise.all([
@@ -450,20 +525,13 @@ function createAuthServer({
           return;
         }
 
-        const filters = {
-          search: url.searchParams.get('search') || '',
-          map: url.searchParams.get('map') || '',
-          gameMode: url.searchParams.get('gameMode') || '',
-          hasPassword: url.searchParams.get('hasPassword') || '',
-          minPlayers: url.searchParams.get('minPlayers') || '',
-          maxPlayers: url.searchParams.get('maxPlayers') || '',
-          clusterId: url.searchParams.get('clusterId') || '',
-        };
+        const filters = filtersFromSearchParams(url.searchParams);
         const sort = url.searchParams.get('sort') || 'players';
         const dir = url.searchParams.get('dir') || 'desc';
         const pageNum = url.searchParams.get('page') || '1';
 
-        const filtered = filterServers(roster.servers, filters);
+        const wipeResult = await withWipesIfNeeded(roster.servers, filters, browserDeps.fetchJsonSafe, `${historyUrlBase}/wipes`);
+        const filtered = filterServers(wipeResult.servers, filters);
         const sorted = sortServers(filtered, sort, dir);
         const page = paginateServers(sorted, pageNum);
 
@@ -488,6 +556,7 @@ function createAuthServer({
           dir,
           counters: computeLiveCounters(roster.servers),
           mapOptions: getDistinctMaps(roster.servers),
+          platformOptions: getDistinctPlatforms(roster.servers),
           rosterAvailable: true,
           presets,
           loggedIn: Boolean(accountRow),
@@ -655,7 +724,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/stats', '/rankings', '/is-ark-down', '/status', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));

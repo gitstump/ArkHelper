@@ -17,7 +17,7 @@ const {
   resolveGeoDbPath,
   resolveHistoryDbPath,
 } = require('./discovery_service.js');
-const { openHistoryDb, computeUptimePercent, getIncidentStatus } = require('./history.js');
+const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun } = require('./history.js');
 
 function tmpFile(name) {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ark-tools-discovery-')), name);
@@ -218,7 +218,7 @@ test('roster HTTP server 404s on unknown routes with a helpful body', async () =
   const res = await fetch(`http://127.0.0.1:${port}/nonsense`);
   const body = await res.json();
   assert.equal(res.status, 404);
-  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status']);
+  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status']);
 
   server.close();
 });
@@ -307,6 +307,28 @@ test('GET /history/:id returns 503 when history tracking is not enabled on this 
 
   const res = await fetch(`http://127.0.0.1:${port}/history/1`);
   assert.equal(res.status, 503);
+
+  server.close();
+});
+
+test('GET /history/wipes returns recent wipe detections from history', async () => {
+  const file = tmpFile('roster.json');
+  const historyDb = openHistoryDb(':memory:');
+  const now = new Date().toISOString();
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  recordSnapshotRun(historyDb, [{ id: 'wipe-me', day: 45, version: '1' }], { now: () => hourAgo });
+  recordSnapshotRun(historyDb, [{ id: 'wipe-me', day: 1, version: '1' }], { now: () => now });
+
+  const server = createRosterServer({ outPath: file, historyDb });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const res = await fetch(`http://127.0.0.1:${port}/history/wipes?days=14`);
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.wipes.length, 1);
+  assert.equal(body.wipes[0].serverId, 'wipe-me');
+  assert.equal(body.wipes[0].seenAt, now);
 
   server.close();
 });
