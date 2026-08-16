@@ -2,6 +2,10 @@
 
 ArkHelper tracks the official ARK: Survival Ascended server network: it pulls Wildcard's public roster, records history, and serves a dark, server-rendered site for browsing, ranking, and watching those servers — with Discord login for favorites and saved filters. Full public-feature parity with arkstatus.com is the baseline; unofficial servers and RCON/admin tools are out of scope.
 
+## Production
+
+Live at **https://arkhelper.info**. It runs on a DigitalOcean droplet behind Caddy/HTTPS as two systemd services. Deployment details live in `PROJECT_STATUS.md`.
+
 ## Features
 
 - **Server browser** (`/servers`) — search, filter, sort, and paginate the live official roster

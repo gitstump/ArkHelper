@@ -38,9 +38,12 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - Unofficial server tracking — explicitly deferred as a stretch goal, not baseline
 - Guides content (and short per-map blurbs) — the one genuinely-writing (not coding) piece of the whole project, separate track
 
+## Production deployment
+
+LIVE at https://arkhelper.info since 2026-08-16. DigitalOcean droplet (2GB, NYC, Ubuntu 24.04, IP 159.223.188.54). Code at `/opt/arkhelper`, cloned from the public GitHub repo. Two systemd services: `arkhelper-discovery.service` and `arkhelper-accounts.service` (`Restart=always`, enabled at boot). Secrets in `/etc/arkhelper.env` (`EnvironmentFile`; the code itself has no `.env` loader). Caddy reverse-proxies arkhelper.info and www → localhost:8793 with automatic Let's Encrypt HTTPS; discovery :8792 is internal-only (firewall allows only SSH/80/443). 2GB swap file enabled. Weekly DigitalOcean droplet backups enabled. Updates ship via `/root/deploy.sh` on the droplet (pull → npm install → `node --test` → restart; aborts if tests fail).
+
 ## Infrastructure not yet done
 
-- **Deployment** — DigitalOcean droplet ("ArkHelper") is provisioned and reachable, but the app has never actually been deployed to it. Everything has run on a local machine so far.
 - **GeoLite2** — `geo_lookup.js` is built and tested, but needs a MaxMind account + license key + downloaded `.mmdb` file to actually activate. Not done yet.
 
 ## Recently fixed (worth knowing about, not re-introducing)
