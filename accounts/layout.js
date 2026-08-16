@@ -22,6 +22,14 @@ const LIST_NAV = [
   { href: '/lists/available-now', label: 'Available Now' },
 ];
 
+const STATS_NAV = [
+  { href: '/rankings', label: 'Rankings', match: ['/rankings'] },
+  { href: '/leaderboards', label: 'Leaderboards', match: ['/leaderboards'] },
+  { href: '/leaderboards/map-uptime', label: 'Map Uptime' },
+  { href: '/leaderboards/pve-vs-pvp', label: 'PvE vs PvP' },
+  { href: '/is-ark-down', label: 'Is ARK Down', match: ['/is-ark-down', '/status'] },
+];
+
 const NAV = [
   {
     label: 'Servers',
@@ -30,12 +38,8 @@ const NAV = [
   },
   {
     label: 'Stats',
-    match: ['/rankings', '/stats', '/is-ark-down', '/status'],
-    children: [
-      { href: '/rankings', label: 'Rankings', match: ['/rankings'] },
-      { href: '/stats', label: 'Leaderboards & Stats', match: ['/stats'] },
-      { href: '/is-ark-down', label: 'Is ARK Down', match: ['/is-ark-down', '/status'] },
-    ],
+    match: ['/rankings', '/stats', '/leaderboards', '/is-ark-down', '/status'],
+    children: STATS_NAV,
   },
   { href: '/favorites', label: 'Favorites', match: ['/favorites'] },
 ];
@@ -93,6 +97,7 @@ function formatLiveUpdated(live) {
 
 function renderFooter(live) {
   const listItems = LIST_NAV.map((item) => `<li><a href="${item.href}">${escapeHtml(item.label)}</a></li>`).join('');
+  const statsItems = STATS_NAV.map((item) => `<li><a href="${item.href}">${escapeHtml(item.label)}</a></li>`).join('');
   return `<footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-cols">
@@ -101,9 +106,7 @@ function renderFooter(live) {
         <ul>
           <li><a href="/servers">Browser</a></li>
           ${listItems}
-          <li><a href="/rankings">Rankings</a></li>
-          <li><a href="/stats">Stats</a></li>
-          <li><a href="/is-ark-down">Is ARK Down</a></li>
+          ${statsItems}
           <li><a href="/favorites">Favorites</a></li>
           <li><a href="/servers">Presets</a></li>
         </ul>
@@ -168,6 +171,7 @@ module.exports = {
   GITHUB_REPO,
   NAV,
   LIST_NAV,
+  STATS_NAV,
   pathMatches,
   renderNav,
   renderAuth,

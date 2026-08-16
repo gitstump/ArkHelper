@@ -46,6 +46,23 @@ test('rankingFromRoster handles a missing or empty roster without throwing', () 
   assert.deepEqual(rankingFromRoster([]).servers, []);
 });
 
+test('rankingFromRoster order=asc returns the lowest scores first', () => {
+  const servers = [rankedServer('low', 10, { rank: 3 }), rankedServer('high', 90, { rank: 1 }), rankedServer('mid', 50, { rank: 2 })];
+  const result = rankingFromRoster(servers, { order: 'asc', limit: 2 });
+  assert.deepEqual(result.servers.map((s) => s.serverId), ['low', 'mid']);
+});
+
+test('rankingFromRoster minConfidence excludes thin-history servers', () => {
+  const servers = [
+    rankedServer('full', 20, { rank: 2, components: { confidence: 10 } }),
+    rankedServer('thin', 5, { rank: 3, components: { confidence: 2 } }),
+    rankedServer('also-full', 40, { rank: 1, components: { confidence: 10 } }),
+  ];
+  const result = rankingFromRoster(servers, { order: 'asc', minConfidence: 10 });
+  assert.deepEqual(result.servers.map((s) => s.serverId), ['full', 'also-full']);
+  assert.equal(result.totalRanked, 2);
+});
+
 test('renderRankingsPage shows a fallback when the roster is unavailable', () => {
   const html = renderRankingsPage({ rosterAvailable: false });
   assert.match(html, /discovery service may not be running/);

@@ -7,7 +7,7 @@ discovery/    — port 8792. Pulls the live official ARK:SA roster, records hist
                  uptime/rankings/heatmaps/incidents. Has no UI — it's a data/API layer other things read from.
 accounts/     — port 8793. Everything a browser actually loads: login, homepage, server
                  browser, detail pages, favorites, alerts (settings only), stats, rankings,
-                 status ("Is ARK down?"), derived server lists.
+                 status ("Is ARK down?"), derived server lists, leaderboard suite.
 ```
 
 They're separate Node processes, talking over plain local HTTP — `accounts/` fetches from
@@ -44,7 +44,8 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
 | `favorites_page.js` | The `/favorites` page |
 | `rankings_page.js` | The `/rankings` page — top 100 with score breakdowns |
-| `stats_page.js` | The `/stats` page — network breakdowns + leaderboards + ranking preview |
+| `leaderboards_page.js` | The `/leaderboards` suite — index, map uptime, PvE vs PvP, top-100 alias, bottom-100 |
+| `stats_page.js` | The `/stats` page — network breakdowns; leaderboard previews link into the suite |
 | `status_page.js` | The `/is-ark-down` (alias `/status`) page — renders the stored incident snapshot |
 | `heatmap_svg.js` | Renders peak-time/downtime grids as inline SVG |
 | `badge.js` | The embeddable live-status SVG badge |

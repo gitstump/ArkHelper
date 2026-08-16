@@ -4,10 +4,9 @@
 /**
  * stats_page.js
  *
- * Network-wide stats and leaderboards. Built around what we actually
- * have — live player counts (always available), uptime, and a
- * composite ranking preview (full table lives at /rankings; both
- * available once discovery's history has accumulated a few runs).
+ * Network-wide stats. Built around live roster breakdowns (mode, map,
+ * platform, cluster, most populated). Ranked lists live in the
+ * /leaderboards suite rather than being duplicated here.
  */
 
 const { escapeHtml } = require('./home_page.js');
@@ -100,10 +99,6 @@ function renderStatsPage({
   clusterStats,
   platformStats,
   topByPlayers,
-  uptimeLeaderboard,
-  uptimeAvailable,
-  ranking,
-  rankingAvailable,
   account = null,
   live = null,
 }) {
@@ -120,21 +115,16 @@ function renderStatsPage({
 
   const countersBar = `<p class="counters">${escapeHtml(String(counters.totalOfficial))} official servers &middot; ${escapeHtml(String(counters.playersOnline))} players online</p>`;
 
-  const rankingSection = !rankingAvailable
-    ? `<h2>Top ranked servers</h2><p class="note">History tracking isn't enabled on the discovery service, so ranking isn't available.</p>`
-    : ranking.servers.length === 0
-    ? `<h2>Top ranked servers</h2><p class="note">Not enough history recorded yet — ranking needs a few discovery runs before it's meaningful${ranking.totalRuns != null ? ` (based on ${escapeHtml(String(ranking.totalRuns))} run(s) so far)` : ''}.</p>`
-    : `<h2>Top ranked servers</h2>
-    <p class="note">Composite score out of 100: 40% reliability (uptime) + 25% connection (ping) + 25% activity (average population) + 10% confidence (history age). <a href="/rankings">Full rankings with score breakdowns &rsaquo;</a></p>
-    <table>
-      <thead><tr><th>#</th><th>Server</th><th>Score</th><th>Reliability</th><th>Connection</th><th>Activity</th><th>Confidence</th></tr></thead>
-      <tbody>${ranking.servers
-        .map((s) => {
-          const c = s.components || {};
-          return `<tr><td>${s.rank}</td><td><a href="/servers/${encodeURIComponent(s.serverId)}">${escapeHtml(displayNameFor(s))}</a></td><td>${escapeHtml(String(s.rankScore ?? ''))}</td><td>${escapeHtml(String(c.reliability ?? ''))}</td><td>${escapeHtml(String(c.connection ?? ''))}</td><td>${escapeHtml(String(c.activity ?? ''))}</td><td>${escapeHtml(String(c.confidence ?? ''))}</td></tr>`;
-        })
-        .join('')}</tbody>
-    </table>`;
+  const suiteSection = `<h2>Leaderboards</h2>
+    <p class="note">Ranked lists and comparisons live in the leaderboard suite. This page keeps the network breakdowns.</p>
+    <ul>
+      <li><a href="/rankings">Rankings</a> — composite top 100</li>
+      <li><a href="/leaderboards">All leaderboards</a></li>
+      <li><a href="/leaderboards/map-uptime">Map uptime</a></li>
+      <li><a href="/leaderboards/pve-vs-pvp">PvE vs PvP</a></li>
+      <li><a href="/leaderboards/top-100">Top 100</a></li>
+      <li><a href="/leaderboards/bottom-100">Bottom 100</a></li>
+    </ul>`;
 
   const modeSection = `<h2>By game mode</h2>
     <table>
@@ -181,35 +171,17 @@ function renderStatsPage({
         .join('')}</tbody>
     </table>`;
 
-  const uptimeSection = !uptimeAvailable
-    ? `<h2>Highest uptime servers</h2><p class="note">History tracking isn't enabled on the discovery service, so this leaderboard isn't available.</p>`
-    : uptimeLeaderboard.servers.length === 0
-    ? `<h2>Highest uptime servers</h2><p class="note">Not enough history recorded yet — this fills in automatically as the discovery service keeps running (based on ${escapeHtml(String(uptimeLeaderboard.totalRuns))} run(s) so far).</p>`
-    : `<h2>Highest uptime servers</h2>
-    <p class="note">Based on ${escapeHtml(String(uptimeLeaderboard.totalRuns))} discovery run(s). See the note on any server's detail page for what "uptime" means given our data source.</p>
-    <table>
-      <thead><tr><th>#</th><th>Server</th><th>Uptime</th></tr></thead>
-      <tbody>${uptimeLeaderboard.servers
-        .map(
-          (s, i) =>
-            `<tr><td>${i + 1}</td><td><a href="/servers/${encodeURIComponent(s.serverId)}">${escapeHtml(displayNameFor(s))}</a>${
-              s.map ? ` <span class="note">(${escapeHtml(s.map)})</span>` : ''
-            }</td><td>${escapeHtml(String(s.uptimePercent))}%</td></tr>`
-        )
-        .join('')}</tbody>
-    </table>`;
-
   return renderPage({
     title: 'ArkHelper \u2014 Stats',
+    description: 'Official ARK: Survival Ascended network breakdowns by mode, map, platform, and cluster.',
     currentPath: '/stats',
     account,
     live,
     extraCss: PAGE_CSS,
     body: `<h1>Stats</h1>
   ${countersBar}
-  ${rankingSection}
+  ${suiteSection}
   ${topByPlayersSection}
-  ${uptimeSection}
   <div class="stats-grid">
     <div>${modeSection}${platformSection}</div>
     <div>${mapSection}${clusterSection}</div>

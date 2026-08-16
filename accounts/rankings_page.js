@@ -23,10 +23,18 @@ const PAGE_CSS = `
 .explain dd { margin-left: 0; color: var(--muted); }
 `;
 
-function rankingFromRoster(servers, { limit = TOP_N } = {}) {
-  const eligible = (Array.isArray(servers) ? servers : []).filter((s) => typeof s.rankScore === 'number');
+function rankingFromRoster(servers, { limit = TOP_N, order = 'desc', minConfidence = null } = {}) {
+  const eligible = (Array.isArray(servers) ? servers : []).filter((s) => {
+    if (typeof s.rankScore !== 'number') return false;
+    if (minConfidence != null) {
+      const confidence = s.rankComponents && s.rankComponents.confidence;
+      if (typeof confidence !== 'number' || confidence < minConfidence) return false;
+    }
+    return true;
+  });
+  const dir = order === 'asc' ? 1 : -1;
   const rows = [...eligible]
-    .sort((a, b) => b.rankScore - a.rankScore)
+    .sort((a, b) => dir * (a.rankScore - b.rankScore) || String(a.id || '').localeCompare(String(b.id || '')))
     .slice(0, limit)
     .map((s, i) => ({
       rank: typeof s.rank === 'number' ? s.rank : i + 1,
@@ -43,15 +51,27 @@ function formatPoints(value) {
   return String(value);
 }
 
-function renderRankingsPage({ rosterAvailable, ranking, account = null, live = null }) {
+function renderRankingsPage({
+  rosterAvailable,
+  ranking,
+  account = null,
+  live = null,
+  currentPath = '/rankings',
+  title = 'ArkHelper \u2014 Rankings',
+  description,
+  heading = 'Rankings',
+  intro = '',
+  summaryKind = 'top',
+}) {
   if (!rosterAvailable) {
     return renderPage({
-      title: 'ArkHelper \u2014 Rankings',
-      currentPath: '/rankings',
+      title,
+      description,
+      currentPath,
       account,
       live,
       extraCss: PAGE_CSS,
-      body: `<h1>Rankings</h1>
+      body: `<h1>${escapeHtml(heading)}</h1>
   <p>Server data isn't available right now (the discovery service may not be running).</p>`,
     });
   }
@@ -78,18 +98,22 @@ function renderRankingsPage({ rosterAvailable, ranking, account = null, live = n
         .join('')}</tbody>
     </table>`;
 
+  const kindWord = summaryKind === 'lowest' ? 'lowest' : 'top';
   const countNote =
     rows.length > 0
-      ? `<p class="note">Showing the top ${escapeHtml(String(rows.length))} of ${escapeHtml(String(ranking.totalRanked))} ranked official servers. Score is out of 100.</p>`
+      ? `<p class="note">Showing the ${kindWord} ${escapeHtml(String(rows.length))} of ${escapeHtml(String(ranking.totalRanked))} ranked official servers. Score is out of 100.</p>`
       : '';
+  const introHtml = intro ? `<p class="note">${escapeHtml(intro)}</p>` : '';
 
   return renderPage({
-    title: 'ArkHelper \u2014 Rankings',
-    currentPath: '/rankings',
+    title,
+    description,
+    currentPath,
     account,
     live,
     extraCss: PAGE_CSS,
-    body: `<h1>Rankings</h1>
+    body: `<h1>${escapeHtml(heading)}</h1>
+  ${introHtml}
   ${countNote}
   ${table}
 

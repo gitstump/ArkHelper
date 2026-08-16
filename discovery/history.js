@@ -482,6 +482,8 @@ function computeNetworkRanking(db, { sinceIso, nowIso, minRuns = 0, limit, pingB
       serverId: stats.serverId,
       rankScore: result.rankScore,
       components: result.components,
+      uptimePercent: round1(stats.uptimePercent),
+      avgPopulationPercent: round1(stats.avgPopulationPercent),
     });
   }
 
@@ -492,11 +494,12 @@ function computeNetworkRanking(db, { sinceIso, nowIso, minRuns = 0, limit, pingB
   return { totalRuns: gathered.totalRuns, eligibleServerCount: scored.length, servers: ranked };
 }
 
-// Stamps rankScore / rank / rankComponents onto the live roster
-// servers (mutates in place, same pattern as country enrichment) so
-// the accounts service can sort and render ranks from /roster without
-// a second query. Ordinal `rank` is among the current roster, not
-// among historical servers that have since dropped off.
+// Stamps rankScore / rank / rankComponents / uptimePercent /
+// avgPopulationPercent onto the live roster servers (mutates in
+// place, same pattern as country enrichment) so the accounts service
+// can sort and render ranks and uptime from /roster without a second
+// query. Ordinal `rank` is among the current roster, not among
+// historical servers that have since dropped off.
 function applyRankingToServers(servers, db, { sinceIso, nowIso } = {}) {
   const pingByServerId = new Map();
   for (const s of servers) {
@@ -510,11 +513,19 @@ function applyRankingToServers(servers, db, { sinceIso, nowIso } = {}) {
   for (const s of servers) {
     const r = s && s.id ? byId.get(s.id) : null;
     if (r) {
-      withScores.push({ server: s, rankScore: r.rankScore, components: r.components });
+      withScores.push({
+        server: s,
+        rankScore: r.rankScore,
+        components: r.components,
+        uptimePercent: r.uptimePercent,
+        avgPopulationPercent: r.avgPopulationPercent,
+      });
     } else if (s) {
       s.rankScore = null;
       s.rank = null;
       s.rankComponents = null;
+      s.uptimePercent = null;
+      s.avgPopulationPercent = null;
     }
   }
 
@@ -523,6 +534,8 @@ function applyRankingToServers(servers, db, { sinceIso, nowIso } = {}) {
     entry.server.rankScore = entry.rankScore;
     entry.server.rank = i + 1;
     entry.server.rankComponents = entry.components;
+    entry.server.uptimePercent = entry.uptimePercent;
+    entry.server.avgPopulationPercent = entry.avgPopulationPercent;
   });
 
   return ranking;

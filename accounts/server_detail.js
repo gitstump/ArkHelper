@@ -79,11 +79,14 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
       <button type="submit">Save alert settings</button>
     </form>`;
 
+  const rosterUptime = typeof server.uptimePercent === 'number' ? server.uptimePercent : null;
   const uptimeSection =
-    uptime && uptime.uptimePercent !== null
+    uptime && uptime.uptimePercent !== null && uptime.uptimePercent !== undefined
       ? `<p><strong>${escapeHtml(String(uptime.uptimePercent))}%</strong> present across the last ${escapeHtml(String(uptime.totalRuns))} discovery runs ` +
         `(${escapeHtml(String(uptime.presentCount))} of them). <span class="note">This reflects how often the server appeared in Wildcard's official list, not a direct ping — see the note below.</span></p>`
-      : `<p class="note">Not enough history yet to compute uptime — this builds up automatically as the discovery service keeps running.</p>`;
+      : rosterUptime !== null
+        ? `<p><strong>${escapeHtml(String(rosterUptime))}%</strong> over the last 7 days of discovery history. <span class="note">This reflects how often the server appeared in Wildcard's official list, not a direct ping — see the note below.</span></p>`
+        : `<p class="note">Not enough history yet to compute uptime — this builds up automatically as the discovery service keeps running.</p>`;
 
   const historySection =
     history && history.length > 0
@@ -159,6 +162,7 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
     <tr><td>Password protected</td><td>${server.hasPassword ? 'Yes' : 'No'}</td></tr>
     <tr><td>BattlEye</td><td>${server.battleye ? 'Enabled' : 'Disabled'}</td></tr>
     <tr><td>IP : Port</td><td>${escapeHtml(server.ip || '\u2014')} : ${escapeHtml(String(server.port ?? '\u2014'))}</td></tr>
+    ${rosterUptime !== null ? `<tr><td>Uptime (7-day)</td><td>${escapeHtml(String(rosterUptime))}%</td></tr>` : ''}
     <tr><td>Mods</td><td>${modList}</td></tr>
     ${server.country ? `<tr><td>Country</td><td>${escapeHtml(server.countryName || server.country)}</td></tr>` : ''}
   </table>

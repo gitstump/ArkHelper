@@ -9,6 +9,11 @@ test('renderPage includes a meta description when one is provided', () => {
   assert.match(html, /<meta name="description" content="Find ARK low ping servers.">/);
 });
 
+test('renderPage wordmark links to home', () => {
+  const html = renderPage({ title: 'ArkHelper', currentPath: '/rankings', body: '<p>x</p>' });
+  assert.match(html, /<a class="wordmark" href="\/">ArkHelper<\/a>/);
+});
+
 test('renderPage wraps body in the shared shell with theme CSS', () => {
   const html = renderPage({ title: 'ArkHelper', currentPath: '/', body: '<p>hello</p>' });
   assert.match(html, /^<!doctype html>/);
@@ -30,11 +35,13 @@ test('renderNav groups Servers and Stats into details dropdowns and keeps Favori
   assert.match(html, /href="\/lists\/low-ping"/);
   assert.match(html, /href="\/lists\/available-now"/);
   assert.match(html, /href="\/rankings"/);
-  assert.match(html, /href="\/stats"/);
+  assert.match(html, /href="\/leaderboards"/);
+  assert.match(html, /href="\/leaderboards\/map-uptime"/);
+  assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
   assert.match(html, /href="\/is-ark-down"/);
   assert.match(html, /href="\/favorites"/);
   assert.match(html, /class="active" href="\/rankings"/);
-  assert.doesNotMatch(html, /class="active" href="\/stats"/);
+  assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
   assert.match(html, />Favorites<\/a>/);
 });
 
@@ -85,7 +92,9 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/lists\/recently-wiped">Recently Wiped/);
   assert.match(html, /href="\/lists\/available-now">Available Now/);
   assert.match(html, /href="\/rankings">Rankings/);
-  assert.match(html, /href="\/stats">Stats/);
+  assert.match(html, /href="\/leaderboards">Leaderboards/);
+  assert.match(html, /href="\/leaderboards\/map-uptime">Map Uptime/);
+  assert.match(html, /href="\/leaderboards\/pve-vs-pvp">PvE vs PvP/);
   assert.match(html, /href="\/is-ark-down">Is ARK Down/);
   assert.match(html, /href="\/favorites">Favorites/);
   assert.match(html, /href="\/servers">Presets/);

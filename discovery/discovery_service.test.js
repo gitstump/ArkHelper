@@ -261,6 +261,8 @@ test('refreshCycle stamps rankScore onto the persisted roster when history is en
     assert.equal(typeof s.rankComponents.connection, 'number');
     assert.equal(typeof s.rankComponents.activity, 'number');
     assert.equal(typeof s.rankComponents.confidence, 'number');
+    assert.equal(typeof s.uptimePercent, 'number');
+    assert.equal(typeof s.avgPopulationPercent, 'number');
   }
 });
 

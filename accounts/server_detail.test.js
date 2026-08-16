@@ -154,6 +154,17 @@ test('renderServerDetailPage shows the computed uptime percentage', () => {
   assert.match(html, /7 of them/);
 });
 
+test('renderServerDetailPage falls back to roster 7-day uptime when history uptime is missing', () => {
+  const html = renderServerDetailPage({
+    server: makeServer({ uptimePercent: 96.4 }),
+    uptime: null,
+    history: [],
+  });
+  assert.match(html, /Uptime \(7-day\)/);
+  assert.match(html, /96\.4%/);
+  assert.doesNotMatch(html, /Not enough history yet to compute uptime/);
+});
+
 // ---------------------------------------------------------------------
 // renderServerDetailPage — history section
 // ---------------------------------------------------------------------

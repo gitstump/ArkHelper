@@ -121,7 +121,6 @@ test('renderStatsPage renders mode, platform, map, and cluster sections', () => 
     clusterStats: computeClusterStats(servers),
     platformStats: computePlatformStats(servers),
     topByPlayers: getTopServersByPlayers(servers),
-    uptimeAvailable: false,
   });
   assert.match(html, /TheIsland_WP/);
   assert.match(html, /Aberration_WP/);
@@ -129,7 +128,7 @@ test('renderStatsPage renders mode, platform, map, and cluster sections', () => 
   assert.match(html, />PC</);
 });
 
-test('renderStatsPage shows the uptime-unavailable message when history tracking is off', () => {
+test('renderStatsPage links leaderboard previews into the suite instead of duplicating tables', () => {
   const html = renderStatsPage({
     rosterAvailable: true,
     counters: { totalOfficial: 0, playersOnline: 0 },
@@ -138,61 +137,15 @@ test('renderStatsPage shows the uptime-unavailable message when history tracking
     clusterStats: [],
     platformStats: computePlatformStats([]),
     topByPlayers: [],
-    uptimeAvailable: false,
   });
-  assert.match(html, /History tracking isn't enabled/);
-});
-
-test('renderStatsPage shows "not enough history" when uptime tracking is on but sparse', () => {
-  const html = renderStatsPage({
-    rosterAvailable: true,
-    counters: { totalOfficial: 0, playersOnline: 0 },
-    modeStats: computeModeStats([]),
-    mapStats: [],
-    clusterStats: [],
-    platformStats: computePlatformStats([]),
-    topByPlayers: [],
-    uptimeAvailable: true,
-    uptimeLeaderboard: { totalRuns: 2, servers: [] },
-  });
-  assert.match(html, /Not enough history recorded yet/);
-});
-
-test('renderStatsPage falls back to a shortened server ID when no name is available', () => {
-  const html = renderStatsPage({
-    rosterAvailable: true,
-    counters: { totalOfficial: 0, playersOnline: 0 },
-    modeStats: computeModeStats([]),
-    mapStats: [],
-    clusterStats: [],
-    platformStats: computePlatformStats([]),
-    topByPlayers: [],
-    uptimeAvailable: true,
-    uptimeLeaderboard: { totalRuns: 10, servers: [{ serverId: 'abc123def456', presentCount: 10, uptimePercent: 100 }] },
-  });
-  assert.match(html, /100%/);
-  assert.match(html, /href="\/servers\/abc123def456"/);
-  assert.match(html, /Server abc123de\u2026/); // shortened id fallback, not the raw full id as the label
-});
-
-test('renderStatsPage shows the real server name and map when the leaderboard entry has been enriched', () => {
-  const html = renderStatsPage({
-    rosterAvailable: true,
-    counters: { totalOfficial: 0, playersOnline: 0 },
-    modeStats: computeModeStats([]),
-    mapStats: [],
-    clusterStats: [],
-    platformStats: computePlatformStats([]),
-    topByPlayers: [],
-    uptimeAvailable: true,
-    uptimeLeaderboard: {
-      totalRuns: 10,
-      servers: [{ serverId: 'abc123', presentCount: 10, uptimePercent: 100, name: 'NA-PVE-TheIsland5313', map: 'TheIsland_WP' }],
-    },
-  });
-  assert.match(html, /NA-PVE-TheIsland5313/);
-  assert.match(html, /TheIsland_WP/);
-  assert.match(html, /href="\/servers\/abc123"/);
+  assert.match(html, /href="\/leaderboards"/);
+  assert.match(html, /href="\/leaderboards\/map-uptime"/);
+  assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
+  assert.match(html, /href="\/leaderboards\/top-100"/);
+  assert.match(html, /href="\/leaderboards\/bottom-100"/);
+  assert.match(html, /href="\/rankings"/);
+  assert.doesNotMatch(html, /Highest uptime servers/);
+  assert.doesNotMatch(html, /Top ranked servers/);
 });
 
 test('renderStatsPage escapes a hostile map name (XSS check)', () => {
@@ -205,70 +158,8 @@ test('renderStatsPage escapes a hostile map name (XSS check)', () => {
     clusterStats: [],
     platformStats: computePlatformStats(servers),
     topByPlayers: [],
-    uptimeAvailable: false,
   });
   assert.doesNotMatch(html, /<script>evil\(\)<\/script>/);
-});
-
-// ---------------------------------------------------------------------
-// renderStatsPage — composite ranking leaderboard
-// ---------------------------------------------------------------------
-function baseStatsArgs(overrides = {}) {
-  return {
-    rosterAvailable: true,
-    counters: { totalOfficial: 0, playersOnline: 0 },
-    modeStats: computeModeStats([]),
-    mapStats: [],
-    clusterStats: [],
-    platformStats: computePlatformStats([]),
-    topByPlayers: [],
-    uptimeAvailable: false,
-    ...overrides,
-  };
-}
-
-test('renderStatsPage shows the ranking-unavailable message when history tracking is off', () => {
-  const html = renderStatsPage(baseStatsArgs({ rankingAvailable: false }));
-  assert.match(html, /Top ranked servers/);
-  assert.match(html, /History tracking isn't enabled/);
-});
-
-test('renderStatsPage shows "not enough history" for ranking when tracking is on but sparse', () => {
-  const html = renderStatsPage(baseStatsArgs({ rankingAvailable: true, ranking: { totalRuns: 2, servers: [] } }));
-  assert.match(html, /ranking needs a few discovery runs/);
-});
-
-test('renderStatsPage renders the ranking table with score breakdown columns when data exists', () => {
-  const html = renderStatsPage(
-    baseStatsArgs({
-      rankingAvailable: true,
-      ranking: {
-        totalRanked: 2,
-        servers: [
-          { rank: 1, serverId: 'abc123', name: 'NA-PVE-TheIsland5313', rankScore: 95.5, components: { reliability: 40, connection: 25, activity: 20.5, confidence: 10 } },
-        ],
-      },
-    })
-  );
-  assert.match(html, /NA-PVE-TheIsland5313/);
-  assert.match(html, /95\.5/);
-  assert.match(html, /href="\/servers\/abc123"/);
-  assert.match(html, /40% reliability/);
-  assert.match(html, /href="\/rankings"/);
-});
-
-test('renderStatsPage falls back to a shortened id in the ranking table when no name is available', () => {
-  const html = renderStatsPage(
-    baseStatsArgs({
-      rankingAvailable: true,
-      ranking: {
-        totalRuns: 10,
-        eligibleServerCount: 1,
-        servers: [{ rank: 1, serverId: 'abcdefgh12345', rankScore: 80, components: { reliability: 32, connection: 20, activity: 20, confidence: 8 } }],
-      },
-    })
-  );
-  assert.match(html, /Server abcdefgh\u2026/);
 });
 
 // ---------------------------------------------------------------------
@@ -292,15 +183,4 @@ test('displayNameFor never throws when serverId is missing entirely (the actual 
 test('displayNameFor never throws when serverId is null or a non-string', () => {
   assert.equal(displayNameFor({ serverId: null }), 'Unknown server');
   assert.equal(displayNameFor({ serverId: 12345 }), 'Unknown server');
-});
-
-test('renderStatsPage does not throw when a ranking entry is missing serverId entirely', () => {
-  assert.doesNotThrow(() =>
-    renderStatsPage(
-      baseStatsArgs({
-        rankingAvailable: true,
-        ranking: { totalRanked: 1, servers: [{ rank: 1, rankScore: 80, components: { reliability: 32, connection: 20, activity: 20, confidence: 8 } }] },
-      })
-    )
-  );
 });

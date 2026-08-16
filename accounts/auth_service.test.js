@@ -910,45 +910,44 @@ test('GET /stats shows the fallback (200, not a crash) when the discovery feed i
   server.close();
 });
 
-test('GET /stats includes the uptime leaderboard when the history endpoint returns data', async () => {
+test('GET /stats links into the leaderboard suite instead of duplicating ranked tables', async () => {
   const db = openDb(':memory:');
   const roster = { servers: [{ id: '1', name: 'A', map: 'M', gameMode: 'pve', playersNow: 5, maxPlayers: 70 }] };
-  const uptimeLeaderboard = { totalRuns: 10, servers: [{ serverId: '1', presentCount: 10, uptimePercent: 100 }] };
   const { server, base } = await startServer({
     db,
     clientId: 'CID',
     clientSecret: 'SECRET',
     redirectUri: 'http://x/cb',
     discordDeps: fakeDiscordDeps(),
-    statsDeps: fakeStatsDeps({ roster, uptimeLeaderboard }),
+    statsDeps: fakeStatsDeps({ roster, uptimeLeaderboard: null }),
   });
 
   const res = await fetch(`${base}/stats`);
   const html = await res.text();
-  assert.match(html, /100%/);
-  assert.match(html, />A</); // the roster's real server name, not the raw serverId "1"
-  assert.match(html, /href="\/servers\/1"/);
+  assert.equal(res.status, 200);
+  assert.match(html, /href="\/leaderboards"/);
+  assert.match(html, /href="\/leaderboards\/map-uptime"/);
+  assert.match(html, /href="\/rankings"/);
 
   server.close();
 });
 
-test('GET /stats falls back gracefully when a leaderboard entry references a server no longer in the roster', async () => {
+test('GET /stats still 200s when the roster is empty', async () => {
   const db = openDb(':memory:');
-  const roster = { servers: [] }; // server "1" from the leaderboard isn't here anymore
-  const uptimeLeaderboard = { totalRuns: 10, servers: [{ serverId: '1', presentCount: 10, uptimePercent: 100 }] };
+  const roster = { servers: [] };
   const { server, base } = await startServer({
     db,
     clientId: 'CID',
     clientSecret: 'SECRET',
     redirectUri: 'http://x/cb',
     discordDeps: fakeDiscordDeps(),
-    statsDeps: fakeStatsDeps({ roster, uptimeLeaderboard }),
+    statsDeps: fakeStatsDeps({ roster }),
   });
 
   const res = await fetch(`${base}/stats`);
-  assert.equal(res.status, 200); // no crash even though the id doesn't resolve
+  assert.equal(res.status, 200);
   const html = await res.text();
-  assert.match(html, /Server 1/); // shortened-id fallback still renders something sensible
+  assert.match(html, /href="\/leaderboards"/);
 
   server.close();
 });
@@ -972,9 +971,8 @@ test('GET /stats reads ranking from roster rankScore without a separate rankings
 
   const res = await fetch(`${base}/stats`);
   const html = await res.text();
-  assert.match(html, /Best/);
-  assert.match(html, /90/);
   assert.match(html, /href="\/rankings"/);
+  assert.match(html, /href="\/leaderboards\/top-100"/);
 
   server.close();
 });
@@ -1025,6 +1023,225 @@ test('GET /rankings shows the fallback (200, not a crash) when the discovery fee
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.match(html, /discovery service may not be running/);
+
+  server.close();
+});
+
+function leaderboardRoster() {
+  return {
+    servers: [
+      {
+        id: 'island-pve',
+        name: 'EU-PVE-TheIsland5313',
+        map: 'TheIsland_WP',
+        gameMode: 'pve',
+        playersNow: 10,
+        maxPlayers: 70,
+        wildcardReportedPing: 40,
+        uptimePercent: 99,
+        avgPopulationPercent: 50,
+        rankScore: 90,
+        rank: 1,
+        rankComponents: { reliability: 40, connection: 25, activity: 15, confidence: 10 },
+      },
+      {
+        id: 'abb-pvp',
+        name: 'Asia-PVP-Aberration1',
+        map: 'Aberration_WP',
+        gameMode: 'pvp',
+        playersNow: 5,
+        maxPlayers: 70,
+        wildcardReportedPing: 200,
+        uptimePercent: 80,
+        avgPopulationPercent: 20,
+        rankScore: 25,
+        rank: 2,
+        rankComponents: { reliability: 10, connection: 5, activity: 5, confidence: 10 },
+      },
+      {
+        id: 'new-pve',
+        name: 'EU-PVE-New1',
+        map: 'Astraeos_WP',
+        gameMode: 'pve',
+        playersNow: 1,
+        maxPlayers: 70,
+        wildcardReportedPing: 30,
+        uptimePercent: 100,
+        avgPopulationPercent: 10,
+        rankScore: 8,
+        rank: 3,
+        rankComponents: { reliability: 8, connection: 0, activity: 0, confidence: 2 },
+      },
+    ],
+  };
+}
+
+test('GET /leaderboards renders the suite index', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(leaderboardRoster()),
+  });
+
+  const res = await fetch(`${base}/leaderboards`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<title>ArkHelper \u2014 Leaderboards/);
+  assert.match(html, /href="\/leaderboards\/map-uptime"/);
+  assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
+  assert.match(html, /href="\/leaderboards\/top-100"/);
+  assert.match(html, /href="\/leaderboards\/bottom-100"/);
+  assert.match(html, /href="\/rankings"/);
+
+  server.close();
+});
+
+test('GET /leaderboards/map-uptime renders map aggregates from roster history fields', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(leaderboardRoster()),
+  });
+
+  const res = await fetch(`${base}/leaderboards/map-uptime`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /TheIsland_WP/);
+  assert.match(html, /99%/);
+  assert.match(html, /Aberration_WP/);
+  assert.match(html, /80%/);
+
+  server.close();
+});
+
+test('GET /leaderboards/pve-vs-pvp renders mode comparison aggregates', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(leaderboardRoster()),
+  });
+
+  const res = await fetch(`${base}/leaderboards/pve-vs-pvp`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<h2>PvE<\/h2>/);
+  assert.match(html, /<h2>PvP<\/h2>/);
+  assert.match(html, /TheIsland_WP/);
+  assert.match(html, /Aberration_WP/);
+
+  server.close();
+});
+
+test('GET /leaderboards/top-100 reuses rankings content', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(leaderboardRoster()),
+  });
+
+  const res = await fetch(`${base}/leaderboards/top-100`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.match(html, /90/);
+  assert.match(html, /How the score is built/);
+
+  server.close();
+});
+
+test('GET /leaderboards/bottom-100 excludes thin-history servers', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(leaderboardRoster()),
+  });
+
+  const res = await fetch(`${base}/leaderboards/bottom-100`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /full week of history/);
+  assert.match(html, /Asia-PVP-Aberration1/);
+  assert.doesNotMatch(html, /EU-PVE-New1/);
+
+  server.close();
+});
+
+test('GET /leaderboards/unknown returns 404', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(leaderboardRoster()),
+  });
+
+  const res = await fetch(`${base}/leaderboards/nope`);
+  assert.equal(res.status, 404);
+
+  server.close();
+});
+
+test('GET /servers shows stamped uptime on a roster row with history', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      {
+        id: '1',
+        name: 'EU-PVE-TheIsland5313',
+        map: 'TheIsland_WP',
+        gameMode: 'pve',
+        playersNow: 5,
+        maxPlayers: 70,
+        day: 100,
+        clusterId: 'C',
+        hasPassword: false,
+        wildcardReportedPing: 40,
+        uptimePercent: 97.5,
+        rank: 2,
+        rankScore: 80,
+      },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(roster),
+  });
+
+  const res = await fetch(`${base}/servers`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /97\.5%/);
+  const row = html.match(/<tr>[\s\S]*?EU-PVE-TheIsland5313[\s\S]*?<\/tr>/);
+  assert.ok(row);
+  const cells = [...row[0].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
+  assert.equal(cells[7], '97.5%');
+  assert.doesNotMatch(cells[7], /\u2014/);
 
   server.close();
 });

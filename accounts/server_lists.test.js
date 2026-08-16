@@ -23,6 +23,7 @@ function fixtureServers() {
       day: 100,
       rankScore: 80,
       wildcardReportedPing: 180,
+      uptimePercent: 88.8,
       platformType: 'PC+XSX+WINGDK+PS5',
     },
     {
@@ -178,6 +179,7 @@ test('renderListPage uses a unique title, meta description, count, rows, and a b
   assert.match(html, /<h1>Official PvE servers<\/h1>/);
   assert.match(html, /matching servers/);
   assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.match(html, /88\.8%/);
   assert.doesNotMatch(html, /Asia-PVP-LostColony2859/);
   assert.match(html, /href="\/servers\?gameMode=pve&amp;sort=rank&amp;dir=desc"/);
   assert.match(html, /action="\/lists\/official-pve"/);

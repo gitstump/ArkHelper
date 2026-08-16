@@ -434,6 +434,27 @@ test('renderServerRow shows players as N / MAX with a capacity bar', () => {
   assert.match(html, /99\.2%/);
 });
 
+test('renderServerRow with history does not render an em-dash uptime', () => {
+  const html = renderServerRow({
+    id: 'hist-1',
+    name: 'EU-PVE-TheIsland5313',
+    map: 'TheIsland_WP',
+    playersNow: 12,
+    maxPlayers: 70,
+    day: 40,
+    version: '92.41',
+    wildcardReportedPing: 45,
+    uptimePercent: 97.5,
+    rank: 4,
+  });
+  const cells = [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
+  const uptimeCell = cells[7];
+  assert.equal(uptimeCell, '97.5%');
+  assert.doesNotMatch(uptimeCell, /\u2014/);
+  assert.match(cells[6], /45/);
+  assert.match(cells[8], /4/);
+});
+
 test('renderBrowserPage shows a friendly message for a known presetError code', () => {
   const html = renderBrowserPage({
     page: { items: [], page: 1, totalPages: 1, totalCount: 0 },

@@ -577,7 +577,7 @@ test('computeNetworkRanking respects a sinceIso window', () => {
   assert.deepEqual(result.servers.map((s) => s.serverId), ['b']);
 });
 
-test('applyRankingToServers stamps rankScore, rank, and components onto roster servers', () => {
+test('applyRankingToServers stamps rankScore, rank, components, and uptimePercent onto roster servers', () => {
   const db = freshDb();
   const roster = [
     serverWithStats('a', { playersNow: 70, wildcardReportedPing: 40 }),
@@ -588,9 +588,13 @@ test('applyRankingToServers stamps rankScore, rank, and components onto roster s
   assert.equal(typeof roster[0].rankScore, 'number');
   assert.equal(typeof roster[0].rank, 'number');
   assert.ok(roster[0].rankComponents);
+  assert.equal(typeof roster[0].uptimePercent, 'number');
+  assert.equal(typeof roster[0].avgPopulationPercent, 'number');
   assert.equal(roster[0].rank, 1); // full + fast ping beats empty + slow
   assert.equal(roster[1].rank, 2);
   assert.ok(roster[0].rankScore > roster[1].rankScore);
+  assert.equal(roster[0].uptimePercent, 100);
+  assert.equal(roster[1].uptimePercent, 100);
 });
 
 // ---------------------------------------------------------------------

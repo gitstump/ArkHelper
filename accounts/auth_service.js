@@ -73,6 +73,16 @@ const { renderBadgeSvg, renderUnknownBadgeSvg } = require('./badge.js');
 const { renderFavoritesPage } = require('./favorites_page.js');
 const { rankingFromRoster, renderRankingsPage } = require('./rankings_page.js');
 const {
+  computeMapUptime,
+  computePveVsPvp,
+  bottomFromRoster,
+  renderLeaderboardsIndex,
+  renderMapUptimePage,
+  renderPveVsPvpPage,
+  renderTop100Page,
+  renderBottom100Page,
+} = require('./leaderboards_page.js');
+const {
   computeModeStats,
   computeMapStats,
   computeClusterStats,
@@ -370,25 +380,6 @@ function createAuthServer({
           return;
         }
 
-        const enrichWithRosterNames = (list) =>
-          list.map((s) => {
-            const match = roster.servers.find((rs) => rs.id === s.serverId);
-            return { ...s, name: match ? match.name : null, map: match ? match.map : null };
-          });
-
-        const uptimeLeaderboard = await statsDeps.fetchJsonSafe(`${uptimeLeaderboardUrl}?minRuns=3`);
-        const enrichedUptimeLeaderboard = uptimeLeaderboard ? { ...uptimeLeaderboard, servers: enrichWithRosterNames(uptimeLeaderboard.servers) } : undefined;
-
-        const rankedPreview = rankingFromRoster(roster.servers, { limit: 25 });
-        const rankingAvailable = rankedPreview.totalRanked > 0;
-        const enrichedRanking = rankingAvailable
-          ? { servers: rankedPreview.servers, totalRanked: rankedPreview.totalRanked }
-          : undefined;
-
-        // Compute the body BEFORE writeHead — if rendering throws, we want
-        // the outer catch block to still be able to send a clean 502
-        // response, not fail with ERR_HTTP_HEADERS_SENT because headers
-        // were already committed by an earlier writeHead() call.
         const body = renderStatsPage({
           rosterAvailable: true,
           counters: computeLiveCounters(roster.servers),
@@ -397,10 +388,6 @@ function createAuthServer({
           clusterStats: computeClusterStats(roster.servers),
           platformStats: computePlatformStats(roster.servers),
           topByPlayers: getTopServersByPlayers(roster.servers),
-          uptimeAvailable: Boolean(uptimeLeaderboard),
-          uptimeLeaderboard: enrichedUptimeLeaderboard,
-          rankingAvailable,
-          ranking: enrichedRanking,
           account,
           live: liveFromRoster(roster),
         });
@@ -439,6 +426,57 @@ function createAuthServer({
 
         const ranking = rankingFromRoster(roster.servers);
         const body = renderRankingsPage({ rosterAvailable: true, ranking, account, live: liveFromRoster(roster) });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
+      if (req.method === 'GET' && (url.pathname === '/leaderboards' || url.pathname.startsWith('/leaderboards/'))) {
+        const slug = url.pathname === '/leaderboards' ? '' : url.pathname.slice('/leaderboards/'.length);
+        const known = new Set(['', 'map-uptime', 'pve-vs-pvp', 'top-100', 'bottom-100']);
+        if (slug.includes('/') || !known.has(slug)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'not found' }));
+          return;
+        }
+
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const live = liveFromRoster(roster);
+        const rosterAvailable = Boolean(roster && Array.isArray(roster.servers));
+        const servers = rosterAvailable ? roster.servers : [];
+
+        let body;
+        if (slug === '') {
+          body = renderLeaderboardsIndex({ account, live, rosterAvailable });
+        } else if (slug === 'map-uptime') {
+          body = renderMapUptimePage({
+            rosterAvailable,
+            maps: rosterAvailable ? computeMapUptime(servers) : [],
+            account,
+            live,
+          });
+        } else if (slug === 'pve-vs-pvp') {
+          body = renderPveVsPvpPage({
+            rosterAvailable,
+            comparison: rosterAvailable ? computePveVsPvp(servers) : null,
+            account,
+            live,
+          });
+        } else if (slug === 'top-100') {
+          body = renderTop100Page({
+            rosterAvailable,
+            ranking: rosterAvailable ? rankingFromRoster(servers) : { servers: [], totalRanked: 0 },
+            account,
+            live,
+          });
+        } else {
+          body = renderBottom100Page({
+            rosterAvailable,
+            ranking: rosterAvailable ? bottomFromRoster(servers) : { servers: [], totalRanked: 0 },
+            account,
+            live,
+          });
+        }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
         return;

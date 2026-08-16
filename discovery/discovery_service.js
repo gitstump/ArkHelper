@@ -134,8 +134,9 @@ async function refreshCycle({
 
   if (historyDb) {
     // Record this cycle first so ranking sees the latest snapshot,
-    // then stamp scores onto the in-memory roster before persisting
-    // so /roster already carries rankScore for the accounts service.
+    // then stamp scores and 7-day uptime onto the in-memory roster
+    // before persisting so /roster already carries rankScore and
+    // uptimePercent for the accounts service.
     recordSnapshotRun(historyDb, snapshot.servers, { now });
     applyRankingToServers(snapshot.servers, historyDb);
     recordIncidentCycle(historyDb, {
