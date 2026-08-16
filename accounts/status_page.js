@@ -43,7 +43,7 @@ function formatPct(value) {
 
 function formatWhen(iso) {
   if (!iso) return '\u2014';
-  return escapeHtml(String(iso).replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC'));
+  return String(iso).replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC');
 }
 
 function formatDurationMs(ms) {
@@ -94,7 +94,7 @@ function renderStatusPage({ statusAvailable, status }) {
 
   const started =
     status.activeIncident && status.activeIncident.startedAt
-      ? `<p class="note">Current incident started ${formatWhen(status.activeIncident.startedAt)} (${escapeHtml(typeLabel(status.activeIncident.type))}).</p>`
+      ? `<p class="note">Current incident started ${escapeHtml(formatWhen(status.activeIncident.startedAt))} (${escapeHtml(typeLabel(status.activeIncident.type))}).</p>`
       : '';
 
   const incidents = Array.isArray(status.incidents) ? status.incidents : [];
@@ -107,8 +107,8 @@ function renderStatusPage({ statusAvailable, status }) {
         .map(
           (inc) => `<tr>
             <td>${escapeHtml(typeLabel(inc.type))}</td>
-            <td class="num">${formatWhen(inc.startedAt)}</td>
-            <td class="num">${inc.endedAt ? formatWhen(inc.endedAt) : 'ongoing'}</td>
+            <td class="num">${escapeHtml(formatWhen(inc.startedAt))}</td>
+            <td class="num">${escapeHtml(inc.endedAt ? formatWhen(inc.endedAt) : 'ongoing')}</td>
             <td class="num">${escapeHtml(formatDurationMs(inc.durationMs))}</td>
           </tr>`
         )
@@ -130,7 +130,7 @@ ${STYLE}
   ${started}
   <h2>Recent incidents</h2>
   ${table}
-  <p class="note">This reflects ArkHelper's own monitoring path (whether official servers appear on Wildcard's public list), not Wildcard's official word. It is a snapshot from ${formatWhen(status.computedAt)}. <a href="/servers">Browse the live server list</a>.</p>
+  <p class="note">This reflects ArkHelper's own monitoring path (whether official servers appear on Wildcard's public list), not Wildcard's official word. It is a snapshot from ${escapeHtml(formatWhen(status.computedAt))}. <a href="/servers">Browse the live server list</a>.</p>
 </body>
 </html>`;
 }

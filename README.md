@@ -1,0 +1,61 @@
+# ArkHelper
+
+ArkHelper tracks the official ARK: Survival Ascended server network: it pulls Wildcard's public roster, records history, and serves a dark, server-rendered site for browsing, ranking, and watching those servers — with Discord login for favorites and saved filters. Full public-feature parity with arkstatus.com is the baseline; unofficial servers and RCON/admin tools are out of scope.
+
+## Features
+
+- **Server browser** (`/servers`) — search, filter, sort, and paginate the live official roster
+- **Rankings** (`/rankings`) — composite 0–100 rank per official server, plus a Rank sort in the browser
+- **Filter presets** — named snapshots of the current browser query (cookie while logged out, SQLite once logged in), shareable via `/p/<token>`
+- **Incidents / Is ARK down?** (`/is-ark-down`, alias `/status`) — NORMAL / DEGRADED / OUTAGE / UPDATE_ROLLOUT from discovery-cycle snapshots
+- **Favorites** — per-account add/remove and a `/favorites` page
+- **Badges** — embeddable live-status SVG at `/servers/:id/badge.svg`
+
+## Setup
+
+Requires **Node 22+** (uses the built-in `node:sqlite` module).
+
+```
+npm install
+```
+
+That installs `maxmind` (GeoLite2 lookups) at the repo root. Country enrichment is optional until a GeoLite2 `.mmdb` file is configured.
+
+### Environment variables
+
+Names only — never commit values. The services read `process.env` directly (no `.env` loader).
+
+**Required to start the accounts service:**
+
+- `DISCORD_CLIENT_ID`
+- `DISCORD_CLIENT_SECRET`
+
+**Also read by the code (optional; defaults in parentheses):**
+
+- `AUTH_PORT` (8793)
+- `DISCORD_REDIRECT_URI` (`http://localhost:<AUTH_PORT>/auth/discord/callback`)
+- `ARK_TOOLS_DB_PATH` (`ark_tools.db`)
+- `HISTORY_DB_PATH` (`ark_history.db`)
+- `GEOLITE2_DB_PATH` (unset — discovery runs without country fields)
+
+Discovery's HTTP port and refresh interval are CLI flags, not env vars (`--port`, `--interval-minutes`).
+
+## Running
+
+Two processes. From the repo root:
+
+```
+node discovery/discovery_service.js run
+node accounts/auth_service.js
+```
+
+- Discovery listens on **8792** (roster, history, rankings, incident snapshot). One-shot: `node discovery/discovery_service.js discover-once`.
+- Accounts listens on **8793** (or `AUTH_PORT`). Open `http://localhost:8793/`. It fetches discovery at `http://localhost:8792` and degrades if that service is down.
+
+## Tests
+
+From the repo root:
+
+```
+node --test
+```

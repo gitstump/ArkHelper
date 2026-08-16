@@ -1,12 +1,14 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-15 — 457 tests passing — In flight: none
+Last updated: 2026-08-16 — 457 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
 ## Success bar
 
 Full public-feature parity with arkstatus.com is the neutral baseline — falling short is failure, matching is neutral. Success additionally means: parity with BattleMetrics' PUBLIC pages (server stats/graphs; their RCON/admin suite is explicitly OUT of scope), and parity with the ARK wiki's TOOLS (calculators, reference data, maps) built clean-room from game facts and original assets — the wiki's CC BY-NC-SA license means we never copy its text or images. Exceeding all of this without degrading anything is the actual goal.
+
+Live wild/tamed dino counts on official servers are **not** a parity item — arkstatus.com does not show them (they need RCON/admin access, which neither they nor we have on official). Their taming/breeding calculators are static creature-stat tools, not live in-server counts. Those calculators belong under the wiki-tools success bar above, built clean-room.
 
 ## What's built and working (live-verified, not just tested)
 
@@ -34,7 +36,7 @@ Full public-feature parity with arkstatus.com is the neutral baseline — fallin
 - News mirror, rates poller, mod-adoption aggregation, derived lists (Ready to Join / Available Now / Recently Wiped) — all confirmed to be data-engineering, not writing, when researched; still unbuilt
 - Public API docs, theme toggle (dark-only currently), i18n (English-only)
 - Unofficial server tracking — explicitly deferred as a stretch goal, not baseline
-- Guides content — the one genuinely-writing (not coding) piece of the whole project, separate track
+- Guides content (and short per-map blurbs) — the one genuinely-writing (not coding) piece of the whole project, separate track
 
 ## Infrastructure not yet done
 
