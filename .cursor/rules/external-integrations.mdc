@@ -1,0 +1,15 @@
+---
+description: "Read before integrating with any external API, data source, or third-party service — new, or already integrated but changing"
+alwaysApply: false
+---
+
+# Before Integrating an External Data Source
+
+This project already burned real time on this exact mistake, twice:
+
+1. **BattleMetrics** — assumed their API was still freely usable for bulk server discovery. It wasn't; access is gated behind a paid tier we couldn't actually use for this purpose. Built and tested a whole module against it before discovering that.
+2. **Steam** — assumed ARK: Survival Ascended used Steam's server browser, since it's sold on Steam. Reasonable-sounding guess, completely wrong: ARK:SA registers exclusively through Epic Online Services, not Steam, even for Steam players. Again, built and tested a whole module first.
+
+Both times the actual fix was: search first, find the real documented (or reverse-engineerable) mechanism, fetch and read live docs or a live example response, and where possible make one real test call — *before* writing the implementation module. The eventual real fix for discovery (Wildcard's own unauthenticated `officialserverlist.json` endpoint) was found this way, in minutes, once actually looked for properly.
+
+**Rule:** for any new external API/service/data source — or before trusting an existing integration you're extending — do real research (web search + real docs + a live call if possible) before writing code against it. If a live test call isn't possible in this environment, say so explicitly and flag the assumption for the user to verify on their own machine. Never present unverified integration code as finished.

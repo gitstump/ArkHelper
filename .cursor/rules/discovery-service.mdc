@@ -1,0 +1,13 @@
+---
+description: "Discovery service conventions"
+globs: ["discovery/**"]
+alwaysApply: false
+---
+
+# Discovery Service (discovery/)
+
+- Live data source: Wildcard's own unauthenticated official server list — `https://cdn2.arkdedicated.com/servers/asa/officialserverlist.json`. No API key needed. Do not reintroduce BattleMetrics or Steam as a discovery source without fresh research confirming they're actually viable — see `external-integrations.mdc` for why.
+- `history.js` uses `node:sqlite` (built-in, zero-dependency) — WAL mode for concurrent read access from the accounts service, lightweight `ALTER TABLE` migrations guarded by catching the "duplicate column" error rather than a real migration framework.
+- Every discovery HTTP endpoint (`/roster`, `/history/:id`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`) returns a graceful fallback (503 or empty result) when data isn't ready — never crashes the process.
+- Dependency-inject `httpGet`, `sleep`, and `now` throughout so discovery logic is testable without real network access or real time.
+- "Uptime" here means "% of discovery runs the server appeared in the official list," not a direct ping result — this is a documented, deliberate limitation given the data source, not a bug.

@@ -1,0 +1,14 @@
+---
+description: "Testing conventions"
+globs: ["**/*.test.js"]
+alwaysApply: false
+---
+
+# Testing Conventions
+
+- `node:test` + `node:assert/strict` only — no test framework dependency.
+- Prefer real captured data shapes in fixtures over guessed ones. When a bug traces back to a fixture using the wrong field name or shape (this has happened — see `PROJECT_STATUS.md`), add a regression test that locks in the real shape, not just a passing assertion.
+- Every pure function gets direct unit tests. Every HTTP route gets an integration test against a real ephemeral server (`server.listen(0, ...)`), not a mocked request object — see `auth_service.test.js` for the pattern.
+- Deliberately test the unhappy paths: upstream service down, malformed/missing data, an XSS-unsafe input string. A route should never crash — it should degrade to a clear fallback state (empty state, "not available yet" message, never a 500 from an uncaught exception).
+- Dependency-inject `httpGet`/`sleep`/`now`/randomness everywhere so tests never need real network access or real time to pass.
+- Run the full suite (`node --test`) before considering any change finished, not just the file you touched — cross-module regressions are easy to miss otherwise.

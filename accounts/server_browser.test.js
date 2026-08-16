@@ -1,0 +1,283 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  filterServers,
+  sortServers,
+  paginateServers,
+  computeLiveCounters,
+  getDistinctMaps,
+  renderBrowserPage,
+} = require('./server_browser.js');
+
+function makeServers() {
+  return [
+    { id: '1', name: 'EU-PVE-TheIsland5313', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 5, maxPlayers: 70, day: 100, clusterId: 'PVECrossplay', hasPassword: false, platformType: 'PC+XSX+WINGDK+PS5', wildcardReportedPing: 180 },
+    { id: '2', name: 'Asia-PVP-LostColony2859', map: 'LostColony_WP', gameMode: 'pvp', playersNow: 20, maxPlayers: 70, day: 50, clusterId: 'PVPCrossplay', hasPassword: false, platformType: 'PC+PS5+XSX', wildcardReportedPing: 252 },
+    { id: '3', name: 'NA-PVE-ClubARK283', map: 'BobsMissions_WP', gameMode: 'pve', playersNow: 0, maxPlayers: 70, day: 1, clusterId: 'PVECrossplay', hasPassword: true, platformType: 'PC+PS5+XSX+WINGDK', wildcardReportedPing: null },
+    { id: '4', name: 'NA-PVP-Astraeos2573', map: 'Astraeos_WP', gameMode: 'pvp', playersNow: 38, maxPlayers: 70, day: 2567, clusterId: 'PVPCrossplay', hasPassword: false, platformType: 'PC+PS5+XSX', wildcardReportedPing: 346 },
+  ];
+}
+
+// ---------------------------------------------------------------------
+// filterServers
+// ---------------------------------------------------------------------
+test('filterServers with no filters returns everything', () => {
+  assert.equal(filterServers(makeServers(), {}).length, 4);
+});
+
+test('filterServers search matches name case-insensitively', () => {
+  const result = filterServers(makeServers(), { search: 'astraeos' });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, '4');
+});
+
+test('filterServers filters by exact map', () => {
+  const result = filterServers(makeServers(), { map: 'TheIsland_WP' });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, '1');
+});
+
+test('filterServers filters by gameMode', () => {
+  assert.equal(filterServers(makeServers(), { gameMode: 'pve' }).length, 2);
+  assert.equal(filterServers(makeServers(), { gameMode: 'pvp' }).length, 2);
+});
+
+test('filterServers filters by platform substring, case-insensitive', () => {
+  const result = filterServers(makeServers(), { platform: 'wingdk' });
+  assert.equal(result.length, 2); // servers 1 and 3 have WINGDK in their platform string
+});
+
+test('filterServers filters by hasPassword true/false', () => {
+  assert.equal(filterServers(makeServers(), { hasPassword: 'true' }).length, 1);
+  assert.equal(filterServers(makeServers(), { hasPassword: 'false' }).length, 3);
+});
+
+test('filterServers filters by minPlayers and maxPlayers range', () => {
+  assert.equal(filterServers(makeServers(), { minPlayers: '10' }).length, 2); // servers 2 and 4
+  assert.equal(filterServers(makeServers(), { maxPlayers: '10' }).length, 2); // servers 1 and 3
+  assert.equal(filterServers(makeServers(), { minPlayers: '1', maxPlayers: '25' }).length, 2); // 1 and 2
+});
+
+test('filterServers filters by clusterId', () => {
+  assert.equal(filterServers(makeServers(), { clusterId: 'PVPCrossplay' }).length, 2);
+});
+
+test('filterServers combines multiple filters with AND logic', () => {
+  const result = filterServers(makeServers(), { gameMode: 'pvp', minPlayers: '30' });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, '4');
+});
+
+test('filterServers does not mutate the input array', () => {
+  const servers = makeServers();
+  const original = JSON.stringify(servers);
+  filterServers(servers, { gameMode: 'pve' });
+  assert.equal(JSON.stringify(servers), original);
+});
+
+// ---------------------------------------------------------------------
+// sortServers
+// ---------------------------------------------------------------------
+test('sortServers by players descending (the default)', () => {
+  const result = sortServers(makeServers());
+  assert.deepEqual(result.map((s) => s.id), ['4', '2', '1', '3']);
+});
+
+test('sortServers by players ascending', () => {
+  const result = sortServers(makeServers(), 'players', 'asc');
+  assert.deepEqual(result.map((s) => s.id), ['3', '1', '2', '4']);
+});
+
+test('sortServers by name alphabetically', () => {
+  const result = sortServers(makeServers(), 'name', 'asc');
+  assert.deepEqual(
+    result.map((s) => s.name),
+    ['Asia-PVP-LostColony2859', 'EU-PVE-TheIsland5313', 'NA-PVE-ClubARK283', 'NA-PVP-Astraeos2573']
+  );
+});
+
+test('sortServers by day', () => {
+  const result = sortServers(makeServers(), 'day', 'desc');
+  assert.deepEqual(result.map((s) => s.id), ['4', '1', '2', '3']);
+});
+
+test('sortServers puts nulls last regardless of direction', () => {
+  const withNull = [{ id: 'a', playersNow: null }, { id: 'b', playersNow: 5 }, { id: 'c', playersNow: 10 }];
+  const desc = sortServers(withNull, 'players', 'desc');
+  assert.equal(desc[desc.length - 1].id, 'a');
+  const asc = sortServers(withNull, 'players', 'asc');
+  assert.equal(asc[asc.length - 1].id, 'a');
+});
+
+test('sortServers does not mutate the input array', () => {
+  const servers = makeServers();
+  const originalOrder = servers.map((s) => s.id);
+  sortServers(servers, 'name', 'asc');
+  assert.deepEqual(servers.map((s) => s.id), originalOrder);
+});
+
+test('sortServers falls back to the default sort key for an unknown key', () => {
+  const result = sortServers(makeServers(), 'nonsense', 'desc');
+  assert.deepEqual(result.map((s) => s.id), ['4', '2', '1', '3']); // same as default players-desc
+});
+
+// ---------------------------------------------------------------------
+// paginateServers
+// ---------------------------------------------------------------------
+test('paginateServers slices correctly with a small page size', () => {
+  const result = paginateServers(makeServers(), 1, 2);
+  assert.equal(result.items.length, 2);
+  assert.equal(result.totalPages, 2);
+  assert.equal(result.totalCount, 4);
+  assert.equal(result.page, 1);
+});
+
+test('paginateServers returns the second page correctly', () => {
+  const result = paginateServers(makeServers(), 2, 2);
+  assert.equal(result.items.length, 2);
+  assert.deepEqual(result.items.map((s) => s.id), ['3', '4']);
+});
+
+test('paginateServers clamps a page below 1 up to 1', () => {
+  assert.equal(paginateServers(makeServers(), 0, 2).page, 1);
+  assert.equal(paginateServers(makeServers(), -5, 2).page, 1);
+});
+
+test('paginateServers clamps a page beyond the max down to the last page', () => {
+  const result = paginateServers(makeServers(), 999, 2);
+  assert.equal(result.page, 2);
+});
+
+test('paginateServers handles an empty list without dividing by zero', () => {
+  const result = paginateServers([], 1, 25);
+  assert.equal(result.totalPages, 1);
+  assert.equal(result.items.length, 0);
+});
+
+test('paginateServers handles a non-numeric page gracefully', () => {
+  const result = paginateServers(makeServers(), 'not-a-number', 2);
+  assert.equal(result.page, 1);
+});
+
+// ---------------------------------------------------------------------
+// computeLiveCounters
+// ---------------------------------------------------------------------
+test('computeLiveCounters sums players and counts modes correctly', () => {
+  const counters = computeLiveCounters(makeServers());
+  assert.equal(counters.totalOfficial, 4);
+  assert.equal(counters.playersOnline, 5 + 20 + 0 + 38);
+  assert.equal(counters.pveCount, 2);
+  assert.equal(counters.pvpCount, 2);
+});
+
+test('computeLiveCounters averages ping over non-null values only', () => {
+  const counters = computeLiveCounters(makeServers());
+  // pings: 180, 252, null(excluded), 346 -> avg of [180,252,346]
+  assert.equal(counters.avgPing, Math.round((180 + 252 + 346) / 3));
+});
+
+test('computeLiveCounters handles an empty roster without crashing', () => {
+  const counters = computeLiveCounters([]);
+  assert.equal(counters.totalOfficial, 0);
+  assert.equal(counters.playersOnline, 0);
+  assert.equal(counters.avgPing, null);
+});
+
+// ---------------------------------------------------------------------
+// getDistinctMaps
+// ---------------------------------------------------------------------
+test('getDistinctMaps returns sorted unique map names', () => {
+  const maps = getDistinctMaps(makeServers());
+  assert.deepEqual(maps, ['Astraeos_WP', 'BobsMissions_WP', 'LostColony_WP', 'TheIsland_WP']);
+});
+
+test('getDistinctMaps ignores servers with no map set', () => {
+  const maps = getDistinctMaps([{ map: 'A' }, { map: null }, { map: 'A' }]);
+  assert.deepEqual(maps, ['A']);
+});
+
+// ---------------------------------------------------------------------
+// renderBrowserPage
+// ---------------------------------------------------------------------
+test('renderBrowserPage shows a fallback when the roster is unavailable', () => {
+  const html = renderBrowserPage({ rosterAvailable: false });
+  assert.match(html, /discovery service may not be running/);
+});
+
+test('renderBrowserPage renders rows for the given page of results', () => {
+  const servers = makeServers();
+  const paged = paginateServers(sortServers(servers), 1, 25);
+  const html = renderBrowserPage({
+    page: paged,
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters(servers),
+    mapOptions: getDistinctMaps(servers),
+    rosterAvailable: true,
+  });
+  assert.match(html, /Astraeos_WP/);
+  assert.match(html, /LostColony_WP/);
+  assert.match(html, /Page 1 of 1/);
+});
+
+test('renderBrowserPage shows "no servers match" when the filtered page is empty', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: { search: 'nonexistent' },
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+  });
+  assert.match(html, /No servers match these filters/);
+});
+
+test('renderBrowserPage escapes a hostile map/cluster value instead of injecting it raw', () => {
+  const hostile = [{ id: '1', name: '<img src=x onerror=alert(1)>', map: 'M', gameMode: 'pve', playersNow: 1, maxPlayers: 1, day: 1, clusterId: 'C', hasPassword: false }];
+  const paged = paginateServers(hostile, 1, 25);
+  const html = renderBrowserPage({
+    page: paged,
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters(hostile),
+    mapOptions: ['M'],
+    rosterAvailable: true,
+  });
+  assert.doesNotMatch(html, /<img src=x onerror=alert\(1\)>/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('renderBrowserPage pre-fills the filter form with the current search value', () => {
+  const paged = paginateServers([], 1, 25);
+  const html = renderBrowserPage({
+    page: paged,
+    filters: { search: 'my query' },
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+  });
+  assert.match(html, /value="my query"/);
+});
+
+test('renderBrowserPage disables the Prev link on page 1 and Next link on the last page', () => {
+  const paged = { items: [{ id: '1', name: 'A' }], page: 1, totalPages: 1, totalCount: 1 };
+  const html = renderBrowserPage({
+    page: paged,
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+  });
+  assert.doesNotMatch(html, /href="\/servers\?[^"]*page=0"/);
+  assert.match(html, /<span>&laquo; Prev<\/span>/);
+  assert.match(html, /<span>Next &raquo;<\/span>/);
+});

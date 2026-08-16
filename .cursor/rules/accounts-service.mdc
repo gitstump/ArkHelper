@@ -1,0 +1,13 @@
+---
+description: "Accounts service conventions"
+globs: ["accounts/**"]
+alwaysApply: false
+---
+
+# Accounts Service (accounts/)
+
+- Plain server-rendered HTML via template strings, dark theme matching the existing pages, no client-side JS framework. `escapeHtml()` (from `home_page.js`) wraps every piece of dynamic output — this includes data from our own DB, not just user input, since defense-in-depth is cheap here.
+- Fetch discovery data via `local_fetch.js`'s `fetchJsonSafe` — it never throws, degrading to `null` on any failure. Every route that depends on discovery data must handle that `null` case with a real fallback UI state, not a crash.
+- Compute the full response body before calling `res.writeHead()` (see the core rule) — this is the exact pattern that caused a real production crash in `/stats` once; don't reintroduce it.
+- All DB access goes through `db.js` — SQLite via `node:sqlite`, upsert pattern using `ON CONFLICT ... DO UPDATE`, never raw queries scattered through route handlers.
+- Session auth via httpOnly cookies (`ark_session`). Never trust a session token or form input without validating it against the DB.

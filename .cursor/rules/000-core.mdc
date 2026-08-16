@@ -1,0 +1,14 @@
+---
+description: "ArkHelper core project rules — always active"
+alwaysApply: true
+---
+
+# ArkHelper — Core Rules
+
+- Read `PROJECT_STATUS.md` and `ARCHITECTURE.md` before starting any task. Update `PROJECT_STATUS.md` when a phase completes.
+- Before writing code that talks to ANY external API or data source — new or already-integrated — verify its real current behavior first (live docs, or a real test call). Never assume from training knowledge or "it's a Steam game so it must use Steam's API." See `external-integrations.mdc`.
+- Zero-dependency Node built-ins by default. A real npm dependency needs a documented reason (see `ARCHITECTURE.md`'s exceptions list — `maxmind` is the only one so far).
+- Every new module ships with a paired `*.test.js` using `node:test`. Nothing is "done" until `node --test` passes.
+- Server-rendered HTML template strings, no client-side JS framework, dark theme matching existing pages. `escapeHtml()` all dynamic output.
+- Compute the full response body BEFORE calling `res.writeHead()` — never risk a throw between `writeHead` and `res.end()`.
+- Success bar: full feature parity with arkstatus.com is the *neutral baseline*, not the goal. Falling short of it is failure.
