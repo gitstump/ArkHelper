@@ -4,20 +4,43 @@
 /**
  * news_page.js
  *
- * /news — text-and-links listing of Wildcard's launcher news feed.
- * Fan-content policy check pending — do not display or rehost Wildcard imagery.
+ * /news — launcher news listing. Official announcement images are
+ * hotlinked from Wildcard's CDN only (never downloaded or re-served).
  */
 
 const { escapeHtml } = require('./theme.js');
 const { renderPage } = require('./layout.js');
 
+const CDN_ORIGIN = 'https://cdn2.arkdedicated.com';
+const ATTRIBUTION =
+  'Game imagery is from Studio Wildcard\'s official announcements. This site is unaffiliated.';
+
 const PAGE_CSS = `
 .news-list { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-3); }
 .news-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); }
 .news-item.inactive { opacity: 0.65; }
+.news-item.has-image { display: flex; gap: var(--space-4); align-items: flex-start; }
+.news-item.has-image .news-body { flex: 1; min-width: 0; }
+.news-thumb {
+  flex: 0 0 160px;
+  width: 160px;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.news-thumb img {
+  display: block;
+  width: 160px;
+  height: 100%;
+  object-fit: cover;
+  color: transparent;
+}
 .news-item h2 { margin: 0 0 var(--space-2); font-size: 1.05rem; }
 .news-item .body { margin: 0 0 var(--space-3); }
 .news-item .stamp { color: var(--muted); font-size: 0.82rem; margin: var(--space-2) 0 0; }
+.news-attr { margin: var(--space-5) 0 0; }
 `;
 
 function titleCaseHyphenated(slug) {
@@ -87,6 +110,41 @@ function formatFirstSeen(iso) {
   return day || formatWhen(iso);
 }
 
+function isAllowedCdnHost(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'cdn2.arkdedicated.com' || host.endsWith('.arkdedicated.com');
+}
+
+function resolveNewsImageUrl(imagePath) {
+  if (imagePath == null) return null;
+  const raw = String(imagePath).trim();
+  if (!raw || raw.includes('..')) return null;
+
+  if (/^https?:\/\//i.test(raw)) {
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      return null;
+    }
+    if (parsed.protocol !== 'https:') return null;
+    if (!isAllowedCdnHost(parsed.hostname)) return null;
+    return parsed.href;
+  }
+
+  const relative = raw.replace(/^\/+/, '');
+  if (!relative) return null;
+  let parsed;
+  try {
+    parsed = new URL(relative, `${CDN_ORIGIN}/`);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:') return null;
+  if (!isAllowedCdnHost(parsed.hostname)) return null;
+  return parsed.href;
+}
+
 function renderNewsEntry(entry) {
   const title = displayTitle(entry);
   const body = entry && entry.body ? `<p class="body">${escapeHtml(entry.body)}</p>` : '';
@@ -97,11 +155,22 @@ function renderNewsEntry(entry) {
   const seen = formatFirstSeen(entry && entry.firstSeen);
   const stamp = seen ? `<p class="stamp">first seen ${escapeHtml(seen)}</p>` : '';
   const inactive = entry && entry.active === false ? ' inactive' : '';
-  return `<li class="news-item${inactive}">
-    <h2>${escapeHtml(title)}</h2>
+  const text = `<h2>${escapeHtml(title)}</h2>
     ${body}
     ${link}
-    ${stamp}
+    ${stamp}`;
+  const imageUrl = resolveNewsImageUrl(entry && entry.imagePath);
+  if (!imageUrl) {
+    return `<li class="news-item${inactive}">
+    ${text}
+  </li>`;
+  }
+  const alt = title || 'ARK news image';
+  return `<li class="news-item has-image${inactive}">
+    <div class="news-thumb"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async"></div>
+    <div class="news-body">
+    ${text}
+    </div>
   </li>`;
 }
 
@@ -114,7 +183,8 @@ function renderNewsPage({ feedAvailable, feed, account = null, live = null }) {
       live,
       extraCss: PAGE_CSS,
       body: `<h1>ARK news</h1>
-  <p>News data isn't available right now (the discovery service may not be running, or it hasn't fetched the CDN feed yet).</p>`,
+  <p>News data isn't available right now (the discovery service may not be running, or it hasn't fetched the CDN feed yet).</p>
+  <p class="note news-attr">${escapeHtml(ATTRIBUTION)}</p>`,
     });
   }
 
@@ -125,19 +195,21 @@ function renderNewsPage({ feedAvailable, feed, account = null, live = null }) {
 
   return renderPage({
     title: 'ARK news \u2014 ArkHelper',
-    description: 'Text listing of current official ARK: Survival Ascended launcher news, without Wildcard imagery.',
+    description: 'Official ARK: Survival Ascended launcher news — titles, links, and announcement images from Wildcard\'s public feed.',
     currentPath: '/news',
     account,
     live,
     extraCss: PAGE_CSS,
     body: `<h1>ARK news</h1>
-  <p class="note">Titles and links from Wildcard's public news feed. Images are omitted.</p>
-  ${items}`,
+  <p class="note">Titles and links from Wildcard's public news feed.</p>
+  ${items}
+  <p class="note news-attr">${escapeHtml(ATTRIBUTION)}</p>`,
   });
 }
 
 module.exports = {
   renderNewsPage,
+  resolveNewsImageUrl,
   displayTitle,
   humanizeArticleSlug,
   humanizeDlcName,

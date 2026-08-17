@@ -1,12 +1,13 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-17 — 758 tests passing — In flight: none
+Last updated: 2026-08-17 — 765 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
 ## Success bar
 
 Full public-feature parity with arkstatus.com is the neutral baseline — falling short is failure, matching is neutral. Success additionally means: parity with BattleMetrics' PUBLIC pages (server stats/graphs; their RCON/admin suite is explicitly OUT of scope), and parity with the ARK wiki's TOOLS (calculators, reference data, maps) built clean-room from game facts and original assets — the wiki's CC BY-NC-SA license means we never copy its text or images. The wiki-tools reference implementation is [wikily.gg/ark-survival-ascended](https://wikily.gg/ark-survival-ascended) — still clean-room: game-file facts and original prose/assets only. Exceeding all of this without degrading anything is the actual goal.
+Imagery policy: official promotional/announcement assets and Owner's own gameplay screenshots only, per Wildcard Fan Content Guidelines (individual, non-commercial); hotlinked from official CDN, never re-served; no game-file extractions, wiki, or competitor images; site remains non-commercial while any Wildcard imagery is live; logo and brand assets original.
 
 Live wild/tamed dino counts on official servers are **not** a parity item — arkstatus.com does not show them (they need RCON/admin access, which neither they nor we have on official). Their taming/breeding calculators are static creature-stat tools, not live in-server counts. Those calculators belong under the wiki-tools success bar above, built clean-room.
 
@@ -30,7 +31,7 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - **Rankings** (`/rankings`) — composite rank score 0–100 per official server, recomputed every discovery cycle (40% 7-day uptime + 25% ping quality + 25% mean population % + 10% history-age confidence). Surfaced as a Rank sort in the server browser, a rank badge on each detail page, and a top-100 leaderboard with score breakdowns. Pure scorer lives in `discovery/ranking.js`; scores **and 7-day uptime %** are stamped onto the roster feed so accounts doesn't need a second query.
 - **Incident detection & status** (`/is-ark-down`, alias `/status`) — each discovery cycle classifies the official network as NORMAL / DEGRADED / OUTAGE / UPDATE_ROLLOUT from roster presence, 24h offline baseline, version-change coverage, and consecutive CDN fetch failures. Incidents persist in the history SQLite (hysteresis: 3 consecutive NORMAL cycles to close). The public page renders the latest stored snapshot (`Cache-Control: public, max-age=30`), not a per-request recompute.
 - **Official rates** (`/rates`) — current multipliers for official / arkpocalypse / smalltribes / conquest from Wildcard's CDN `dynamicconfig.ini` files, a "Bonus rates active" banner when any official multiplier is not 1.0, and a recent change-log table.
-- **Launcher news** (`/news`) — text and outbound links only (no Wildcard imagery; fan-content policy check pending). Titles come from EntryData, else a humanized survivetheark article slug, else a humanized DLC name.
+- **Launcher news** (`/news`) — titles, outbound links, and hotlinked official announcement thumbnails from Wildcard's CDN (fan-content policy, 2026-08-17 — see Imagery policy). Titles come from EntryData, else a humanized survivetheark article slug, else a humanized DLC name. Entries with no resolvable ImagePath stay text-only.
 
 ## Future / deferred work
 
