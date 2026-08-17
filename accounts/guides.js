@@ -252,8 +252,121 @@ const GUIDE_REGISTRY = [
             type: 'links',
             items: [
               { href: '/guides/beginners', label: "Beginner's Guide", note: 'the survival fundamentals this guide builds on' },
-              { href: '/guides/resource-locations', label: 'Resource routes', note: 'where your new hauler earns its keep (coming soon)' },
+              { href: '/guides/resource-locations', label: 'Resource routes', note: 'where your new hauler earns its keep' },
               { href: '/lists/official-pve', label: 'Official PvE servers', note: 'the calmest place to practice all of this' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'resource-locations',
+    title: 'Resource Locations — ARK: Survival Ascended',
+    shortTitle: 'Resource Locations',
+    description:
+      'Where metal, crystal, obsidian, oil, and pearls actually live: reading terrain, picking the right tool and tame, and hauling it all home.',
+    lastVerified: '2026-08-16',
+    related: ['taming', 'beginners', 'boss-strategies'],
+    sections: [
+      {
+        heading: 'Resources follow terrain, not maps',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Every official map dresses the same underlying logic in different scenery: dense metal collects on mountains and in caves, crystal favors peaks and cold heights, obsidian hugs volcanic and geothermal ground, oil pools underwater and in polar biomes, and pearls hide in the deepest, least friendly water. Learn to read terrain once and you can farm a map you have never visited. Guides that hand you exact pin coordinates go stale with every spawn change; the terrain rules do not.',
+          },
+          {
+            type: 'callout',
+            text: "The question is never 'where is the metal on this map' — it is 'where are this map's mountains, and how do I survive them.'",
+          },
+        ],
+      },
+      {
+        heading: 'Quick pick: what you need, where it lives',
+        blocks: [
+          {
+            type: 'table',
+            caption: 'Resource to terrain, tool, and hauling companion',
+            headers: ['Resource', 'Terrain to read for', 'Best tool', 'Classic gatherer'],
+            rows: [
+              ['Metal', 'Mountain slopes, cave interiors, rocky spires', 'Metal pick', 'Ankylosaurus'],
+              ['Crystal', 'Summits, ice biomes, crystalline cave growths', 'Metal pick', 'Ankylosaurus'],
+              ['Obsidian', 'Volcanic slopes, geothermal zones, deep caves', 'Metal pick', 'Ankylosaurus'],
+              ['Oil', 'Seafloor nodes, polar surface deposits', 'Metal pick', 'Dunkleosteus (underwater)'],
+              ['Silica pearls', 'Deep ocean floor, cold shallows on some maps', 'Bare hands', 'Any fast swimmer with weight'],
+              ['Cementing paste', 'Crafted from stone and chitin or keratin', 'Mortar or grinder', 'Beelzebufo (chitin from insects)'],
+              ['Wood and thatch', 'Any forest; denser trees, better yield', 'Hatchet for wood, pick for thatch', 'Castoroides or Therizinosaur'],
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Metal: the economy runs on it',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Metal is the resource that gates everything from mid-game tools to endgame bases, and it is heavy in a way nothing before it prepares you for. The richest nodes sit where living is hardest — high slopes with aggressive spawns and real fall danger. The pattern that works: establish a small forward outpost near the deposit with a bed and a smithy or forge, farm in short loops, and smelt or store on site rather than hauling raw ore down a mountain. Raw metal on your character is how survivors learn what encumbrance means.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Scout the route up before you bring the tame you cannot replace.',
+              'A bed at the deposit turns death from a disaster into a commute.',
+              'Smelting near the source moves pounds of ore as bars instead.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Crystal and obsidian: the high, cold, and hostile',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Both concentrate where the air gets thin: crystal along summits and ice fields, obsidian on volcanic ground and in the deep caves. The obstacle is rarely finding them — you can often see the deposits glinting from below — it is the cold, the climbers\' hazards, and whatever the map staffs its peaks with. Dress for the biome, clear a safe pocket before you swing, and treat any smoking or lava-adjacent terrain as a place where one misstep costs the whole trip.',
+          },
+        ],
+      },
+      {
+        heading: 'Oil: two very different trips',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Oil offers a choice of miseries. Underwater nodes are plentiful but stack drowning risk on top of everything with teeth down there; a strong swimming tame turns that trip from a dare into a job. Polar surface deposits skip the drowning and swap in freezing temperatures and polar predators. Take whichever hazard your current gear answers better — and on maps with pump-friendly inland seeps, a placed oil pump quietly out-earns both trips while you do something else.',
+          },
+        ],
+      },
+      {
+        heading: 'Pearls and paste: the patience resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Silica pearls sit in open shells on the deep seafloor, often exactly where the water is darkest and least forgiving; grab-and-go with a fast swimmer beats lingering. Cementing paste is the other chokepoint material — craftable from stone plus chitin or keratin, which makes insect-heavy caves and swamps your quarry. On maps that have them, giant beaver dams hold ready-made paste, but looting a dam enrages every beaver nearby: empty it completely, swim first, and count the fury as part of the price.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling is half the job',
+        blocks: [
+          {
+            type: 'p',
+            text: 'A farming trip is measured at home, not at the node. Weight-focused tames exist for exactly this: load the animal, not the survivor, and keep yourself light enough to fight or flee. Plan the return leg before the outbound one — downhill with cargo, along routes you cleared on the way in — and prefer two safe trips over one overloaded crawl. When a haul goes wrong it is almost always on the way back, at the moment the cargo made you slow and the route made you predictable.',
+          },
+        ],
+      },
+      {
+        heading: 'Match the map to the shopping list',
+        blocks: [
+          {
+            type: 'p',
+            text: "Some maps simply serve certain lists better — flatter metal access, calmer waters over the pearl beds, denser forests. Before a dedicated farming session, check where your target map's rich ground actually is on its live hub page, and check the current harvesting rates: a bonus-rate weekend can halve the number of trips the same shopping list costs.",
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/maps', label: 'Map hubs', note: 'terrain and live telemetry for every official map' },
+              { href: '/rates', label: 'Current official rates', note: 'harvesting multipliers change the math of every trip' },
+              { href: '/guides/taming', label: 'Taming guide', note: 'the gatherers in the table above start here' },
             ],
           },
         ],

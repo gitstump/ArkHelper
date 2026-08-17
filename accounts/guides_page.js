@@ -24,6 +24,9 @@ const PAGE_CSS = `
 .guide-article .guide-links { list-style: none; padding: 0; margin: var(--space-3) 0 0; }
 .guide-article .guide-links li { margin: 0; padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
 .guide-article .guide-links li:last-child { border-bottom: none; }
+.guide-table { background: var(--surface); border: 1px solid var(--border); }
+.guide-table caption { caption-side: top; text-align: left; color: var(--muted); padding: var(--space-2) var(--space-3); font-weight: 600; }
+.guide-table th[scope="row"] { color: var(--text); font-size: inherit; }
 .guide-related { margin: var(--space-6) 0 0; }
 .guide-related ul { list-style: none; padding: 0; margin: 0; }
 .guide-related li { margin: 0 0 var(--space-2); }
@@ -58,6 +61,29 @@ function renderBlock(block) {
         return `<li><a href="${href}">${escapeHtml(label)}</a>${note}</li>`;
       })
       .join('')}</ul>`;
+  }
+  if (block.type === 'table') {
+    const headers = Array.isArray(block.headers) ? block.headers.map((h) => (h == null ? '' : String(h))) : [];
+    if (!headers.length) return '';
+    const rows = Array.isArray(block.rows) ? block.rows : [];
+    const caption =
+      block.caption != null && String(block.caption) !== ''
+        ? `<caption>${escapeHtml(String(block.caption))}</caption>`
+        : '';
+    const thead = `<thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>`;
+    const tbody = `<tbody>${rows
+      .map((row) => {
+        const cells = Array.isArray(row) ? row : [];
+        return `<tr>${headers
+          .map((_, i) => {
+            const value = cells[i] == null ? '' : String(cells[i]);
+            if (i === 0) return `<th scope="row">${escapeHtml(value)}</th>`;
+            return `<td>${escapeHtml(value)}</td>`;
+          })
+          .join('')}</tr>`;
+      })
+      .join('')}</tbody>`;
+    return `<table class="guide-table">${caption}${thead}${tbody}</table>`;
   }
   return '';
 }
