@@ -29,7 +29,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, wipe/version detection, heatmaps; gathers ranking inputs and stamps scores onto the roster; records network incidents |
 | `ranking.js` | Pure composite rank scorer (no DB / network / clock) — weights live here |
 | `incidents.js` | Pure incident classifier (thresholds, hysteresis, consecutive-fetch-failure counting) |
-| `geo_lookup.js` | GeoLite2/MaxMind country lookups — built, not yet configured (see `PROJECT_STATUS.md`) |
+| `geo_lookup.js` | GeoLite2/MaxMind country lookups — optional via `GEOLITE2_DB_PATH`; stamps `country` / `countryName` on the official roster |
 
 **Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/unofficial/roster`, `/unofficial/meta`, `/history/:id`, `/history/wipes`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`, `/rates`, `/news`
 
@@ -49,7 +49,8 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
 | `favorites_page.js` | The `/favorites` page |
 | `rankings_page.js` | The `/rankings` page — top 100 with score breakdowns |
-| `leaderboards_page.js` | The `/leaderboards` suite — index, map uptime, PvE vs PvP, top-100 alias, bottom-100 |
+| `leaderboards_page.js` | The `/leaderboards` suite — index, map uptime, PvE vs PvP, regions, top-100 alias, bottom-100 |
+| `country.js` | ISO-code flag emoji, country dropdown helpers, region labels |
 | `stats_page.js` | The `/stats` page — network breakdowns; leaderboard previews link into the suite |
 | `status_page.js` | The `/is-ark-down` (alias `/status`) page — renders the stored incident snapshot |
 | `rates_page.js` | The `/rates` page — per-network multipliers, bonus-rate banner, change history |

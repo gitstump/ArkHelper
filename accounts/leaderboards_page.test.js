@@ -5,10 +5,12 @@ const assert = require('node:assert/strict');
 const {
   computeMapUptime,
   computePveVsPvp,
+  computeRegions,
   bottomFromRoster,
   renderLeaderboardsIndex,
   renderMapUptimePage,
   renderPveVsPvpPage,
+  renderRegionsPage,
   renderTop100Page,
   renderBottom100Page,
   FULL_CONFIDENCE,
@@ -142,6 +144,7 @@ test('renderLeaderboardsIndex has unique title/meta and a card per suite page pl
   assert.match(html, /href="\/rankings"/);
   assert.match(html, /href="\/leaderboards\/map-uptime"/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
+  assert.match(html, /href="\/leaderboards\/regions"/);
   assert.match(html, /href="\/leaderboards\/top-100"/);
   assert.match(html, /href="\/leaderboards\/bottom-100"/);
   assert.match(html, /class="wordmark" href="\/"/);
@@ -204,4 +207,65 @@ test('renderMapUptimePage escapes a hostile map name', () => {
     maps: [{ map: '<script>evil()</script>', serverCount: 1, avgUptimePercent: 1, avgPopulationPercent: 1 }],
   });
   assert.doesNotMatch(html, /<script>evil\(\)<\/script>/);
+});
+
+function regionServers() {
+  return [
+    { country: 'DE', countryName: 'Germany', playersNow: 10, uptimePercent: 90, wildcardReportedPing: 40 },
+    { country: 'de', countryName: 'Germany', playersNow: 20, uptimePercent: 100, wildcardReportedPing: 60 },
+    { country: 'US', countryName: 'United States', playersNow: 5, uptimePercent: 80, wildcardReportedPing: 100 },
+    { country: null, playersNow: 3, uptimePercent: 70, wildcardReportedPing: 20 },
+    { playersNow: 1, uptimePercent: 50, wildcardReportedPing: null },
+  ];
+}
+
+test('computeRegions aggregates per country and parks Unknown at the bottom', () => {
+  const regions = computeRegions(regionServers());
+  assert.deepEqual(
+    regions.map((r) => r.code),
+    ['DE', 'US', null]
+  );
+  assert.equal(regions[0].name, 'Germany');
+  assert.equal(regions[0].serverCount, 2);
+  assert.equal(regions[0].playersOnline, 30);
+  assert.equal(regions[0].avgUptimePercent, 95);
+  assert.equal(regions[0].avgPing, 50);
+  assert.equal(regions[1].serverCount, 1);
+  assert.equal(regions[1].playersOnline, 5);
+  assert.equal(regions[2].name, 'Unknown');
+  assert.equal(regions[2].serverCount, 2);
+  assert.equal(regions[2].playersOnline, 4);
+  assert.equal(regions[2].avgUptimePercent, 60);
+  assert.equal(regions[2].avgPing, 20);
+});
+
+test('computeRegions omits Unknown when every server has a country and handles empty input', () => {
+  const allKnown = computeRegions([
+    { country: 'DE', countryName: 'Germany', playersNow: 1, uptimePercent: 100, wildcardReportedPing: 10 },
+  ]);
+  assert.equal(allKnown.length, 1);
+  assert.equal(allKnown[0].code, 'DE');
+  assert.deepEqual(computeRegions(null), []);
+  assert.deepEqual(computeRegions([]), []);
+});
+
+test('renderRegionsPage renders aggregates, flags, and Unknown', () => {
+  const html = renderRegionsPage({ rosterAvailable: true, regions: computeRegions(regionServers()) });
+  assert.match(html, /<title>ARK Regional Leaderboard/);
+  assert.match(html, /Germany/);
+  assert.match(html, /United States/);
+  assert.match(html, /Unknown/);
+  assert.match(html, /95%/);
+  assert.match(html, /50ms/);
+  assert.match(html, /\u{1F1E9}\u{1F1EA}/u);
+  const tbody = html.match(/<tbody>[\s\S]*?<\/tbody>/);
+  assert.ok(tbody);
+  const germanyAt = tbody[0].indexOf('Germany');
+  const unknownAt = tbody[0].indexOf('Unknown');
+  assert.ok(germanyAt !== -1 && unknownAt > germanyAt);
+});
+
+test('renderRegionsPage shows the roster-unavailable fallback', () => {
+  const html = renderRegionsPage({ rosterAvailable: false });
+  assert.match(html, /discovery service may not be running/);
 });

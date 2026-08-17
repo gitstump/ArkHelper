@@ -122,6 +122,7 @@ function renderStatsPage({
       <li><a href="/leaderboards">All leaderboards</a></li>
       <li><a href="/leaderboards/map-uptime">Map uptime</a></li>
       <li><a href="/leaderboards/pve-vs-pvp">PvE vs PvP</a></li>
+      <li><a href="/leaderboards/regions">Regions</a></li>
       <li><a href="/leaderboards/top-100">Top 100</a></li>
       <li><a href="/leaderboards/bottom-100">Bottom 100</a></li>
     </ul>`;

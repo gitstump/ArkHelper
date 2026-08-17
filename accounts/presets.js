@@ -35,6 +35,7 @@ const KNOWN_PRESET_PARAMS = [
   'minFreeSlots',
   'notFull',
   'wipedWithinDays',
+  'country',
   'sort',
   'dir',
   'source',

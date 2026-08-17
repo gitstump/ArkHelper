@@ -58,6 +58,7 @@ const {
   computeLiveCounters,
   getDistinctMaps,
   getDistinctPlatforms,
+  getDistinctCountries,
   filtersFromSearchParams,
   renderBrowserPage,
 } = require('./server_browser.js');
@@ -79,10 +80,12 @@ const { rankingFromRoster, renderRankingsPage } = require('./rankings_page.js');
 const {
   computeMapUptime,
   computePveVsPvp,
+  computeRegions,
   bottomFromRoster,
   renderLeaderboardsIndex,
   renderMapUptimePage,
   renderPveVsPvpPage,
+  renderRegionsPage,
   renderTop100Page,
   renderBottom100Page,
 } = require('./leaderboards_page.js');
@@ -492,7 +495,7 @@ function createAuthServer({
 
       if (req.method === 'GET' && (url.pathname === '/leaderboards' || url.pathname.startsWith('/leaderboards/'))) {
         const slug = url.pathname === '/leaderboards' ? '' : url.pathname.slice('/leaderboards/'.length);
-        const known = new Set(['', 'map-uptime', 'pve-vs-pvp', 'top-100', 'bottom-100']);
+        const known = new Set(['', 'map-uptime', 'pve-vs-pvp', 'regions', 'top-100', 'bottom-100']);
         if (slug.includes('/') || !known.has(slug)) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'not found' }));
@@ -518,6 +521,13 @@ function createAuthServer({
           body = renderPveVsPvpPage({
             rosterAvailable,
             comparison: rosterAvailable ? computePveVsPvp(servers) : null,
+            account,
+            live,
+          });
+        } else if (slug === 'regions') {
+          body = renderRegionsPage({
+            rosterAvailable,
+            regions: rosterAvailable ? computeRegions(servers) : [],
             account,
             live,
           });
@@ -623,6 +633,7 @@ function createAuthServer({
             counters: computeLiveCounters([]),
             mapOptions: [],
             platformOptions: [],
+            countryOptions: [],
           });
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(body);
@@ -652,6 +663,7 @@ function createAuthServer({
           counters: computeLiveCounters(roster.servers),
           mapOptions: getDistinctMaps(roster.servers),
           platformOptions: getDistinctPlatforms(roster.servers),
+          countryOptions: getDistinctCountries(roster.servers),
           rosterAvailable: true,
           account,
           live,
@@ -729,6 +741,7 @@ function createAuthServer({
           officialCounters,
           mapOptions: getDistinctMaps(roster.servers),
           platformOptions: getDistinctPlatforms(roster.servers),
+          countryOptions: getDistinctCountries(roster.servers),
           rosterAvailable: true,
           presets,
           loggedIn: Boolean(accountRow),

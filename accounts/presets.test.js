@@ -96,6 +96,10 @@ test('hasActiveFilters is false for empty / default sort and true for real filte
   assert.equal(hasActiveFilters('source=unofficial'), false);
 });
 
+test('sanitizeQueryString keeps country as a known filter param', () => {
+  assert.equal(sanitizeQueryString('country=DE&evil=1'), 'country=DE');
+});
+
 test('sanitizeQueryString keeps source=unofficial', () => {
   assert.equal(sanitizeQueryString('source=unofficial&gameMode=pve'), 'gameMode=pve&source=unofficial');
 });

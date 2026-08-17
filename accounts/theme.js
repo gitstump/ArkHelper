@@ -176,6 +176,8 @@ h1 a, h2 a { text-decoration: none; }
 .footer-cols li { margin: 0 0 var(--space-2); }
 .footer-cols a { color: var(--muted); text-decoration: none; }
 .footer-cols a:hover { color: var(--accent); }
+.footer-attrib { margin: var(--space-3) 0 0; font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
+.footer-attrib a { color: var(--muted); }
 .footer-disclaimer { margin: var(--space-5) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--border); font-size: 0.78rem; }
 table { width: 100%; border-collapse: collapse; margin-top: var(--space-3); }
 th, td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }

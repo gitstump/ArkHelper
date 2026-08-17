@@ -141,6 +141,7 @@ test('renderStatsPage links leaderboard previews into the suite instead of dupli
   assert.match(html, /href="\/leaderboards"/);
   assert.match(html, /href="\/leaderboards\/map-uptime"/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
+  assert.match(html, /href="\/leaderboards\/regions"/);
   assert.match(html, /href="\/leaderboards\/top-100"/);
   assert.match(html, /href="\/leaderboards\/bottom-100"/);
   assert.match(html, /href="\/rankings"/);

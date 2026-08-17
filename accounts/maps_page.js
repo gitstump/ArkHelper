@@ -194,7 +194,7 @@ function renderMapIndexPage({ rosterAvailable, maps, account = null, live = null
 function renderStandardTable(servers) {
   if (!servers.length) return `<p class="note">None right now.</p>`;
   return `<table class="browser-table">
-      <thead><tr><th></th><th>Name</th><th>Map</th><th>Day</th><th>Version</th><th>Players</th><th>Ping</th><th>Uptime</th><th>Rank</th></tr></thead>
+      <thead><tr><th></th><th>Name</th><th>Map</th><th>Region</th><th>Day</th><th>Version</th><th>Players</th><th>Ping</th><th>Uptime</th><th>Rank</th></tr></thead>
       <tbody>${servers.map((s) => renderServerRow(s)).join('')}</tbody>
     </table>`;
 }

@@ -12,6 +12,7 @@
 const { escapeHtml } = require('./theme.js');
 const { renderPage } = require('./layout.js');
 const { rankingFromRoster, renderRankingsPage, TOP_N } = require('./rankings_page.js');
+const { flagEmoji, normalizeCountryCode, countryDisplayName } = require('./country.js');
 
 const FULL_CONFIDENCE = 10;
 const BOTTOM_N = 100;
@@ -32,6 +33,11 @@ const SUITE = [
     href: '/leaderboards/pve-vs-pvp',
     title: 'PvE vs PvP',
     blurb: 'Side-by-side network comparison with deltas and top maps per mode.',
+  },
+  {
+    href: '/leaderboards/regions',
+    title: 'Regions',
+    blurb: 'Official servers grouped by country: count, players, uptime, and ping.',
   },
   {
     href: '/leaderboards/top-100',
@@ -163,6 +169,58 @@ function computePveVsPvp(servers) {
   };
 }
 
+function computeRegions(servers) {
+  const byCode = new Map();
+  const unknown = { code: null, name: 'Unknown', serverCount: 0, playersOnline: 0, uptimes: [], pings: [] };
+
+  function bucketFor(s) {
+    const code = normalizeCountryCode(s && s.country);
+    if (!code) return unknown;
+    let entry = byCode.get(code);
+    if (!entry) {
+      entry = {
+        code,
+        name: countryDisplayName(s) || code,
+        serverCount: 0,
+        playersOnline: 0,
+        uptimes: [],
+        pings: [],
+      };
+      byCode.set(code, entry);
+    } else if (entry.name === code) {
+      const named = countryDisplayName(s);
+      if (named && named !== code) entry.name = named;
+    }
+    return entry;
+  }
+
+  for (const s of Array.isArray(servers) ? servers : []) {
+    if (!s) continue;
+    const entry = bucketFor(s);
+    entry.serverCount += 1;
+    entry.playersOnline += typeof s.playersNow === 'number' && Number.isFinite(s.playersNow) ? s.playersNow : 0;
+    if (typeof s.uptimePercent === 'number' && Number.isFinite(s.uptimePercent)) entry.uptimes.push(s.uptimePercent);
+    if (typeof s.wildcardReportedPing === 'number' && Number.isFinite(s.wildcardReportedPing)) entry.pings.push(s.wildcardReportedPing);
+  }
+
+  function finalize(e) {
+    return {
+      code: e.code,
+      name: e.name,
+      serverCount: e.serverCount,
+      playersOnline: e.playersOnline,
+      avgUptimePercent: e.uptimes.length ? round1(avg(e.uptimes)) : null,
+      avgPing: e.pings.length ? Math.round(avg(e.pings)) : null,
+    };
+  }
+
+  const known = [...byCode.values()]
+    .map(finalize)
+    .sort((a, b) => b.serverCount - a.serverCount || a.name.localeCompare(b.name) || (a.code || '').localeCompare(b.code || ''));
+  if (unknown.serverCount > 0) known.push(finalize(unknown));
+  return known;
+}
+
 function bottomFromRoster(servers, { limit = BOTTOM_N, minConfidence = FULL_CONFIDENCE } = {}) {
   return rankingFromRoster(servers, { limit, order: 'asc', minConfidence });
 }
@@ -179,7 +237,7 @@ function renderLeaderboardsIndex({ account = null, live = null, rosterAvailable 
   const note = rosterAvailable ? '' : `<p class="note">Live roster data isn't available right now; the pages below still open.</p>`;
   return renderPage({
     title: 'ArkHelper \u2014 Leaderboards',
-    description: 'ARK: Survival Ascended leaderboards: map uptime, PvE vs PvP, top 100, and bottom 100.',
+    description: 'ARK: Survival Ascended leaderboards: map uptime, PvE vs PvP, regions, top 100, and bottom 100.',
     currentPath: '/leaderboards',
     account,
     live,
@@ -302,6 +360,58 @@ function renderPveVsPvpPage({ rosterAvailable, comparison, account = null, live 
   });
 }
 
+function regionRowLabel(region) {
+  if (!region || !region.code) return escapeHtml(region && region.name ? region.name : 'Unknown');
+  const flag = flagEmoji(region.code);
+  const name = escapeHtml(region.name || region.code);
+  return flag ? `${flag} ${name}` : name;
+}
+
+function renderRegionsPage({ rosterAvailable, regions, account = null, live = null } = {}) {
+  if (!rosterAvailable) {
+    return renderPage({
+      title: 'ARK Regional Leaderboard \u2014 ArkHelper',
+      description: 'Official ARK: Survival Ascended servers grouped by country: count, players online, uptime, and ping.',
+      currentPath: '/leaderboards/regions',
+      account,
+      live,
+      extraCss: PAGE_CSS,
+      body: unavailableBody('Regions'),
+    });
+  }
+
+  const rows = Array.isArray(regions) ? regions : [];
+  const table =
+    rows.length === 0
+      ? `<p class="note">No region data yet.</p>`
+      : `<table>
+      <thead><tr><th>Country</th><th>Servers</th><th>Players online</th><th>Avg 7-day uptime</th><th>Avg ping</th></tr></thead>
+      <tbody>${rows
+        .map(
+          (r) => `<tr>
+            <td>${regionRowLabel(r)}</td>
+            <td class="num">${escapeHtml(String(r.serverCount))}</td>
+            <td class="num">${escapeHtml(String(r.playersOnline))}</td>
+            <td class="num">${escapeHtml(formatNum(r.avgUptimePercent, '%'))}</td>
+            <td class="num">${escapeHtml(formatNum(r.avgPing, 'ms'))}</td>
+          </tr>`
+        )
+        .join('')}</tbody>
+    </table>`;
+
+  return renderPage({
+    title: 'ARK Regional Leaderboard \u2014 ArkHelper',
+    description: 'Official ARK: Survival Ascended servers grouped by country: count, players online, uptime, and ping.',
+    currentPath: '/leaderboards/regions',
+    account,
+    live,
+    extraCss: PAGE_CSS,
+    body: `<h1>Regions</h1>
+  <p class="note">Official servers grouped by GeoLite2 country. Servers without a resolved country are listed as Unknown.</p>
+  ${table}`,
+  });
+}
+
 function renderTop100Page(opts) {
   return renderRankingsPage({
     ...opts,
@@ -332,11 +442,13 @@ module.exports = {
   TOP_N,
   computeMapUptime,
   computePveVsPvp,
+  computeRegions,
   bottomFromRoster,
   rankingFromRoster,
   renderLeaderboardsIndex,
   renderMapUptimePage,
   renderPveVsPvpPage,
+  renderRegionsPage,
   renderTop100Page,
   renderBottom100Page,
 };

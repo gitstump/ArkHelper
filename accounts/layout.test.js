@@ -42,6 +42,7 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.match(html, /href="\/leaderboards"/);
   assert.match(html, /href="\/leaderboards\/map-uptime"/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
+  assert.match(html, /href="\/leaderboards\/regions"/);
   assert.match(html, /href="\/is-ark-down"/);
   assert.match(html, /href="\/rates"/);
   assert.match(html, /href="\/news"/);
@@ -113,6 +114,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/leaderboards">Leaderboards/);
   assert.match(html, /href="\/leaderboards\/map-uptime">Map Uptime/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp">PvE vs PvP/);
+  assert.match(html, /href="\/leaderboards\/regions">Regions/);
   assert.match(html, /href="\/is-ark-down">Is ARK Down/);
   assert.match(html, /href="\/rates">Rates/);
   assert.match(html, /href="\/news">News/);
@@ -120,6 +122,8 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/servers">Presets/);
   assert.match(html, /Project/);
   assert.match(html, /href="\/">About/);
+  assert.match(html, /Includes GeoLite2 data created by MaxMind, available from/);
+  assert.match(html, /href="https:\/\/www\.maxmind\.com"/);
   assert.match(html, new RegExp(GITHUB_REPO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(html, /3179/);
   assert.match(html, /2026-08-15T16:52:24\.124Z/);

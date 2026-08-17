@@ -74,9 +74,12 @@ test('renderServerDetailPage lists mod IDs when present', () => {
 test('renderServerDetailPage shows country when present, omits the row when absent', () => {
   const withCountry = renderServerDetailPage({ server: makeServer({ country: 'US', countryName: 'United States' }), uptime: null, history: [] });
   assert.match(withCountry, /United States/);
+  assert.match(withCountry, /\u{1F1FA}\u{1F1F8}/u);
+  assert.match(withCountry, /<td>Country<\/td>/);
 
   const withoutCountry = renderServerDetailPage({ server: makeServer(), uptime: null, history: [] });
   assert.doesNotMatch(withoutCountry, /<td>Country<\/td>/);
+  assert.doesNotMatch(withoutCountry, /\u{1F1FA}\u{1F1F8}/u);
 });
 
 test('renderServerDetailPage escapes a hostile server name (XSS check)', () => {

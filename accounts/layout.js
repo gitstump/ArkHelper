@@ -32,6 +32,7 @@ const STATS_NAV = [
   { href: '/leaderboards', label: 'Leaderboards', match: ['/leaderboards'] },
   { href: '/leaderboards/map-uptime', label: 'Map Uptime' },
   { href: '/leaderboards/pve-vs-pvp', label: 'PvE vs PvP' },
+  { href: '/leaderboards/regions', label: 'Regions' },
   { href: '/is-ark-down', label: 'Is ARK Down', match: ['/is-ark-down', '/status'] },
   { href: '/rates', label: 'Rates' },
   { href: '/news', label: 'News' },
@@ -136,6 +137,7 @@ function renderFooter(live) {
           <li><a href="/">About</a></li>
           <li><a href="${GITHUB_REPO}">GitHub</a></li>
         </ul>
+        <p class="footer-attrib">Includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">https://www.maxmind.com</a></p>
       </div>
       <div>
         <h2>Live</h2>

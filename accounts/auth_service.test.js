@@ -475,6 +475,34 @@ test('GET /servers applies query-string filters', async () => {
   server.close();
 });
 
+test('GET /servers?country=DE filters by country and shows a flag in the Region column', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: '1', name: 'EU-PVE-TheIsland5313', map: 'TheIsland_WP', gameMode: 'pve', country: 'DE', countryName: 'Germany', playersNow: 5, maxPlayers: 70, day: 100, clusterId: 'C', hasPassword: false },
+      { id: '2', name: 'NA-PVP-Astraeos2573', map: 'Astraeos_WP', gameMode: 'pvp', country: 'US', countryName: 'United States', playersNow: 20, maxPlayers: 70, day: 50, clusterId: 'C', hasPassword: false },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(roster),
+  });
+
+  const res = await fetch(`${base}/servers?country=de`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /NA-PVP-Astraeos2573/);
+  assert.match(html, /<option value="DE" selected>Germany<\/option>/);
+  assert.match(html, /\u{1F1E9}\u{1F1EA} DE/u);
+
+  server.close();
+});
+
 test('GET /servers shows the fallback (200, not a crash) when the discovery feed is unreachable', async () => {
   const db = openDb(':memory:');
   const { server, base } = await startServer({
@@ -1094,6 +1122,7 @@ test('GET /leaderboards renders the suite index', async () => {
   assert.match(html, /<title>ArkHelper \u2014 Leaderboards/);
   assert.match(html, /href="\/leaderboards\/map-uptime"/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
+  assert.match(html, /href="\/leaderboards\/regions"/);
   assert.match(html, /href="\/leaderboards\/top-100"/);
   assert.match(html, /href="\/leaderboards\/bottom-100"/);
   assert.match(html, /href="\/rankings"/);
@@ -1141,6 +1170,36 @@ test('GET /leaderboards/pve-vs-pvp renders mode comparison aggregates', async ()
   assert.match(html, /<h2>PvP<\/h2>/);
   assert.match(html, /TheIsland_WP/);
   assert.match(html, /Aberration_WP/);
+
+  server.close();
+});
+
+test('GET /leaderboards/regions aggregates official servers by country', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: 'de-1', name: 'EU-PVE-1', map: 'TheIsland_WP', gameMode: 'pve', country: 'DE', countryName: 'Germany', playersNow: 10, maxPlayers: 70, wildcardReportedPing: 40, uptimePercent: 90 },
+      { id: 'de-2', name: 'EU-PVE-2', map: 'TheIsland_WP', gameMode: 'pve', country: 'DE', countryName: 'Germany', playersNow: 20, maxPlayers: 70, wildcardReportedPing: 60, uptimePercent: 100 },
+      { id: 'none', name: 'No-Geo', map: 'Aberration_WP', gameMode: 'pvp', playersNow: 1, maxPlayers: 70, wildcardReportedPing: 20, uptimePercent: 50 },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(roster),
+  });
+
+  const res = await fetch(`${base}/leaderboards/regions`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<title>ARK Regional Leaderboard/);
+  assert.match(html, /Germany/);
+  assert.match(html, /Unknown/);
+  assert.match(html, /95%/);
+  assert.match(html, /50ms/);
 
   server.close();
 });
@@ -1241,8 +1300,8 @@ test('GET /servers shows stamped uptime on a roster row with history', async () 
   const row = html.match(/<tr>[\s\S]*?EU-PVE-TheIsland5313[\s\S]*?<\/tr>/);
   assert.ok(row);
   const cells = [...row[0].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
-  assert.equal(cells[7], '97.5%');
-  assert.doesNotMatch(cells[7], /\u2014/);
+  assert.equal(cells[8], '97.5%');
+  assert.doesNotMatch(cells[8], /\u2014/);
 
   server.close();
 });

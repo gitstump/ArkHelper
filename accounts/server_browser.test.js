@@ -10,6 +10,8 @@ const {
   getDistinctMaps,
   getDistinctPlatforms,
   platformBadge,
+  getDistinctCountries,
+  filtersFromSearchParams,
   renderBrowserPage,
   renderHeroBand,
   renderServerRow,
@@ -450,11 +452,11 @@ test('renderServerRow with history does not render an em-dash uptime', () => {
     rank: 4,
   });
   const cells = [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
-  const uptimeCell = cells[7];
+  const uptimeCell = cells[8];
   assert.equal(uptimeCell, '97.5%');
   assert.doesNotMatch(uptimeCell, /\u2014/);
-  assert.match(cells[6], /45/);
-  assert.match(cells[8], /4/);
+  assert.match(cells[7], /45/);
+  assert.match(cells[9], /4/);
 });
 
 test('renderBrowserPage shows a friendly message for a known presetError code', () => {
@@ -629,8 +631,8 @@ test('unofficial rows render without rank/uptime and may show a seen-rate', () =
   assert.doesNotMatch(html, /href="\/servers\/u1"/);
   assert.match(html, /Community Box/);
   const cells = [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
-  assert.equal(cells[7], '75%');
-  assert.equal(cells[8], '\u2014');
+  assert.equal(cells[8], '75%');
+  assert.equal(cells[9], '\u2014');
 });
 
 test('unofficial rows without cycles_seen render em-dash uptime and rank', () => {
@@ -639,8 +641,8 @@ test('unofficial rows without cycles_seen render em-dash uptime and rank', () =>
     { source: 'unofficial', cyclesTotal: 4 }
   );
   const cells = [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
-  assert.equal(cells[7], '\u2014');
   assert.equal(cells[8], '\u2014');
+  assert.equal(cells[9], '\u2014');
 });
 
 test('renderBrowserPage unofficial source uses Seen header and keeps filters working', () => {
@@ -743,5 +745,91 @@ test('renderHeroBand is identical for official and unofficial browser views', ()
   assert.equal(heroOf(officialHtml), heroOf(unofficialHtml));
   assert.match(heroOf(officialHtml), /67/);
   assert.match(heroOf(officialHtml), /63 official \u00b7 4 unofficial/);
+});
+
+function countryServers() {
+  return [
+    { id: 'de-1', name: 'EU-PVE-TheIsland5313', map: 'TheIsland_WP', country: 'DE', countryName: 'Germany', gameMode: 'pve', playersNow: 5 },
+    { id: 'us-1', name: 'NA-PVP-Astraeos2573', map: 'Astraeos_WP', country: 'us', countryName: 'United States', gameMode: 'pvp', playersNow: 10 },
+    { id: 'fr-1', name: 'EU-PVE-ClubARK', map: 'BobsMissions_WP', country: 'FR', countryName: 'France', gameMode: 'pve', playersNow: 1 },
+    { id: 'none', name: 'Unknown-PVE-1', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 2 },
+  ];
+}
+
+test('filterServers filters by country ISO code, case-insensitive', () => {
+  const result = filterServers(countryServers(), { country: 'de' });
+  assert.deepEqual(result.map((s) => s.id), ['de-1']);
+  assert.equal(filterServers(countryServers(), { country: 'US' }).length, 1);
+  assert.equal(filterServers(countryServers(), { country: 'XX' }).length, 0);
+});
+
+test('filterServers country filter leaves missing-country rows out', () => {
+  const result = filterServers(countryServers(), { country: 'FR', gameMode: 'pve' });
+  assert.deepEqual(result.map((s) => s.id), ['fr-1']);
+});
+
+test('filtersFromSearchParams normalizes country to uppercase ISO', () => {
+  const params = new URLSearchParams('country=de&map=TheIsland_WP');
+  const filters = filtersFromSearchParams(params);
+  assert.equal(filters.country, 'DE');
+  assert.equal(filtersFromSearchParams(new URLSearchParams('country=')).country, '');
+});
+
+test('getDistinctCountries is alphabetical by name and skips missing country', () => {
+  const countries = getDistinctCountries(countryServers());
+  assert.deepEqual(
+    countries.map((c) => c.code),
+    ['FR', 'DE', 'US']
+  );
+  assert.deepEqual(
+    countries.map((c) => c.name),
+    ['France', 'Germany', 'United States']
+  );
+});
+
+test('renderServerRow shows flag plus ISO code, or an em-dash when country is absent', () => {
+  const withCountry = renderServerRow({
+    id: '1',
+    name: 'EU-PVE-TheIsland5313',
+    map: 'TheIsland_WP',
+    country: 'DE',
+    countryName: 'Germany',
+    playersNow: 5,
+    maxPlayers: 70,
+  });
+  const withCells = [...withCountry.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
+  assert.equal(withCells[3], '\u{1F1E9}\u{1F1EA} DE');
+
+  const missing = renderServerRow({
+    id: '2',
+    name: 'No-Geo',
+    map: 'TheIsland_WP',
+    playersNow: 1,
+    maxPlayers: 70,
+  });
+  const missingCells = [...missing.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
+  assert.equal(missingCells[3], '\u2014');
+});
+
+test('renderBrowserPage country dropdown is populated from roster countries and keeps the query param', () => {
+  const servers = countryServers();
+  const html = renderBrowserPage({
+    page: paginateServers(filterServers(servers, { country: 'DE' }), 1, 25),
+    filters: { country: 'DE' },
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters(servers),
+    mapOptions: getDistinctMaps(servers),
+    countryOptions: getDistinctCountries(servers),
+    rosterAvailable: true,
+    currentPath: '/servers',
+  });
+  assert.match(html, /name="country"/);
+  assert.match(html, /<option value="DE" selected>Germany<\/option>/);
+  assert.match(html, /<option value="FR"[^>]*>France<\/option>/);
+  assert.match(html, /All countries/);
+  assert.match(html, />Region</);
+  assert.match(html, /\u{1F1E9}\u{1F1EA} DE/u);
+  assert.doesNotMatch(html, /NA-PVP-Astraeos2573/);
 });
 

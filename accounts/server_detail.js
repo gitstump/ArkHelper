@@ -19,6 +19,7 @@ const { renderPage } = require('./layout.js');
 const { renderPeakTimesHeatmap, renderDowntimeHeatmap, hasAnyData } = require('./heatmap_svg.js');
 const { buildEmbedSnippets } = require('./badge.js');
 const { platformBadge } = require('./server_browser.js');
+const { flagEmoji, countryDisplayName, normalizeCountryCode } = require('./country.js');
 
 const PAGE_CSS = `
 .facts td:first-child { color: var(--muted); width: 40%; }
@@ -164,7 +165,14 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
     <tr><td>IP : Port</td><td>${escapeHtml(server.ip || '\u2014')} : ${escapeHtml(String(server.port ?? '\u2014'))}</td></tr>
     ${rosterUptime !== null ? `<tr><td>Uptime (7-day)</td><td>${escapeHtml(String(rosterUptime))}%</td></tr>` : ''}
     <tr><td>Mods</td><td>${modList}</td></tr>
-    ${server.country ? `<tr><td>Country</td><td>${escapeHtml(server.countryName || server.country)}</td></tr>` : ''}
+    ${(() => {
+      const code = normalizeCountryCode(server.country);
+      const name = countryDisplayName(server);
+      if (!code || !name) return '';
+      const flag = flagEmoji(code);
+      const label = flag ? `${flag} ${escapeHtml(name)}` : escapeHtml(name);
+      return `<tr><td>Country</td><td>${label}</td></tr>`;
+    })()}
   </table>
 
   <h2>Uptime</h2>

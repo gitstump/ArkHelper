@@ -20,6 +20,7 @@
 const { escapeHtml } = require('./theme.js');
 const { renderPage, LIST_NAV } = require('./layout.js');
 const { hasActiveFilters, messageForPresetError, serversLocation } = require('./presets.js');
+const { normalizeCountryCode, regionLabel, getDistinctCountries } = require('./country.js');
 
 const PAGE_SIZE = 25;
 const SORT_KEYS = { name: 'name', players: 'playersNow', day: 'day', map: 'map', rank: 'rankScore', ping: 'wildcardReportedPing' };
@@ -93,6 +94,7 @@ function filtersFromSearchParams(params) {
     minFreeSlots: params.get('minFreeSlots') || '',
     notFull: params.get('notFull') || '',
     wipedWithinDays: params.get('wipedWithinDays') || '',
+    country: normalizeCountryCode(params.get('country')) || '',
   };
 }
 
@@ -100,7 +102,8 @@ function filtersFromSearchParams(params) {
 // Filtering
 // ---------------------------------------------------------------------
 function filterServers(servers, filters = {}, { now = Date.now } = {}) {
-  const { search, map, gameMode, platform, hasPassword, minPlayers, maxPlayers, clusterId, online, hasPing, minFreeSlots, notFull, wipedWithinDays } = filters;
+  const { search, map, gameMode, platform, hasPassword, minPlayers, maxPlayers, clusterId, online, hasPing, minFreeSlots, notFull, wipedWithinDays, country } = filters;
+  const countryFilter = normalizeCountryCode(country);
 
   let wipeCutoff = null;
   if (wipedWithinDays !== undefined && wipedWithinDays !== '') {
@@ -133,6 +136,7 @@ function filterServers(servers, filters = {}, { now = Date.now } = {}) {
     if (wipeCutoff) {
       if (!s.wipeDetectedAt || s.wipeDetectedAt < wipeCutoff) return false;
     }
+    if (countryFilter && normalizeCountryCode(s.country) !== countryFilter) return false;
     return true;
   });
 }
@@ -413,6 +417,7 @@ function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesT
       <td><span class="status-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online' : 'Offline'}"></span></td>
       <td class="name">${nameHtml}${badgeHtml}${wipeHtml}</td>
       <td>${escapeHtml(s.map || '')}</td>
+      <td>${escapeHtml(regionLabel(s.country))}</td>
       <td class="num">${escapeHtml(dash(s.day))}</td>
       <td class="num">${escapeHtml(s.version || '\u2014')}</td>
       <td class="num"><div class="cap"><span>${escapeHtml(dash(s.playersNow))} / ${escapeHtml(dash(s.maxPlayers))}</span><span class="cap-bar" aria-hidden="true"><span class="cap-fill" style="width:${pct}%"></span></span></div></td>
@@ -484,6 +489,7 @@ function renderBrowserBody({
   counters,
   mapOptions,
   platformOptions,
+  countryOptions,
   rosterAvailable,
   presets,
   loggedIn,
@@ -513,6 +519,7 @@ function renderBrowserBody({
   const query = currentQuery || '';
   const maps = mapOptions || [];
   const platforms = platformOptions || [];
+  const countries = countryOptions || [];
   const locked = new Set(lockedFilterKeys);
   const errorText = messageForPresetError(presetError);
   const errorBar = errorText ? `<p class="preset-error">${escapeHtml(errorText)}</p>` : '';
@@ -563,6 +570,11 @@ function renderBrowserBody({
     ${platforms.map((p) => `<option value="${escapeHtml(p)}" ${f.platform === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
   </select>`;
 
+  const countrySelect = `<select name="country" aria-label="Country">
+    <option value="">All countries</option>
+    ${countries.map((c) => `<option value="${escapeHtml(c.code)}" ${f.country === c.code ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+  </select>`;
+
   const sourceField = sourceKind === 'unofficial' ? '<input type="hidden" name="source" value="unofficial">' : '';
   const filterForm = `
 <form method="GET" action="${escapeHtml(formAction)}" class="filters">
@@ -575,6 +587,7 @@ function renderBrowserBody({
   </select>
   ${gameModeSelect}
   ${platformSelect}
+  ${countrySelect}
   <select name="hasPassword">
     <option value="">Any</option>
     <option value="false" ${f.hasPassword === 'false' ? 'selected' : ''}>Public only</option>
@@ -595,6 +608,7 @@ function renderBrowserBody({
         <th></th>
         <th>${sortLink({ ...linkOpts, key: 'name', label: 'Name' })}</th>
         <th>${sortLink({ ...linkOpts, key: 'map', label: 'Map' })}</th>
+        <th>Region</th>
         <th>${sortLink({ ...linkOpts, key: 'day', label: 'Day' })}</th>
         <th>Version</th>
         <th>${sortLink({ ...linkOpts, key: 'players', label: 'Players' })}</th>
@@ -670,6 +684,7 @@ module.exports = {
   computeLiveCounters,
   getDistinctMaps,
   getDistinctPlatforms,
+  getDistinctCountries,
   platformBadge,
   filtersFromSearchParams,
   isOnline,
