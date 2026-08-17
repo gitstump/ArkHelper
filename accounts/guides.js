@@ -373,6 +373,116 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'settings-performance',
+    title: 'Settings & Performance — ARK: Survival Ascended',
+    shortTitle: 'Settings & Performance',
+    description:
+      "Getting playable performance out of ASA: presets, upscaling, the settings that matter, and how to tell your hardware's problems from the server's.",
+    lastVerified: '2026-08-16',
+    related: ['beginners', 'resource-locations', 'taming'],
+    sections: [
+      {
+        heading: 'First, establish whose problem it is',
+        blocks: [
+          {
+            type: 'p',
+            text: "ASA performance complaints bundle two unrelated problems: frames and lag. Low framerate is your machine rendering slowly — choppy motion even standing alone in a quiet base. Lag is the network — rubber-banding, delayed hits, creatures teleporting — and no graphics setting on Earth fixes it. Before you tune anything, spend one minute diagnosing: check whether the whole network is having an incident, look at your server's ping, and if the ping is the problem, the fix is picking a closer server, not lowering your shadows.",
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/is-ark-down', label: 'Is ARK down?', note: 'rule out a network-wide incident before blaming your rig' },
+              { href: '/lists/low-ping', label: 'Low-ping servers', note: 'the fix for lag is proximity, not settings' },
+            ],
+          },
+          {
+            type: 'callout',
+            text: 'Choppy alone in a quiet base: your hardware. Smooth frames but delayed hits and rubber-banding: the connection.',
+          },
+        ],
+      },
+      {
+        heading: 'Why this game is heavy',
+        blocks: [
+          {
+            type: 'p',
+            text: "Survival Ascended is an Unreal Engine 5 rebuild, and it leans on the engine's most expensive features: fully dynamic global illumination and extremely dense geometry. That is why it looks the way it does and why hardware that handled Survival Evolved comfortably can struggle here. The honest framing: this is a demanding game by design, the ceiling on visual quality is very high, and your job is finding the rung of that ladder your machine actually stands on.",
+          },
+        ],
+      },
+      {
+        heading: 'Presets first, pride later',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Start by picking the built-in preset that gives you smooth motion, even if that preset is lower than you hoped, and play on it for a session before tuning anything. A stable baseline tells you what each later change actually does; starting from a custom scramble of settings tells you nothing. Move up one preset when things feel easy, down one when a crowded base or a rainstorm turns the game into a slideshow — weather and player structures are the real stress tests, not an empty beach.',
+          },
+        ],
+      },
+      {
+        heading: 'The settings that actually move the needle',
+        blocks: [
+          {
+            type: 'p',
+            text: "Within the graphics menu, a handful of options carry most of the cost. The global illumination and shadow quality tiers are the heaviest, because they drive the engine's dynamic lighting. View distance matters more in ARK than most games — it changes how far away the world loads in detail, and the map is enormous. Foliage and clutter density fill the jungle at real cost. Effects and water quality spike exactly when things get chaotic, which is the worst possible time to lose frames. Texture quality is the odd one out: it mostly spends video memory rather than speed, so keep it high only if your card has memory to spare.",
+          },
+          {
+            type: 'table',
+            caption: 'Symptoms to first suspects',
+            headers: ['Symptom', 'Likely culprit', 'First move'],
+            rows: [
+              ['Low frames everywhere, all the time', 'Overall preset above your hardware', 'Drop one full preset'],
+              ['Fine until rain, night, or torchlight', 'Dynamic lighting and shadow tiers', 'Lower global illumination and shadows'],
+              ['Fine until a big base or crowded area', 'Draw distance and density settings', 'Lower view distance and foliage'],
+              ['Stutters when new areas or effects appear', 'Streaming and shader work, not raw speed', 'Expect improvement as sessions age; avoid alt-tabbing'],
+              ['Smooth frames, delayed actions', 'Network, not graphics', 'Check ping and the network status page'],
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Upscaling is the biggest single lever',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Modern upscalers render the game at a lower internal resolution and reconstruct a sharp image, and ASA supports the major ones. For most machines this is the largest single performance gain available, at a visual cost that ranges from invisible to mildly soft depending on the mode. Work down the quality modes until the framerate holds. Frame generation, where supported, is a different tool: it smooths the picture but not your inputs, so treat it as polish on top of an already-playable baseline rather than the thing that rescues an unplayable one.',
+          },
+        ],
+      },
+      {
+        heading: 'About those launch-option lists',
+        blocks: [
+          {
+            type: 'p',
+            text: "Search for ASA performance and you will drown in lists of launch flags and command tweaks, most of them inherited from Survival Evolved — a different engine generation — and carried forward on faith. Some do nothing in Ascended; a few actively fight the engine's own management and cause the stutter they promise to cure. The unglamorous truth is that the in-game menu now covers what matters. If you experiment beyond it, change one thing at a time, measure in the same place and weather, and be ready to undo — 'it feels faster' after five changes is how machines end up haunted.",
+          },
+        ],
+      },
+      {
+        heading: 'Consoles and the settings you cannot touch',
+        blocks: [
+          {
+            type: 'p',
+            text: 'On Xbox and PlayStation the graphics ladder is mostly decided for you, which removes the tuning burden and the tuning options in one stroke. What remains in your control is the same triage from the top of this guide: server choice and connection. A wired connection over wireless, a server on your continent, and joining outside the evening rush hours do more for a console session than anything in a menu. If performance dips network-wide, it is worth checking whether an update is rolling out before troubleshooting your own setup.',
+          },
+        ],
+      },
+      {
+        heading: 'Where to go next',
+        blocks: [
+          {
+            type: 'links',
+            items: [
+              { href: '/servers', label: 'Server browser', note: 'sort by ping and filter by region before you commit' },
+              { href: '/is-ark-down', label: 'Network status', note: 'incidents and update rollouts, detected live' },
+              { href: '/guides/beginners', label: "Beginner's Guide", note: 'now that it runs, here is how to survive it' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));

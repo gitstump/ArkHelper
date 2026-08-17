@@ -43,10 +43,11 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 3);
+  assert.equal(GUIDE_REGISTRY.length, 4);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
+  assert.ok(slugs.includes('settings-performance'));
   assert.doesNotMatch(JSON.stringify(GUIDE_REGISTRY), /\(coming soon\)/);
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
@@ -93,6 +94,10 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(resources);
   assert.equal(resources.slug, 'resource-locations');
   assert.equal(resources.shortTitle, 'Resource Locations');
+  const settings = resolveGuide('settings-performance');
+  assert.ok(settings);
+  assert.equal(settings.slug, 'settings-performance');
+  assert.equal(settings.shortTitle, 'Settings & Performance');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -198,4 +203,45 @@ test('resource-locations guide ships the brief prose and table verbatim', () => 
   assert.equal(links[1].href, '/rates');
   assert.equal(links[2].href, '/guides/taming');
   assert.equal(links[2].note, 'the gatherers in the table above start here');
+});
+
+test('settings-performance guide ships the brief prose and table verbatim', () => {
+  const g = resolveGuide('settings-performance');
+  assert.equal(g.title, 'Settings & Performance — ARK: Survival Ascended');
+  assert.equal(g.shortTitle, 'Settings & Performance');
+  assert.equal(g.lastVerified, '2026-08-16');
+  assert.equal(g.sections.length, 8);
+  assert.equal(g.related.join(','), 'beginners,resource-locations,taming');
+  assert.equal(
+    g.description,
+    "Getting playable performance out of ASA: presets, upscaling, the settings that matter, and how to tell your hardware's problems from the server's."
+  );
+  assert.equal(
+    g.sections[0].blocks[0].text,
+    "ASA performance complaints bundle two unrelated problems: frames and lag. Low framerate is your machine rendering slowly — choppy motion even standing alone in a quiet base. Lag is the network — rubber-banding, delayed hits, creatures teleporting — and no graphics setting on Earth fixes it. Before you tune anything, spend one minute diagnosing: check whether the whole network is having an incident, look at your server's ping, and if the ping is the problem, the fix is picking a closer server, not lowering your shadows."
+  );
+  const callout = g.sections[0].blocks.find((b) => b.type === 'callout');
+  assert.equal(
+    callout.text,
+    'Choppy alone in a quiet base: your hardware. Smooth frames but delayed hits and rubber-banding: the connection.'
+  );
+  const table = g.sections[3].blocks.find((b) => b.type === 'table');
+  assert.equal(table.caption, 'Symptoms to first suspects');
+  assert.deepEqual(table.headers, ['Symptom', 'Likely culprit', 'First move']);
+  assert.equal(table.rows.length, 5);
+  assert.deepEqual(table.rows[0], [
+    'Low frames everywhere, all the time',
+    'Overall preset above your hardware',
+    'Drop one full preset',
+  ]);
+  assert.deepEqual(table.rows[4], [
+    'Smooth frames, delayed actions',
+    'Network, not graphics',
+    'Check ping and the network status page',
+  ]);
+  const links = g.sections[7].blocks.find((b) => b.type === 'links').items;
+  assert.equal(links[0].href, '/servers');
+  assert.equal(links[1].href, '/is-ark-down');
+  assert.equal(links[2].href, '/guides/beginners');
+  assert.equal(links[2].note, 'now that it runs, here is how to survive it');
 });

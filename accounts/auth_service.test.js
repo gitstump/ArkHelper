@@ -2500,7 +2500,8 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(html, /href="\/guides\/beginners"/);
   assert.match(html, /href="\/guides\/taming"/);
   assert.match(html, /href="\/guides\/resource-locations"/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 3);
+  assert.match(html, /href="\/guides\/settings-performance"/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 4);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();
@@ -2525,6 +2526,8 @@ test('GET /guides/beginners renders the guide h1', async () => {
   assert.match(html, /href="\/guides">Guides/);
   assert.match(html, /Related guides/);
   assert.match(html, /href="\/guides\/taming"/);
+  assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/guides\/settings-performance"/);
   assert.doesNotMatch(html, /\(coming soon\)/);
 
   server.close();
@@ -2576,6 +2579,31 @@ test('GET /guides/resource-locations renders the guide h1', async () => {
   assert.match(html, /Resources follow terrain, not maps/);
   assert.match(html, /Resource to terrain, tool, and hauling companion/);
   assert.match(html, /The question is never &#39;where is the metal on this map&#39;/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
+
+  server.close();
+});
+
+test('GET /guides/settings-performance renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/settings-performance`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Settings &amp; Performance \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /First, establish whose problem it is/);
+  assert.match(html, /Symptoms to first suspects/);
+  assert.match(html, /Choppy alone in a quiet base: your hardware/);
   assert.doesNotMatch(html, /\(coming soon\)/);
 
   server.close();

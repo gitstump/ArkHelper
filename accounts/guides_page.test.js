@@ -38,6 +38,17 @@ const RESOURCE_HEADINGS = [
   'Match the map to the shopping list',
 ];
 
+const SETTINGS_HEADINGS = [
+  'First, establish whose problem it is',
+  'Why this game is heavy',
+  'Presets first, pride later',
+  'The settings that actually move the needle',
+  'Upscaling is the biggest single lever',
+  'About those launch-option lists',
+  'Consoles and the settings you cannot touch',
+  'Where to go next',
+];
+
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -57,7 +68,10 @@ test('renderGuidesIndexPage lists the beginners card with a link and last-verifi
   assert.match(html, /href="\/guides\/resource-locations"/);
   assert.match(html, /Resource Locations/);
   assert.match(html, /Where metal, crystal, obsidian, oil, and pearls/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 3);
+  assert.match(html, /href="\/guides\/settings-performance"/);
+  assert.match(html, /Settings &amp; Performance/);
+  assert.match(html, /Getting playable performance out of ASA/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 4);
 });
 
 test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped content', () => {
@@ -127,6 +141,27 @@ test('renderGuidePage renders the resource-locations guide h1, 8 headings, table
   assert.doesNotMatch(html, /\(coming soon\)/);
 });
 
+test('renderGuidePage renders the settings-performance guide h1, 8 headings, table, and callout', () => {
+  const html = renderGuidePage({ guide: resolveGuide('settings-performance') });
+  assert.match(html, /<h1>Settings &amp; Performance \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /Last verified 2026-08-16/);
+  for (const heading of SETTINGS_HEADINGS) {
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(heading)}</h2>`));
+  }
+  assert.match(html, /class="callout"/);
+  assert.match(
+    html,
+    /Choppy alone in a quiet base: your hardware. Smooth frames but delayed hits and rubber-banding: the connection./
+  );
+  assert.match(html, /<table class="guide-table">/);
+  assert.match(html, /<caption>Symptoms to first suspects<\/caption>/);
+  assert.match(html, /<th scope="row">Low frames everywhere, all the time<\/th>/);
+  assert.match(html, /href="\/is-ark-down"/);
+  assert.match(html, /href="\/lists\/low-ping"/);
+  assert.match(html, /href="\/guides\/beginners"/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
+});
+
 test('renderGuidePage table cells and caption are escaped; first column is th scope=row', () => {
   const html = renderGuidePage({
     guide: {
@@ -167,7 +202,8 @@ test('related footer with unknown slugs renders without error and omits missing 
   assert.ok(beginnersRelated);
   assert.match(beginnersRelated[0], /href="\/guides\/taming"/);
   assert.match(beginnersRelated[0], /href="\/guides\/resource-locations"/);
-  assert.doesNotMatch(beginnersRelated[0], /settings-performance/);
+  assert.match(beginnersRelated[0], /href="\/guides\/settings-performance"/);
+  assert.equal((beginnersRelated[0].match(/href="\/guides\//g) || []).length, 3);
 
   const tamingHtml = renderGuidePage({ guide: resolveGuide('taming') });
   assert.match(tamingHtml, /Related guides/);
@@ -209,5 +245,6 @@ test('renderGuideNotFoundPage is a shell-wrapped 404 that escapes the slug and l
   assert.match(html, /href="\/guides\/beginners"/);
   assert.match(html, /href="\/guides\/taming"/);
   assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/guides\/settings-performance"/);
   assert.match(html, /href="\/guides"/);
 });
