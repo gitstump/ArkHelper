@@ -317,6 +317,7 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/guides/:slug'));
   assert.ok(body.routes.includes('/rankings'));
   assert.ok(body.routes.includes('/favorites'));
+  assert.ok(body.routes.includes('/alerts'));
   assert.ok(body.routes.includes('/alerts/:id'));
 
   server.close();
@@ -893,6 +894,116 @@ test('POST /alerts/:id with a malformed request body does not crash the server',
 
   const res = await fetch(`${base}/alerts/abc`, { method: 'POST', headers: { Cookie: sessionCookie }, redirect: 'manual' }); // no body at all
   assert.equal(res.status, 302); // empty body just means "nothing checked" — clears/no-ops, doesn't error
+
+  server.close();
+});
+
+// ---------------------------------------------------------------------
+// GET /alerts feed
+// ---------------------------------------------------------------------
+test('GET /alerts prompts login when logged out', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({ db, clientId: 'CID', clientSecret: 'SECRET', redirectUri: 'http://x/cb', discordDeps: fakeDiscordDeps() });
+
+  const res = await fetch(`${base}/alerts`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /need to be logged in/);
+  assert.match(html, /href="\/auth\/discord\/login"/);
+
+  server.close();
+});
+
+test('GET /alerts 200 logged in, renders events, and visiting marks them read', async () => {
+  const db = openDb(':memory:');
+  const { persistAlertCycle, listAlertEventsForAccount } = require('./db.js');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42', username: 'brian' }),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base, fakeDiscordDeps());
+
+  persistAlertCycle(db, {
+    events: [
+      {
+        accountId: 1,
+        serverId: 's1',
+        serverName: 'NA-PVE-GenOne6433',
+        kind: 'down',
+        message: 'NA-PVE-GenOne6433 went offline.',
+        createdAt: '2026-08-17T12:00:00.000Z',
+      },
+    ],
+    stateUpdates: [],
+  });
+
+  const res = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /NA-PVE-GenOne6433 went offline\./);
+  assert.match(html, /href="\/servers\/s1"/);
+  assert.match(html, /class="alert-row unread"/);
+
+  const after = listAlertEventsForAccount(db, 1);
+  assert.equal(after.length, 1);
+  assert.ok(after[0].readAt);
+
+  const res2 = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
+  const html2 = await res2.text();
+  assert.match(html2, /went offline/);
+  assert.doesNotMatch(html2, /alert-row unread/);
+
+  server.close();
+});
+
+test('GET /alerts logged in with no events shows the empty state', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base, fakeDiscordDeps());
+
+  const res = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /Nothing in your feed yet/);
+  assert.match(html, /href="\/favorites"/);
+
+  server.close();
+});
+
+test('POST /alerts/:id is unchanged by GET /alerts — still saves settings', async () => {
+  const db = openDb(':memory:');
+  const roster = { servers: [{ id: 'abc', name: 'A Server', map: 'M', gameMode: 'pve', modIds: [] }] };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+    detailDeps: fakeDetailDeps({ roster, historyData: null }),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base, fakeDiscordDeps());
+
+  const saveRes = await fetch(`${base}/alerts/abc`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ notifyDown: 'on' }),
+    redirect: 'manual',
+  });
+  assert.equal(saveRes.status, 302);
+  assert.equal(saveRes.headers.get('location'), '/servers/abc');
+  assert.equal(getAlertSettings(db, 1, 'abc').notifyDown, true);
+
+  const getRes = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
+  assert.equal(getRes.status, 200);
 
   server.close();
 });

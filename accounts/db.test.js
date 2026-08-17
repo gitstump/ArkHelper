@@ -16,6 +16,11 @@ const {
   upsertAlertSettings,
   getAlertSettings,
   listAlertSettingsForAccount,
+  listAllAlertSettings,
+  listAlertServerStates,
+  persistAlertCycle,
+  listAlertEventsForAccount,
+  markAlertEventsRead,
   countFilterPresets,
   listFilterPresets,
   getFilterPresetByShareToken,
@@ -258,6 +263,124 @@ test('listAlertSettingsForAccount returns an empty array when nothing is configu
   const db = freshDb();
   const account = upsertAccount(db, { discordId: '123' });
   assert.deepEqual(listAlertSettingsForAccount(db, account.id), []);
+});
+
+test('listAllAlertSettings returns every account\'s subscriptions', () => {
+  const db = freshDb();
+  const alice = upsertAccount(db, { discordId: 'alice' });
+  const bob = upsertAccount(db, { discordId: 'bob' });
+  upsertAlertSettings(db, alice.id, 'server-a', { notifyDown: true });
+  upsertAlertSettings(db, bob.id, 'server-c', { notifyOnline: true });
+
+  const all = listAllAlertSettings(db);
+  assert.equal(all.length, 2);
+  assert.deepEqual(all.map((a) => a.serverId).sort(), ['server-a', 'server-c']);
+  assert.ok(all.every((a) => a.accountId === alice.id || a.accountId === bob.id));
+});
+
+test('clearing alert settings also drops the matching server state', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  upsertAlertSettings(db, account.id, 'server-a', { notifyDown: true });
+  persistAlertCycle(db, {
+    events: [],
+    stateUpdates: [
+      {
+        accountId: account.id,
+        serverId: 'server-a',
+        lastStatus: 'online',
+        pendingStatus: null,
+        pendingCount: 0,
+        capacityAlerted: false,
+        freeSlotsAlerted: false,
+        lastFiredAt: null,
+        updatedAt: '2026-08-17T00:00:00.000Z',
+      },
+    ],
+  });
+  assert.equal(listAlertServerStates(db).length, 1);
+
+  upsertAlertSettings(db, account.id, 'server-a', { notifyDown: false });
+  assert.equal(getAlertSettings(db, account.id, 'server-a'), null);
+  assert.equal(listAlertServerStates(db).length, 0);
+});
+
+test('persistAlertCycle writes events and state together, and list/mark-read round-trip', () => {
+  const db = freshDb();
+  const account = upsertAccount(db, { discordId: '123' });
+  persistAlertCycle(db, {
+    stateUpdates: [
+      {
+        accountId: account.id,
+        serverId: 's1',
+        lastStatus: 'offline',
+        pendingStatus: null,
+        pendingCount: 0,
+        capacityAlerted: false,
+        freeSlotsAlerted: false,
+        lastFiredAt: '2026-08-17T12:00:00.000Z',
+        updatedAt: '2026-08-17T12:00:00.000Z',
+      },
+    ],
+    events: [
+      {
+        accountId: account.id,
+        serverId: 's1',
+        serverName: 'NA-PVE-GenOne6433',
+        kind: 'down',
+        message: 'NA-PVE-GenOne6433 went offline.',
+        createdAt: '2026-08-17T12:00:00.000Z',
+      },
+    ],
+  });
+
+  const states = listAlertServerStates(db);
+  assert.equal(states.length, 1);
+  assert.equal(states[0].lastStatus, 'offline');
+  assert.equal(states[0].lastFiredAt, '2026-08-17T12:00:00.000Z');
+
+  const events = listAlertEventsForAccount(db, account.id);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].kind, 'down');
+  assert.equal(events[0].readAt, null);
+  assert.equal(events[0].serverName, 'NA-PVE-GenOne6433');
+
+  const marked = markAlertEventsRead(db, account.id, [events[0].id], { now: () => '2026-08-17T12:05:00.000Z' });
+  assert.equal(marked, 1);
+  assert.equal(listAlertEventsForAccount(db, account.id)[0].readAt, '2026-08-17T12:05:00.000Z');
+  assert.equal(markAlertEventsRead(db, account.id, [events[0].id], { now: () => '2026-08-17T12:06:00.000Z' }), 0);
+});
+
+test('listAlertEventsForAccount is newest-first, capped at 100, and scoped per account', () => {
+  const db = freshDb();
+  const alice = upsertAccount(db, { discordId: 'alice' });
+  const bob = upsertAccount(db, { discordId: 'bob' });
+  const events = [];
+  for (let i = 0; i < 105; i += 1) {
+    events.push({
+      accountId: alice.id,
+      serverId: 's1',
+      serverName: 'Srv',
+      kind: 'down',
+      message: `event ${i}`,
+      createdAt: `2026-08-17T12:00:00.${String(i).padStart(3, '0')}Z`,
+    });
+  }
+  events.push({
+    accountId: bob.id,
+    serverId: 's2',
+    serverName: 'Other',
+    kind: 'online',
+    message: 'bob only',
+    createdAt: '2026-08-17T23:00:00.000Z',
+  });
+  persistAlertCycle(db, { events, stateUpdates: [] });
+
+  const aliceEvents = listAlertEventsForAccount(db, alice.id);
+  assert.equal(aliceEvents.length, 100);
+  assert.equal(aliceEvents[0].message, 'event 104');
+  assert.doesNotMatch(aliceEvents.map((e) => e.message).join(' '), /bob only/);
+  assert.equal(listAlertEventsForAccount(db, bob.id).length, 1);
 });
 
 // ---------------------------------------------------------------------

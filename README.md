@@ -15,6 +15,7 @@ Live at **https://arkhelper.info**. It runs on a DigitalOcean droplet behind Cad
 - **Rates** (`/rates`) — live official-network multipliers and recent changes
 - **News** (`/news`) — launcher news as text and links (no Wildcard imagery)
 - **Favorites** — per-account add/remove and a `/favorites` page
+- **Alerts** — per-server settings plus an in-page `/alerts` feed (Discord webhook dispatch is a later phase)
 - **Badges** — embeddable live-status SVG at `/servers/:id/badge.svg`
 
 ## Setup
@@ -41,6 +42,7 @@ Names only — never commit values. The services read `process.env` directly (no
 - `AUTH_PORT` (8793)
 - `DISCORD_REDIRECT_URI` (`http://localhost:<AUTH_PORT>/auth/discord/callback`)
 - `ARK_TOOLS_DB_PATH` (`ark_tools.db`)
+- `ALERTS_ENGINE` (unset = off; `1` starts the in-page alert evaluator on a 75s timer — set this in the prod env file)
 - `HISTORY_DB_PATH` (`ark_history.db`)
 - `GEOLITE2_DB_PATH` (unset — discovery runs without country fields)
 - `UNOFFICIAL_INTERVAL_MS` / `UNOFFICIAL_DB_PATH` (15 minutes / `unofficial.sqlite`)

@@ -74,6 +74,30 @@ CREATE TABLE IF NOT EXISTS filter_presets (
   created_at TEXT NOT NULL,
   UNIQUE(account_id, name)
 );
+
+CREATE TABLE IF NOT EXISTS alert_server_state (
+  account_id INTEGER NOT NULL REFERENCES accounts(id),
+  server_id TEXT NOT NULL,
+  last_status TEXT NOT NULL,
+  pending_status TEXT,
+  pending_count INTEGER NOT NULL DEFAULT 0,
+  capacity_alerted INTEGER NOT NULL DEFAULT 0,
+  free_slots_alerted INTEGER NOT NULL DEFAULT 0,
+  last_fired_at TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (account_id, server_id)
+);
+
+CREATE TABLE IF NOT EXISTS alert_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES accounts(id),
+  server_id TEXT NOT NULL,
+  server_name TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  read_at TEXT
+);
 `;
 
 function openDb(dbPath) {
@@ -196,6 +220,7 @@ function upsertAlertSettings(db, accountId, serverId, settings, { now = () => ne
 
   if (!hasAnyActiveAlert(normalized)) {
     db.prepare('DELETE FROM alert_settings WHERE account_id = ? AND server_id = ?').run(accountId, serverId);
+    db.prepare('DELETE FROM alert_server_state WHERE account_id = ? AND server_id = ?').run(accountId, serverId);
     return null;
   }
 
@@ -245,6 +270,138 @@ function listAlertSettingsForAccount(db, accountId) {
       minFreeSlots: row.min_free_slots,
       updatedAt: row.updated_at,
     }));
+}
+
+function listAllAlertSettings(db) {
+  return db.prepare('SELECT * FROM alert_settings').all().map((row) => ({
+    accountId: row.account_id,
+    serverId: row.server_id,
+    notifyOnline: Boolean(row.notify_online),
+    notifyDown: Boolean(row.notify_down),
+    capacityThresholdPct: row.capacity_threshold_pct,
+    minFreeSlots: row.min_free_slots,
+    updatedAt: row.updated_at,
+  }));
+}
+
+function rowToAlertServerState(row) {
+  if (!row) return null;
+  return {
+    accountId: row.account_id,
+    serverId: row.server_id,
+    lastStatus: row.last_status,
+    pendingStatus: row.pending_status,
+    pendingCount: row.pending_count,
+    capacityAlerted: Boolean(row.capacity_alerted),
+    freeSlotsAlerted: Boolean(row.free_slots_alerted),
+    lastFiredAt: row.last_fired_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function listAlertServerStates(db) {
+  return db.prepare('SELECT * FROM alert_server_state').all().map(rowToAlertServerState);
+}
+
+function upsertAlertServerState(db, state) {
+  db.prepare(
+    `INSERT INTO alert_server_state (
+       account_id, server_id, last_status, pending_status, pending_count,
+       capacity_alerted, free_slots_alerted, last_fired_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(account_id, server_id) DO UPDATE SET
+       last_status = excluded.last_status,
+       pending_status = excluded.pending_status,
+       pending_count = excluded.pending_count,
+       capacity_alerted = excluded.capacity_alerted,
+       free_slots_alerted = excluded.free_slots_alerted,
+       last_fired_at = excluded.last_fired_at,
+       updated_at = excluded.updated_at`
+  ).run(
+    state.accountId,
+    state.serverId,
+    state.lastStatus,
+    state.pendingStatus ?? null,
+    state.pendingCount || 0,
+    state.capacityAlerted ? 1 : 0,
+    state.freeSlotsAlerted ? 1 : 0,
+    state.lastFiredAt ?? null,
+    state.updatedAt
+  );
+}
+
+function rowToAlertEvent(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    serverId: row.server_id,
+    serverName: row.server_name,
+    kind: row.kind,
+    message: row.message,
+    createdAt: row.created_at,
+    readAt: row.read_at,
+  };
+}
+
+function insertAlertEvent(db, event) {
+  const result = db
+    .prepare(
+      `INSERT INTO alert_events (account_id, server_id, server_name, kind, message, created_at, read_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      event.accountId,
+      event.serverId,
+      event.serverName,
+      event.kind,
+      event.message,
+      event.createdAt,
+      event.readAt ?? null
+    );
+  return Number(result.lastInsertRowid);
+}
+
+function listAlertEventsForAccount(db, accountId, { limit = 100 } = {}) {
+  const cap = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 1000) : 100;
+  return db
+    .prepare(
+      `SELECT * FROM alert_events WHERE account_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`
+    )
+    .all(accountId, cap)
+    .map(rowToAlertEvent);
+}
+
+function markAlertEventsRead(db, accountId, eventIds, { now = () => new Date().toISOString() } = {}) {
+  if (!Array.isArray(eventIds) || eventIds.length === 0) return 0;
+  const nowStr = now();
+  const stmt = db.prepare(
+    'UPDATE alert_events SET read_at = ? WHERE id = ? AND account_id = ? AND read_at IS NULL'
+  );
+  let changed = 0;
+  for (const id of eventIds) {
+    changed += stmt.run(nowStr, id, accountId).changes;
+  }
+  return changed;
+}
+
+// Persists one evaluation cycle: state upserts + new events in a single
+// transaction. events is the channel-neutral fire list (in-page stores
+// them here; a later Discord dispatcher would consume the same array).
+function persistAlertCycle(db, { events = [], stateUpdates = [] } = {}) {
+  db.exec('BEGIN');
+  try {
+    for (const state of stateUpdates) upsertAlertServerState(db, state);
+    for (const event of events) insertAlertEvent(db, event);
+    db.exec('COMMIT');
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // ignore rollback failure
+    }
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -352,6 +509,13 @@ module.exports = {
   upsertAlertSettings,
   getAlertSettings,
   listAlertSettingsForAccount,
+  listAllAlertSettings,
+  listAlertServerStates,
+  upsertAlertServerState,
+  insertAlertEvent,
+  listAlertEventsForAccount,
+  markAlertEventsRead,
+  persistAlertCycle,
   countFilterPresets,
   listFilterPresets,
   getFilterPresetByShareToken,

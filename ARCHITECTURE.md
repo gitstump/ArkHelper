@@ -6,7 +6,7 @@
 discovery/    — port 8792. Pulls the live official ARK:SA roster, records history, computes
                  uptime/rankings/heatmaps/incidents. Has no UI — it's a data/API layer other things read from.
 accounts/     — port 8793. Everything a browser actually loads: login, homepage, server
-                 browser, detail pages,                  favorites, alerts (settings only), stats, rankings,
+                 browser, detail pages, favorites, alerts (settings + in-page feed), stats, rankings,
                  status ("Is ARK down?"), derived server lists, leaderboard suite,
                  maps index and per-map pages, guides index and per-guide pages, official rates, launcher news.
 ```
@@ -37,7 +37,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 
 | File | Role |
 |---|---|
-| `db.js` | SQLite (`node:sqlite`) — accounts, sessions, favorites, alert settings, filter presets |
+| `db.js` | SQLite (`node:sqlite`) — accounts, sessions, favorites, alert settings, alert state/events, filter presets |
 | `discord_oauth.js` | Discord OAuth2 request-building/parsing |
 | `auth_service.js` | The actual HTTP server — every route lives here |
 | `theme.js` | Shared design tokens and base stylesheet (CSS variables) |
@@ -48,6 +48,8 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `presets.js` | Named filter snapshots — query sanitization, cookie cap/size guards; share tokens live in db.js |
 | `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
 | `favorites_page.js` | The `/favorites` page |
+| `alert_engine.js` | Pure alert evaluator (hysteresis, latches, cooldown) plus a timer wrapper; no HTTP of its own |
+| `alerts_page.js` | The `/alerts` in-page feed |
 | `rankings_page.js` | The `/rankings` page — top 100 with score breakdowns |
 | `leaderboards_page.js` | The `/leaderboards` suite — index, map uptime, PvE vs PvP, regions, top-100 alias, bottom-100 |
 | `country.js` | ISO-code flag emoji, country dropdown helpers, region labels |

@@ -25,6 +25,7 @@
  *   GET  /maps/:slug             -> per-map telemetry page
  *   GET  /guides                 -> guides index
  *   GET  /guides/:slug           -> a single guide
+ *   GET  /alerts                 -> in-page alert feed (login required)
  */
 
 const http = require('http');
@@ -50,6 +51,8 @@ const {
   deleteFilterPreset,
   getFilterPresetByShareToken,
   migrateCookiePresetsToAccount,
+  listAlertEventsForAccount,
+  markAlertEventsRead,
 } = require('./db.js');
 const { renderHomepage, fetchRosterMetaSafe } = require('./home_page.js');
 const { fetchJsonSafe, createTtlCache } = require('./local_fetch.js');
@@ -78,6 +81,7 @@ const {
 const { renderServerDetailPage, renderServerNotFoundPage, renderRosterUnavailablePage } = require('./server_detail.js');
 const { renderBadgeSvg, renderUnknownBadgeSvg } = require('./badge.js');
 const { renderFavoritesPage } = require('./favorites_page.js');
+const { renderAlertsPage } = require('./alerts_page.js');
 const { rankingFromRoster, renderRankingsPage } = require('./rankings_page.js');
 const {
   computeMapUptime,
@@ -383,6 +387,30 @@ function createAuthServer({
         const referer = req.headers.referer;
         res.writeHead(302, { Location: referer && referer.includes('/favorites') ? '/favorites' : `/servers/${favoriteRemoveMatch[1]}` });
         res.end();
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/alerts') {
+        if (!accountRow) {
+          const body = renderAlertsPage({ loggedIn: false, events: [], account });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const events = listAlertEventsForAccount(db, accountRow.id, { limit: 100 });
+        const body = renderAlertsPage({
+          loggedIn: true,
+          events,
+          account,
+        });
+        markAlertEventsRead(
+          db,
+          accountRow.id,
+          events.filter((e) => !e.readAt).map((e) => e.id)
+        );
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
         return;
       }
 
@@ -955,7 +983,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));
@@ -968,6 +996,8 @@ function createAuthServer({
 // ---------------------------------------------------------------------
 async function main() {
   const { openDb } = require('./db.js');
+  const { fetchJsonSafe } = require('./local_fetch.js');
+  const { startAlertEngine, isAlertsEngineEnabled } = require('./alert_engine.js');
   const clientId = process.env.DISCORD_CLIENT_ID;
   const clientSecret = process.env.DISCORD_CLIENT_SECRET;
   const port = Number(process.env.AUTH_PORT || 8793);
@@ -982,6 +1012,13 @@ async function main() {
 
   const db = openDb(dbPath);
   const server = createAuthServer({ db, clientId, clientSecret, redirectUri });
+  let alertEngine = null;
+  if (isAlertsEngineEnabled()) {
+    alertEngine = startAlertEngine({
+      db,
+      fetchRoster: () => fetchJsonSafe('http://localhost:8792/roster'),
+    });
+  }
   server.listen(port, () => {
     console.log(`[auth] listening on :${port}, redirect URI ${redirectUri}, db ${dbPath}`);
     console.log(`[auth] open http://localhost:${port}/ in a browser`);
@@ -989,6 +1026,7 @@ async function main() {
 
   const shutdown = () => {
     console.log('[auth] shutting down');
+    if (alertEngine) alertEngine.stop();
     server.close();
     process.exit(0);
   };

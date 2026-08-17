@@ -31,7 +31,7 @@ test('renderPage hides the tagline at 1280px so nav stays on one row', () => {
   assert.match(html, /@media \(max-width: 1280px\)[\s\S]*?\.tagline \{ display: none; \}/);
 });
 
-test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps Favorites as a link', () => {
+test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps Alerts and Favorites as links', () => {
   const html = renderNav('/rankings');
   assert.match(html, /<details class="nav-drop" name="mainnav">/);
   assert.match(html, /<summary class="active">Stats<\/summary>/);
@@ -56,15 +56,18 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.match(html, /class="active" href="\/rankings"/);
   assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
   assert.match(html, />Guides<\/a>/);
+  assert.match(html, />Alerts<\/a>/);
   assert.match(html, />Favorites<\/a>/);
+  assert.match(html, /href="\/alerts"/);
   const serversAt = html.indexOf('>Servers</summary>');
   const mapsAt = html.indexOf('>Maps</summary>');
   const statsAt = html.indexOf('>Stats</summary>');
   const guidesAt = html.indexOf('>Guides</a>');
+  const alertsAt = html.indexOf('>Alerts</a>');
   const favAt = html.indexOf('>Favorites</a>');
   assert.ok(serversAt !== -1 && mapsAt !== -1 && statsAt !== -1);
   assert.ok(serversAt < mapsAt && mapsAt < statsAt);
-  assert.ok(statsAt < guidesAt && guidesAt < favAt);
+  assert.ok(statsAt < guidesAt && guidesAt < alertsAt && alertsAt < favAt);
 });
 
 test('renderNav marks the Maps group active on per-map pages', () => {
@@ -85,6 +88,12 @@ test('renderNav marks Guides active on the index and a guide page', () => {
   const page = renderNav('/guides/beginners');
   assert.match(page, /class="active" href="\/guides"/);
   assert.doesNotMatch(page, /<summary class="active">Guides<\/summary>/);
+});
+
+test('renderNav marks Alerts active on the feed and keeps it a plain link', () => {
+  const html = renderNav('/alerts');
+  assert.match(html, /class="active" href="\/alerts"/);
+  assert.doesNotMatch(html, /<summary class="active">Alerts<\/summary>/);
 });
 
 test('pathMatches treats / and /servers as the Servers section, including detail paths', () => {
@@ -142,7 +151,11 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/rates">Rates/);
   assert.match(html, /href="\/news">News/);
   assert.match(html, /href="\/favorites">Favorites/);
+  assert.match(html, /href="\/alerts">Alerts/);
   assert.match(html, /href="\/servers">Presets/);
+  const favLi = html.indexOf('href="/favorites">Favorites');
+  const alertsLi = html.indexOf('href="/alerts">Alerts');
+  assert.ok(favLi !== -1 && alertsLi !== -1 && favLi < alertsLi);
   assert.match(html, /Project/);
   assert.match(html, /href="\/">About/);
   assert.match(html, /Includes GeoLite2 data created by MaxMind, available from/);

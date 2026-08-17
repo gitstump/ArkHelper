@@ -60,6 +60,7 @@ const NAV = [
     children: STATS_NAV,
   },
   { href: '/guides', label: 'Guides', match: ['/guides'] },
+  { href: '/alerts', label: 'Alerts', match: ['/alerts'] },
   { href: '/favorites', label: 'Favorites', match: ['/favorites'] },
 ];
 
@@ -128,6 +129,7 @@ function renderFooter(live) {
           ${listItems}
           ${statsItems}
           <li><a href="/favorites">Favorites</a></li>
+          <li><a href="/alerts">Alerts</a></li>
           <li><a href="/servers">Presets</a></li>
         </ul>
       </div>
