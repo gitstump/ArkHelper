@@ -649,6 +649,7 @@ test('GET /servers/:id/badge.svg returns an online badge for a server in the ros
   assert.equal(res.headers.get('content-type'), 'image/svg+xml');
   const svg = await res.text();
   assert.match(svg, /5\/70/);
+  assert.doesNotMatch(svg, /<script/);
 
   server.close();
 });

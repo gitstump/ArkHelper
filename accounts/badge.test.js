@@ -55,6 +55,15 @@ test('renderBadgeSvg escapes a hostile server name (XSS check)', () => {
   assert.doesNotMatch(svg, /<script>evil\(\)<\/script>/);
 });
 
+test('badge SVGs contain no client-side script (nav close lives only in the HTML shell)', () => {
+  const known = renderBadgeSvg({ name: 'A Server', status: 'online', playersNow: 1, maxPlayers: 10 });
+  const unknown = renderUnknownBadgeSvg();
+  assert.doesNotMatch(known, /<script/);
+  assert.doesNotMatch(unknown, /<script/);
+  assert.doesNotMatch(known, /name="mainnav"/);
+  assert.doesNotMatch(unknown, /name="mainnav"/);
+});
+
 test('renderBadgeSvg widens to fit longer labels rather than clipping oddly', () => {
   const short = renderBadgeSvg({ name: 'A', status: 'online' });
   const long = renderBadgeSvg({ name: 'A Much Longer Server Name Here', status: 'online' });

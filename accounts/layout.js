@@ -7,6 +7,10 @@
  * Shared page shell: header nav, footer sitemap, and the document
  * wrapper. Pages pass inner HTML + a currentPath so the active nav
  * link can be marked. Badge/heatmap SVG endpoints do not use this.
+ *
+ * The only client-side JS in the project lives here: a small inline
+ * script that closes header-nav <details> on outside click / Escape.
+ * Nav stays fully usable with JS disabled (native <details> + name=).
  */
 
 const { THEME_CSS, escapeHtml } = require('./theme.js');
@@ -74,7 +78,7 @@ function renderNavGroup(item, currentPath) {
   const groupActive = pathMatches(currentPath, item.match) ? ' active' : '';
   const menuClass = item.columns === 2 ? 'nav-menu nav-menu-cols' : 'nav-menu';
   const links = item.children.map((child) => renderNavLink(child, currentPath)).join('');
-  return `<details class="nav-drop">
+  return `<details class="nav-drop" name="mainnav">
       <summary class="${groupActive.trim()}">${escapeHtml(item.label)}</summary>
       <div class="${menuClass}">${links}</div>
     </details>`;
@@ -176,6 +180,20 @@ ${extraCss}
   </main>
   ${renderFooter(live)}
 </div>
+<script>
+document.addEventListener('click', function (e) {
+  document.querySelectorAll('header.site-header nav.nav details[name="mainnav"][open]').forEach(function (d) {
+    if (!d.contains(e.target)) d.removeAttribute('open');
+  });
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('header.site-header nav.nav details[name="mainnav"][open]').forEach(function (d) {
+      d.removeAttribute('open');
+    });
+  }
+});
+</script>
 </body>
 </html>`;
 }

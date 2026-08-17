@@ -114,3 +114,14 @@ test('heatmap tooltip escaping does not break on special characters in formatted
   const svg = renderPeakTimesHeatmap(grid);
   assert.doesNotMatch(svg, /<script>/);
 });
+
+test('heatmap SVGs contain no client-side script (nav close lives only in the HTML shell)', () => {
+  const grid = emptyGrid();
+  grid[0] = { ...grid[0], avgPlayers: 5, sampleCount: 1, downtimePercent: 10 };
+  const peak = renderPeakTimesHeatmap(grid);
+  const down = renderDowntimeHeatmap(grid);
+  assert.doesNotMatch(peak, /<script/);
+  assert.doesNotMatch(down, /<script/);
+  assert.doesNotMatch(peak, /name="mainnav"/);
+  assert.doesNotMatch(down, /name="mainnav"/);
+});

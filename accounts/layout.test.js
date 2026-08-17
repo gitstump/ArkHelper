@@ -28,7 +28,7 @@ test('renderPage wraps body in the shared shell with theme CSS', () => {
 
 test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps Favorites as a link', () => {
   const html = renderNav('/rankings');
-  assert.match(html, /<details class="nav-drop">/);
+  assert.match(html, /<details class="nav-drop" name="mainnav">/);
   assert.match(html, /<summary class="active">Stats<\/summary>/);
   assert.match(html, /href="\/servers"/);
   assert.match(html, /href="\/lists\/official-pve"/);
@@ -124,4 +124,42 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
 test('renderFooter shows em dashes when live data is missing', () => {
   const html = renderFooter(null);
   assert.match(html, /\u2014/);
+});
+
+test('renderNav puts name="mainnav" on every header-nav details dropdown', () => {
+  const html = renderNav('/');
+  const tags = html.match(/<details\b[^>]*>/g) || [];
+  assert.equal(tags.length, 3);
+  for (const tag of tags) {
+    assert.match(tag, /class="nav-drop"/);
+    assert.match(tag, /name="mainnav"/);
+  }
+});
+
+test('renderPage includes the nav-close script exactly once', () => {
+  const html = renderPage({ title: 'ArkHelper', currentPath: '/', body: '<p>hello</p>' });
+  const scripts = html.match(/<script\b/g) || [];
+  assert.equal(scripts.length, 1);
+  assert.match(html, /header\.site-header nav\.nav details\[name="mainnav"\]/);
+  assert.match(html, /addEventListener\('click'/);
+  assert.match(html, /addEventListener\('keydown'/);
+  assert.match(html, /Escape/);
+  assert.match(html, /removeAttribute\('open'\)/);
+  // Footer must not pick up nav details or a second copy of the script.
+  const footerStart = html.indexOf('<footer');
+  const footerEnd = html.indexOf('</footer>') + '</footer>'.length;
+  const footer = html.slice(footerStart, footerEnd);
+  assert.doesNotMatch(footer, /<details/);
+  assert.doesNotMatch(footer, /<script/);
+});
+
+test('renderPage does not wrap body-level details with name="mainnav"', () => {
+  const html = renderPage({
+    title: 'ArkHelper',
+    currentPath: '/',
+    body: '<details class="faq"><summary>Q</summary><p>A</p></details>',
+  });
+  const named = html.match(/<details\b[^>]*name="mainnav"[^>]*>/g) || [];
+  assert.equal(named.length, 3);
+  assert.match(html, /<details class="faq">/);
 });
