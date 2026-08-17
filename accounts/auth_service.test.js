@@ -319,6 +319,9 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/favorites'));
   assert.ok(body.routes.includes('/alerts'));
   assert.ok(body.routes.includes('/alerts/:id'));
+  assert.ok(body.routes.includes('/alerts/webhook'));
+  assert.ok(body.routes.includes('/alerts/webhook/delete'));
+  assert.ok(body.routes.includes('/alerts/webhook/test'));
 
   server.close();
 });
@@ -1004,6 +1007,150 @@ test('POST /alerts/:id is unchanged by GET /alerts — still saves settings', as
 
   const getRes = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
   assert.equal(getRes.status, 200);
+
+  server.close();
+});
+
+const GOOD_WEBHOOK = 'https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwx';
+
+test('POST /alerts/webhook requires login (401)', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({ db, clientId: 'CID', clientSecret: 'SECRET', redirectUri: 'http://x/cb', discordDeps: fakeDiscordDeps() });
+  const res = await fetch(`${base}/alerts/webhook`, { method: 'POST', body: new URLSearchParams({ url: GOOD_WEBHOOK }) });
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('POST /alerts/webhook/delete requires login (401)', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({ db, clientId: 'CID', clientSecret: 'SECRET', redirectUri: 'http://x/cb', discordDeps: fakeDiscordDeps() });
+  const res = await fetch(`${base}/alerts/webhook/delete`, { method: 'POST' });
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('POST /alerts/webhook/test requires login (401)', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({ db, clientId: 'CID', clientSecret: 'SECRET', redirectUri: 'http://x/cb', discordDeps: fakeDiscordDeps() });
+  const res = await fetch(`${base}/alerts/webhook/test`, { method: 'POST' });
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('POST /alerts/webhook saves a valid URL, GET /alerts shows the masked form, invalid URL stores nothing', async () => {
+  const db = openDb(':memory:');
+  const { getAccountWebhook } = require('./db.js');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base, fakeDiscordDeps());
+
+  try {
+  const bad = await fetch(`${base}/alerts/webhook`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ url: 'https://evil.example/hook' }),
+  });
+  assert.equal(bad.status, 200);
+  const badHtml = await bad.text();
+  assert.match(badHtml, /valid Discord webhook URL/);
+  assert.equal(getAccountWebhook(db, 1), null);
+
+  const saveRes = await fetch(`${base}/alerts/webhook`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    body: new URLSearchParams({ url: GOOD_WEBHOOK }),
+    redirect: 'manual',
+  });
+  assert.equal(saveRes.status, 302);
+  assert.equal(saveRes.headers.get('location'), '/alerts');
+  assert.equal(getAccountWebhook(db, 1).url, GOOD_WEBHOOK);
+  assert.equal(getAccountWebhook(db, 1).enabled, true);
+
+  const page = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
+  const html = await page.text();
+  assert.match(html, /••••uvwx/);
+  assert.doesNotMatch(html, /abcdefghijklmnopqrstuvwx/);
+  assert.match(html, /Enabled/);
+  assert.match(html, /Send test/);
+  } finally {
+  server.close();
+  }
+});
+
+test('POST /alerts/webhook/delete removes the webhook', async () => {
+  const db = openDb(':memory:');
+  const { getAccountWebhook, upsertAccountWebhook } = require('./db.js');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base, fakeDiscordDeps());
+  upsertAccountWebhook(db, 1, GOOD_WEBHOOK);
+
+  const res = await fetch(`${base}/alerts/webhook/delete`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    redirect: 'manual',
+  });
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('location'), '/alerts');
+  assert.equal(getAccountWebhook(db, 1), null);
+
+  server.close();
+});
+
+test('POST /alerts/webhook/test posts the fixed test message and reports success or failure on redirect', async () => {
+  const db = openDb(':memory:');
+  const { upsertAccountWebhook } = require('./db.js');
+  const { TEST_WEBHOOK_MESSAGE } = require('./alert_dispatch.js');
+  const calls = [];
+  let next = { status: 204, ok: true };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+    webhookPostFn: async (url, content) => {
+      calls.push({ url, content });
+      return next;
+    },
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base, fakeDiscordDeps());
+  upsertAccountWebhook(db, 1, GOOD_WEBHOOK);
+
+  const okRes = await fetch(`${base}/alerts/webhook/test`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    redirect: 'manual',
+  });
+  assert.equal(okRes.status, 302);
+  assert.equal(okRes.headers.get('location'), '/alerts?test=ok');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, GOOD_WEBHOOK);
+  assert.equal(calls[0].content, TEST_WEBHOOK_MESSAGE);
+
+  const okPage = await fetch(`${base}/alerts?test=ok`, { headers: { Cookie: sessionCookie } });
+  assert.match(await okPage.text(), /Test message sent/);
+
+  next = { status: 500, ok: false };
+  const failRes = await fetch(`${base}/alerts/webhook/test`, {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+    redirect: 'manual',
+  });
+  assert.equal(failRes.status, 302);
+  assert.equal(failRes.headers.get('location'), '/alerts?test=fail');
+  const failPage = await fetch(`${base}/alerts?test=fail`, { headers: { Cookie: sessionCookie } });
+  assert.match(await failPage.text(), /Test message failed to send/);
 
   server.close();
 });

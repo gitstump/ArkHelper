@@ -6,8 +6,8 @@
  *
  * The per-server page — reached by clicking a server name in the
  * browser. Shows everything the roster knows about it, uptime %, a
- * simple history table, alert configuration (saves preference, doesn't
- * dispatch yet), peak-times and downtime-pattern heatmaps, a wipe/
+ * simple history table, alert configuration (feed + optional Discord
+ * webhook), peak-times and downtime-pattern heatmaps, a wipe/
  * version change log, and an embeddable status badge.
  *
  * Same pattern as the rest of the accounts service: pure render
@@ -71,7 +71,7 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
   const alertSection = !loggedIn
     ? '' // login prompt already shown above; no need to repeat it
     : `<h2>Alerts</h2>
-    <p class="note">Configures what you'd want to be notified about for this server. Delivery (actually sending a Discord notification) isn't wired up yet — this saves your preference for when it is.</p>
+    <p class="note">Alerts for this server show up on the Alerts page. If you've saved a Discord webhook there, they are sent to that channel too.</p>
     <form method="POST" action="/alerts/${encodeURIComponent(server.id)}" class="alert-form">
       <label><input type="checkbox" name="notifyDown" ${a.notifyDown ? 'checked' : ''}> Notify when this server goes down</label>
       <label><input type="checkbox" name="notifyOnline" ${a.notifyOnline ? 'checked' : ''}> Notify when it comes back online</label>

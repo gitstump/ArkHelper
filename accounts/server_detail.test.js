@@ -145,6 +145,14 @@ test('renderServerDetailPage alert form posts to the correct per-server URL', ()
   assert.match(html, /action="\/alerts\/xyz"/);
 });
 
+test('renderServerDetailPage alert form copy says alerts appear on the Alerts page and Discord, not that delivery is unwired', () => {
+  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [], loggedIn: true, isFavorited: false, alertSettings: null });
+  assert.doesNotMatch(html, /not wired/);
+  assert.doesNotMatch(html, /isn.t wired up yet/);
+  assert.match(html, /Alerts page/);
+  assert.match(html, /Discord webhook/);
+});
+
 test('renderServerDetailPage shows the "not enough history" message when uptime is null', () => {
   const html = renderServerDetailPage({ server: makeServer(), uptime: { uptimePercent: null, totalRuns: 0, presentCount: 0 }, history: [] });
   assert.match(html, /Not enough history yet/);

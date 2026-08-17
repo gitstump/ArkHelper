@@ -343,6 +343,7 @@ test('persistAlertCycle writes events and state together, and list/mark-read rou
   assert.equal(events.length, 1);
   assert.equal(events[0].kind, 'down');
   assert.equal(events[0].readAt, null);
+  assert.equal(events[0].dispatchedAt, null);
   assert.equal(events[0].serverName, 'NA-PVE-GenOne6433');
 
   const marked = markAlertEventsRead(db, account.id, [events[0].id], { now: () => '2026-08-17T12:05:00.000Z' });

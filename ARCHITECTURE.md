@@ -6,9 +6,10 @@
 discovery/    — port 8792. Pulls the live official ARK:SA roster, records history, computes
                  uptime/rankings/heatmaps/incidents. Has no UI — it's a data/API layer other things read from.
 accounts/     — port 8793. Everything a browser actually loads: login, homepage, server
-                 browser, detail pages, favorites, alerts (settings + in-page feed), stats, rankings,
-                 status ("Is ARK down?"), derived server lists, leaderboard suite,
-                 maps index and per-map pages, guides index and per-guide pages, official rates, launcher news.
+                 browser, detail pages, favorites, alerts (settings, in-page feed, Discord
+                 webhook), stats, rankings, status ("Is ARK down?"), derived server lists,
+                 leaderboard suite, maps index and per-map pages, guides index and per-guide
+                 pages, official rates, launcher news.
 ```
 
 They're separate Node processes, talking over plain local HTTP — `accounts/` fetches from
@@ -37,7 +38,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 
 | File | Role |
 |---|---|
-| `db.js` | SQLite (`node:sqlite`) — accounts, sessions, favorites, alert settings, alert state/events, filter presets |
+| `db.js` | SQLite (`node:sqlite`) — accounts, sessions, favorites, alert settings, alert state/events, webhooks, deliveries, filter presets |
 | `discord_oauth.js` | Discord OAuth2 request-building/parsing |
 | `auth_service.js` | The actual HTTP server — every route lives here |
 | `theme.js` | Shared design tokens and base stylesheet (CSS variables) |
@@ -49,7 +50,8 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
 | `favorites_page.js` | The `/favorites` page |
 | `alert_engine.js` | Pure alert evaluator (hysteresis, latches, cooldown) plus a timer wrapper; no HTTP of its own |
-| `alerts_page.js` | The `/alerts` in-page feed |
+| `alert_dispatch.js` | Discord webhook delivery for pending `alert_events` (URL allowlist, batching, drop-not-queue) |
+| `alerts_page.js` | The `/alerts` in-page feed and per-account Discord webhook form |
 | `rankings_page.js` | The `/rankings` page — top 100 with score breakdowns |
 | `leaderboards_page.js` | The `/leaderboards` suite — index, map uptime, PvE vs PvP, regions, top-100 alias, bottom-100 |
 | `country.js` | ISO-code flag emoji, country dropdown helpers, region labels |

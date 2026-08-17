@@ -26,6 +26,9 @@
  *   GET  /guides                 -> guides index
  *   GET  /guides/:slug           -> a single guide
  *   GET  /alerts                 -> in-page alert feed (login required)
+ *   POST /alerts/webhook         -> save Discord webhook URL
+ *   POST /alerts/webhook/delete  -> remove Discord webhook
+ *   POST /alerts/webhook/test    -> send a test message to the webhook
  */
 
 const http = require('http');
@@ -53,6 +56,9 @@ const {
   migrateCookiePresetsToAccount,
   listAlertEventsForAccount,
   markAlertEventsRead,
+  getAccountWebhook,
+  upsertAccountWebhook,
+  deleteAccountWebhook,
 } = require('./db.js');
 const { renderHomepage, fetchRosterMetaSafe } = require('./home_page.js');
 const { fetchJsonSafe, createTtlCache } = require('./local_fetch.js');
@@ -82,6 +88,7 @@ const { renderServerDetailPage, renderServerNotFoundPage, renderRosterUnavailabl
 const { renderBadgeSvg, renderUnknownBadgeSvg } = require('./badge.js');
 const { renderFavoritesPage } = require('./favorites_page.js');
 const { renderAlertsPage } = require('./alerts_page.js');
+const { validateWebhookUrl, deliverContent, defaultPostFn, TEST_WEBHOOK_MESSAGE } = require('./alert_dispatch.js');
 const { rankingFromRoster, renderRankingsPage } = require('./rankings_page.js');
 const {
   computeMapUptime,
@@ -221,6 +228,25 @@ function redirectWithPresetError(res, query, code) {
   res.end();
 }
 
+const INVALID_WEBHOOK_ERROR =
+  'That isn\'t a valid Discord webhook URL. It must be an https://discord.com/api/webhooks/\u2026 address.';
+
+function renderLoggedInAlertsHtml(db, accountRow, account, extras = {}) {
+  const events = listAlertEventsForAccount(db, accountRow.id, { limit: 100 });
+  const webhook = extras.webhook !== undefined ? extras.webhook : getAccountWebhook(db, accountRow.id);
+  return {
+    events,
+    html: renderAlertsPage({
+      loggedIn: true,
+      events,
+      account,
+      webhook,
+      webhookError: extras.webhookError || null,
+      testResult: extras.testResult || null,
+    }),
+  };
+}
+
 // ---------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------
@@ -250,6 +276,7 @@ function createAuthServer({
   statusDeps = { fetchJsonSafe },
   feedsDeps = { fetchJsonSafe },
   randomToken = () => crypto.randomBytes(32).toString('hex'),
+  webhookPostFn = defaultPostFn,
 }) {
   if (!db) throw new Error('createAuthServer: db is required');
   if (!clientId || !clientSecret) throw new Error('createAuthServer: clientId and clientSecret are required');
@@ -398,19 +425,68 @@ function createAuthServer({
           return;
         }
 
-        const events = listAlertEventsForAccount(db, accountRow.id, { limit: 100 });
-        const body = renderAlertsPage({
-          loggedIn: true,
-          events,
-          account,
-        });
+        const testParam = url.searchParams.get('test');
+        const testResult = testParam === 'ok' || testParam === 'fail' ? testParam : null;
+        const { events, html } = renderLoggedInAlertsHtml(db, accountRow, account, { testResult });
         markAlertEventsRead(
           db,
           accountRow.id,
           events.filter((e) => !e.readAt).map((e) => e.id)
         );
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(body);
+        res.end(html);
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/alerts/webhook') {
+        if (!accountRow) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'must be logged in to save a webhook' }));
+          return;
+        }
+        const form = await readFormBody(req);
+        const valid = validateWebhookUrl(form.url);
+        if (!valid) {
+          const { html } = renderLoggedInAlertsHtml(db, accountRow, account, {
+            webhookError: INVALID_WEBHOOK_ERROR,
+          });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(html);
+          return;
+        }
+        upsertAccountWebhook(db, accountRow.id, valid);
+        res.writeHead(302, { Location: '/alerts' });
+        res.end();
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/alerts/webhook/delete') {
+        if (!accountRow) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'must be logged in to remove a webhook' }));
+          return;
+        }
+        deleteAccountWebhook(db, accountRow.id);
+        res.writeHead(302, { Location: '/alerts' });
+        res.end();
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/alerts/webhook/test') {
+        if (!accountRow) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'must be logged in to test a webhook' }));
+          return;
+        }
+        const webhook = getAccountWebhook(db, accountRow.id);
+        if (!webhook) {
+          res.writeHead(302, { Location: '/alerts?test=fail' });
+          res.end();
+          return;
+        }
+        const result = await deliverContent(webhook.url, TEST_WEBHOOK_MESSAGE, webhookPostFn);
+        res.writeHead(302, { Location: result.ok ? '/alerts?test=ok' : '/alerts?test=fail' });
+        res.end();
         return;
       }
 
@@ -983,7 +1059,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));
@@ -1017,6 +1093,7 @@ async function main() {
     alertEngine = startAlertEngine({
       db,
       fetchRoster: () => fetchJsonSafe('http://localhost:8792/roster'),
+      origin: process.env.SITE_ORIGIN || 'https://arkhelper.info',
     });
   }
   server.listen(port, () => {

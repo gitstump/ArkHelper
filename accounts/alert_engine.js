@@ -7,8 +7,9 @@
  * Pure evaluation of per-account alert subscriptions against a stamped
  * official roster, plus a thin timer wrapper that loads/persists. The
  * events array is the channel-neutral fire path: the in-page feed
- * stores it; a later Discord dispatcher would consume the same list.
- * This module never makes HTTP itself — fetchRoster is injected.
+ * stores it; Discord webhook dispatch consumes the same list after
+ * persist. fetchRoster is injected; webhook POSTs go through
+ * alert_dispatch's injectable postFn.
  */
 
 const {
@@ -16,6 +17,7 @@ const {
   listAlertServerStates,
   persistAlertCycle,
 } = require('./db.js');
+const { dispatchPending, DEFAULT_ORIGIN } = require('./alert_dispatch.js');
 
 const ALERT_COOLDOWN_MS = 10 * 60 * 1000;
 const STATUS_CONFIRM_COUNT = 2;
@@ -262,6 +264,8 @@ async function runAlertCycle({
   now = () => new Date().toISOString(),
   nameCache = new Map(),
   log = console,
+  postFn,
+  origin = process.env.SITE_ORIGIN || DEFAULT_ORIGIN,
 } = {}) {
   let roster;
   try {
@@ -287,6 +291,7 @@ async function runAlertCycle({
   const nowValue = typeof now === 'function' ? now() : now;
   const result = evaluateAll({ roster, subscriptions, states, now: nowValue });
   persistAlertCycle(db, result);
+  await dispatchPending({ db, postFn, origin, now: nowValue });
   return { skipped: false, ...result };
 }
 
@@ -298,6 +303,8 @@ function startAlertEngine({
   setIntervalFn = setInterval,
   runImmediately = true,
   log = console,
+  postFn,
+  origin = process.env.SITE_ORIGIN || DEFAULT_ORIGIN,
 } = {}) {
   if (!db) throw new Error('startAlertEngine: db is required');
   if (typeof fetchRoster !== 'function') throw new Error('startAlertEngine: fetchRoster is required');
@@ -308,7 +315,7 @@ function startAlertEngine({
   const tick = async () => {
     if (stopped) return;
     try {
-      await runAlertCycle({ db, fetchRoster, now, nameCache, log });
+      await runAlertCycle({ db, fetchRoster, now, nameCache, log, postFn, origin });
     } catch (err) {
       log.error(`[alerts] cycle failed: ${err && err.message ? err.message : err}`);
     }

@@ -96,13 +96,62 @@ CREATE TABLE IF NOT EXISTS alert_events (
   kind TEXT NOT NULL,
   message TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  read_at TEXT
+  read_at TEXT,
+  dispatched_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS account_webhooks (
+  account_id INTEGER PRIMARY KEY REFERENCES accounts(id),
+  url TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  consecutive_failures INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS alert_deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES accounts(id),
+  event_count INTEGER NOT NULL,
+  status_code INTEGER,
+  ok INTEGER NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL
 );
 `;
+
+const DELIVERY_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+
+function tableHasColumn(db, tableName, columnName) {
+  return db.prepare(`PRAGMA table_info(${tableName})`).all().some((col) => col.name === columnName);
+}
+
+// Existing A1 DBs created alert_events without dispatched_at. Add the
+// column once, then stamp current rows so old feed history cannot
+// spray into a webhook saved later. New inserts leave dispatched_at
+// NULL and go through the dispatcher.
+function migrateAlertDispatch(db) {
+  if (!tableHasColumn(db, 'alert_events', 'dispatched_at')) {
+    db.exec('BEGIN');
+    try {
+      db.exec('ALTER TABLE alert_events ADD COLUMN dispatched_at TEXT');
+      db.exec('UPDATE alert_events SET dispatched_at = created_at');
+      db.exec('COMMIT');
+    } catch (err) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // ignore rollback failure
+      }
+      throw err;
+    }
+  }
+}
 
 function openDb(dbPath) {
   const db = new DatabaseSync(dbPath);
   db.exec(SCHEMA);
+  migrateAlertDispatch(db);
   return db;
 }
 
@@ -341,14 +390,15 @@ function rowToAlertEvent(row) {
     message: row.message,
     createdAt: row.created_at,
     readAt: row.read_at,
+    dispatchedAt: row.dispatched_at,
   };
 }
 
 function insertAlertEvent(db, event) {
   const result = db
     .prepare(
-      `INSERT INTO alert_events (account_id, server_id, server_name, kind, message, created_at, read_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO alert_events (account_id, server_id, server_name, kind, message, created_at, read_at, dispatched_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       event.accountId,
@@ -357,7 +407,8 @@ function insertAlertEvent(db, event) {
       event.kind,
       event.message,
       event.createdAt,
-      event.readAt ?? null
+      event.readAt ?? null,
+      event.dispatchedAt ?? null
     );
   return Number(result.lastInsertRowid);
 }
@@ -386,8 +437,8 @@ function markAlertEventsRead(db, accountId, eventIds, { now = () => new Date().t
 }
 
 // Persists one evaluation cycle: state upserts + new events in a single
-// transaction. events is the channel-neutral fire list (in-page stores
-// them here; a later Discord dispatcher would consume the same array).
+// transaction. events is the channel-neutral fire list (in-page feed +
+// Discord webhook dispatcher both consume these rows).
 function persistAlertCycle(db, { events = [], stateUpdates = [] } = {}) {
   db.exec('BEGIN');
   try {
@@ -402,6 +453,117 @@ function persistAlertCycle(db, { events = [], stateUpdates = [] } = {}) {
     }
     throw err;
   }
+}
+
+function listPendingAlertEvents(db) {
+  return db
+    .prepare('SELECT * FROM alert_events WHERE dispatched_at IS NULL ORDER BY id ASC')
+    .all()
+    .map(rowToAlertEvent);
+}
+
+function markAlertEventsDispatched(db, eventIds, { now = () => new Date().toISOString() } = {}) {
+  if (!Array.isArray(eventIds) || eventIds.length === 0) return 0;
+  const nowIso = typeof now === 'function' ? now() : now;
+  const stmt = db.prepare(
+    'UPDATE alert_events SET dispatched_at = ? WHERE id = ? AND dispatched_at IS NULL'
+  );
+  let changed = 0;
+  for (const id of eventIds) {
+    changed += stmt.run(nowIso, id).changes;
+  }
+  return changed;
+}
+
+function rowToWebhook(row) {
+  if (!row) return null;
+  return {
+    accountId: row.account_id,
+    url: row.url,
+    enabled: Boolean(row.enabled),
+    consecutiveFailures: row.consecutive_failures,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function getAccountWebhook(db, accountId) {
+  return rowToWebhook(db.prepare('SELECT * FROM account_webhooks WHERE account_id = ?').get(accountId));
+}
+
+function upsertAccountWebhook(db, accountId, url, { now = () => new Date().toISOString() } = {}) {
+  const nowIso = typeof now === 'function' ? now() : now;
+  db.prepare(
+    `INSERT INTO account_webhooks (account_id, url, enabled, consecutive_failures, created_at, updated_at)
+     VALUES (?, ?, 1, 0, ?, ?)
+     ON CONFLICT(account_id) DO UPDATE SET
+       url = excluded.url,
+       enabled = 1,
+       consecutive_failures = 0,
+       updated_at = excluded.updated_at`
+  ).run(accountId, url, nowIso, nowIso);
+  return getAccountWebhook(db, accountId);
+}
+
+function deleteAccountWebhook(db, accountId) {
+  const result = db.prepare('DELETE FROM account_webhooks WHERE account_id = ?').run(accountId);
+  return result.changes > 0;
+}
+
+function resetWebhookFailures(db, accountId, { now = () => new Date().toISOString() } = {}) {
+  const nowIso = typeof now === 'function' ? now() : now;
+  db.prepare('UPDATE account_webhooks SET consecutive_failures = 0, updated_at = ? WHERE account_id = ?').run(
+    nowIso,
+    accountId
+  );
+}
+
+function incrementWebhookFailures(db, accountId, { now = () => new Date().toISOString() } = {}) {
+  const nowIso = typeof now === 'function' ? now() : now;
+  db.prepare(
+    'UPDATE account_webhooks SET consecutive_failures = consecutive_failures + 1, updated_at = ? WHERE account_id = ?'
+  ).run(nowIso, accountId);
+  const row = db.prepare('SELECT consecutive_failures FROM account_webhooks WHERE account_id = ?').get(accountId);
+  return row ? row.consecutive_failures : 0;
+}
+
+function disableAccountWebhook(db, accountId, { now = () => new Date().toISOString() } = {}) {
+  const nowIso = typeof now === 'function' ? now() : now;
+  db.prepare('UPDATE account_webhooks SET enabled = 0, updated_at = ? WHERE account_id = ?').run(nowIso, accountId);
+}
+
+function insertAlertDelivery(db, row, { now = () => new Date().toISOString() } = {}) {
+  const nowIso = typeof now === 'function' ? now() : now;
+  db.prepare(
+    `INSERT INTO alert_deliveries (account_id, event_count, status_code, ok, detail, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(
+    row.accountId,
+    row.eventCount,
+    row.statusCode ?? null,
+    row.ok ? 1 : 0,
+    row.detail ?? null,
+    row.createdAt || nowIso
+  );
+  const cutoffMs = Date.parse(nowIso) - DELIVERY_RETENTION_MS;
+  if (Number.isFinite(cutoffMs)) {
+    db.prepare('DELETE FROM alert_deliveries WHERE created_at < ?').run(new Date(cutoffMs).toISOString());
+  }
+}
+
+function listAlertDeliveries(db, accountId) {
+  return db
+    .prepare('SELECT * FROM alert_deliveries WHERE account_id = ? ORDER BY id ASC')
+    .all(accountId)
+    .map((row) => ({
+      id: row.id,
+      accountId: row.account_id,
+      eventCount: row.event_count,
+      statusCode: row.status_code,
+      ok: Boolean(row.ok),
+      detail: row.detail,
+      createdAt: row.created_at,
+    }));
 }
 
 // ---------------------------------------------------------------------
@@ -516,6 +678,16 @@ module.exports = {
   listAlertEventsForAccount,
   markAlertEventsRead,
   persistAlertCycle,
+  listPendingAlertEvents,
+  markAlertEventsDispatched,
+  getAccountWebhook,
+  upsertAccountWebhook,
+  deleteAccountWebhook,
+  resetWebhookFailures,
+  incrementWebhookFailures,
+  disableAccountWebhook,
+  insertAlertDelivery,
+  listAlertDeliveries,
   countFilterPresets,
   listFilterPresets,
   getFilterPresetByShareToken,

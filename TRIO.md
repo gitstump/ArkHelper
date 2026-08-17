@@ -26,6 +26,9 @@ Keep it under one page. If reality diverges from this file, fix the file.
 - BUILT: 3-6 bullet summary of what exists now, by route/module
 - DECISIONS: anything done that the brief did not specify, one line each
 - BLOCKED/UNCERTAIN: anything skipped or assumed, one line each
+- COMMIT: a ready-to-use conventional commit message for this brief —
+  one imperative subject line under 72 chars, then a short body
+  (wrapped, plain text) naming what changed and the new test count.
 Keep the whole report under ~250 words. No code dumps unless asked.
 
 ## Hard rules for Builder

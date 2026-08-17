@@ -32,6 +32,7 @@ test('renderAlertsPage prompts login when logged out', () => {
   assert.match(html, /need to be logged in/);
   assert.match(html, /href="\/auth\/discord\/login"/);
   assert.doesNotMatch(html, /went offline/);
+  assert.doesNotMatch(html, /Discord webhook/);
   assert.match(html, /class="active" href="\/alerts"/);
 });
 
@@ -41,6 +42,9 @@ test('renderAlertsPage shows empty-state copy pointing at server pages and favor
   assert.match(html, /href="\/servers"/);
   assert.match(html, /href="\/favorites"/);
   assert.doesNotMatch(html, /class="alert-feed"/);
+  assert.match(html, /Discord webhook/);
+  assert.match(html, /channel settings/);
+  assert.match(html, /action="\/alerts\/webhook"/);
 });
 
 test('renderAlertsPage lists events with message, server link, and relative time', () => {
@@ -87,4 +91,54 @@ test('renderAlertsPage escapes hostile message and server name', () => {
   assert.doesNotMatch(html, /<img src=x/);
   assert.match(html, /&lt;script&gt;/);
   assert.match(html, /&lt;img src=x/);
+});
+
+test('renderAlertsPage system events use the same row style with no server link', () => {
+  const html = renderAlertsPage({
+    loggedIn: true,
+    now: NOW,
+    events: [
+      event({
+        kind: 'system',
+        serverId: '',
+        serverName: 'ArkHelper',
+        message: 'Your Discord webhook was disabled after repeated failures. Save it again on the Alerts page to re-enable.',
+      }),
+    ],
+  });
+  assert.match(html, /class="alert-row unread"/);
+  assert.match(html, /Your Discord webhook was disabled/);
+  assert.match(html, /ArkHelper/);
+  assert.doesNotMatch(html, /href="\/servers\/"/);
+  assert.doesNotMatch(html, /href="\/servers\/"/);
+});
+
+test('renderAlertsPage masks a saved webhook to its last 4 characters and shows enabled state', () => {
+  const { maskWebhookUrl } = require('./alerts_page.js');
+  const url = 'https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwx';
+  assert.equal(maskWebhookUrl(url), '••••uvwx');
+  const html = renderAlertsPage({
+    loggedIn: true,
+    events: [],
+    webhook: { url, enabled: true, consecutiveFailures: 0 },
+  });
+  assert.match(html, /••••uvwx/);
+  assert.doesNotMatch(html, /abcdefghijklmnopqrstuvwx/);
+  assert.match(html, /Enabled/);
+  assert.match(html, /Send test/);
+  assert.match(html, /action="\/alerts\/webhook\/delete"/);
+  assert.match(html, /action="\/alerts\/webhook\/test"/);
+});
+
+test('renderAlertsPage shows disabled state, invalid-URL error, and test failure inline', () => {
+  const html = renderAlertsPage({
+    loggedIn: true,
+    events: [],
+    webhook: { url: 'https://discord.com/api/webhooks/1/tokenxxxx', enabled: false },
+    webhookError: "That isn't a valid Discord webhook URL.",
+    testResult: 'fail',
+  });
+  assert.match(html, /Disabled/);
+  assert.match(html, /isn&#39;t a valid Discord webhook URL/);
+  assert.match(html, /Test message failed to send/);
 });

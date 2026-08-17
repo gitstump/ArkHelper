@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-17 — 722 tests passing — In flight: none
+Last updated: 2026-08-17 — 753 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -24,7 +24,7 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - **Filter presets** — named snapshots of the current browser query string. Logged-out: up to 3 in an HttpOnly cookie (~2KB guard). Logged-in: up to 15 in SQLite, cookie presets migrate on login (name collisions skipped), shareable via public `/p/<token>` → `/servers?...` redirects.
 - **Server detail pages** (`/servers/:id`) — full facts (including country name + flag when GeoIP resolved), uptime %, history table, activity log (wipe/version changes), peak-time & downtime heatmaps (inline SVG), embeddable live-status badge (`/servers/:id/badge.svg`) with markdown/HTML snippets.
 - **Favorites** — add/remove per account, `/favorites` page. This is the actual point of having accounts at all — confirmed working end to end.
-- **Alerts** — per-server settings (down / back-online / capacity / min free slots) plus an in-page `/alerts` feed. A 75s evaluation engine (hysteresis, threshold latches, 10-minute cooldown) writes events; visiting the feed marks them read. Discord webhook dispatch is the next phase. Email/SMS dropped.
+- **Alerts** — per-server settings (down / back-online / capacity / min free slots) plus an in-page `/alerts` feed and optional Discord webhook delivery (one webhook per account). A 75s evaluation engine (hysteresis, threshold latches, 10-minute cooldown) writes events; visiting the feed marks them read. Email/SMS dropped by decision.
 - **Stats** (`/stats`) — network breakdowns (mode/map/platform/cluster) and a most-populated snapshot. Ranked-list previews link into the leaderboard suite instead of duplicating tables.
 - **Leaderboard suite** (`/leaderboards`) — index of Rankings, Map Uptime, PvE vs PvP, Regions, Top 100, and Bottom 100. Map uptime is every map's server count, avg 7-day uptime, and avg population %, from history stamped onto the roster. PvE vs PvP is a two-column comparison with deltas. Regions is per-country server count, players online, avg 7-day uptime, and avg ping (Unknown last). Top 100 reuses `/rankings`. Bottom 100 is the lowest rankScores among servers with a full week of history (thin-history servers excluded).
 - **Rankings** (`/rankings`) — composite rank score 0–100 per official server, recomputed every discovery cycle (40% 7-day uptime + 25% ping quality + 25% mean population % + 10% history-age confidence). Surfaced as a Rank sort in the server browser, a rank badge on each detail page, and a top-100 leaderboard with score breakdowns. Pure scorer lives in `discovery/ranking.js`; scores **and 7-day uptime %** are stamped onto the roster feed so accounts doesn't need a second query.
@@ -35,7 +35,6 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 ## Future / deferred work
 
 - Remaining guides work: per-map resource and progression fan-outs (the six-guide core index now matches arkstatus: beginner, taming, resources, settings, breeding, bosses)
-- **Alert dispatch (Discord webhooks)** — in-page channel is live; webhook delivery is the next alerts phase. Email/SMS explicitly dropped.
 
 ## Known real gaps vs. arkstatus.com (confirmed via a live re-scan, not guessed)
 

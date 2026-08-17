@@ -398,3 +398,57 @@ test('startAlertEngine requires db and fetchRoster, and does not tick when runIm
   assert.equal(ticks, 0);
   engine.stop();
 });
+
+test('runAlertCycle posts batched events through postFn after persist when a webhook is saved', async () => {
+  const db = openDb(':memory:');
+  const { upsertAccountWebhook } = require('./db.js');
+  const account = upsertAccount(db, { discordId: '1' });
+  upsertAlertSettings(db, account.id, 's1', { notifyDown: true, notifyOnline: true });
+  upsertAccountWebhook(db, account.id, 'https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwx');
+  const nameCache = new Map();
+  const now = { t: Date.parse(T0) };
+  const clock = () => new Date(now.t).toISOString();
+  const silent = { error() {}, log() {} };
+  const calls = [];
+  const postFn = async (url, content) => {
+    calls.push({ url, content });
+    return { status: 204, ok: true };
+  };
+
+  await runAlertCycle({
+    db,
+    fetchRoster: async () => roster([live()]),
+    now: clock,
+    nameCache,
+    log: silent,
+    postFn,
+    origin: 'https://arkhelper.info',
+  });
+  now.t += 75_000;
+  await runAlertCycle({
+    db,
+    fetchRoster: async () => roster([]),
+    now: clock,
+    nameCache,
+    log: silent,
+    postFn,
+    origin: 'https://arkhelper.info',
+  });
+  now.t += 75_000;
+  await runAlertCycle({
+    db,
+    fetchRoster: async () => roster([]),
+    now: clock,
+    nameCache,
+    log: silent,
+    postFn,
+    origin: 'https://arkhelper.info',
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].content, /went offline/);
+  assert.match(calls[0].content, /https:\/\/arkhelper\.info\/alerts/);
+  const events = listAlertEventsForAccount(db, account.id);
+  assert.equal(events.length, 1);
+  assert.ok(events[0].dispatchedAt);
+});
