@@ -43,7 +43,9 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.ok(GUIDE_REGISTRY.length >= 1);
+  assert.equal(GUIDE_REGISTRY.length, 2);
+  assert.ok(slugs.includes('beginners'));
+  assert.ok(slugs.includes('taming'));
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
       assert.ok(g[field] != null, `missing ${field} on ${g.slug}`);
@@ -70,6 +72,10 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(beginners);
   assert.equal(beginners.slug, 'beginners');
   assert.equal(beginners.shortTitle, "Beginner's Guide");
+  const taming = resolveGuide('taming');
+  assert.ok(taming);
+  assert.equal(taming.slug, 'taming');
+  assert.equal(taming.shortTitle, 'Taming Guide');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -110,4 +116,32 @@ test('beginners guide ships the brief prose verbatim', () => {
     callout.text,
     'If a spawn goes badly, dying and re-rolling in the first ten minutes costs you nothing. It is faster to restart on a good beach than to rescue a bad start.'
   );
+  const tameLink = g.sections[5].blocks.find((b) => b.type === 'links').items[0];
+  assert.equal(tameLink.href, '/guides/taming');
+  assert.equal(tameLink.note, 'methods and preparation in depth');
+  assert.doesNotMatch(tameLink.note, /coming soon/);
+});
+
+test('taming guide ships the brief prose verbatim', () => {
+  const g = resolveGuide('taming');
+  assert.equal(g.title, 'Taming Guide — ARK: Survival Ascended');
+  assert.equal(g.lastVerified, '2026-08-16');
+  assert.equal(g.sections.length, 8);
+  assert.equal(g.related.join(','), 'beginners,breeding-mutations,resource-locations');
+  assert.equal(
+    g.description,
+    'Knockout and passive taming from first bola to first mount: preparation, torpor, feeding, traps, and keeping your target alive.'
+  );
+  assert.equal(
+    g.sections[0].blocks[0].text,
+    "Every tame is a timer, and the server's taming multiplier sets how long that timer runs. During bonus-rate events the same animal can take a fraction of the usual time, so a five-minute check before you leave home can save you an afternoon. Then pack as if the tame will take twice as long as you hope: food for the animal, food for you, more sedatives than the plan requires, and something to fight with that you are not using to tame."
+  );
+  const callout = g.sections[0].blocks.find((b) => b.type === 'callout');
+  assert.equal(
+    callout.text,
+    'The most common taming failure is not the animal waking up — it is the tamer arriving unprepared and improvising.'
+  );
+  const rates = g.sections[0].blocks.find((b) => b.type === 'links').items[0];
+  assert.equal(rates.href, '/rates');
+  assert.equal(g.sections[7].heading, 'After the tame');
 });

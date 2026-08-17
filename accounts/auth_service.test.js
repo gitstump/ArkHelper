@@ -2495,6 +2495,7 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(res.headers.get('content-type'), /text\/html/);
   assert.match(html, /<title>Guides \u2014 ArkHelper<\/title>/);
   assert.match(html, /href="\/guides\/beginners"/);
+  assert.match(html, /href="\/guides\/taming"/);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();
@@ -2517,6 +2518,33 @@ test('GET /guides/beginners renders the guide h1', async () => {
   assert.match(res.headers.get('content-type'), /text\/html/);
   assert.match(html, /<h1>Beginner&#39;s Guide \u2014 ARK: Survival Ascended<\/h1>/);
   assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /Related guides/);
+  assert.match(html, /href="\/guides\/taming"/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
+
+  server.close();
+});
+
+test('GET /guides/taming renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/taming`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Taming Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /Check the rates, then pack for the whole job/);
+  assert.match(html, /href="\/rates"/);
+  assert.match(html, /The most common taming failure is not the animal waking up/);
 
   server.close();
 });

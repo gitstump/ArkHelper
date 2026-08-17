@@ -16,6 +16,21 @@ const SECTION_HEADINGS = [
   'Where to go next',
 ];
 
+const TAMING_HEADINGS = [
+  'Check the rates, then pack for the whole job',
+  'Two families: knockout and passive',
+  'The knockout: control first, torpor second',
+  'Keeping it down and getting it fed',
+  'Taming effectiveness is the hidden score',
+  'Passive taming: patience under pressure',
+  'Traps pay for themselves',
+  'After the tame',
+];
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 test('renderGuidesIndexPage lists the beginners card with a link and last-verified date', () => {
   const html = renderGuidesIndexPage({});
   assert.match(html, /<title>Guides \u2014 ArkHelper<\/title>/);
@@ -25,6 +40,9 @@ test('renderGuidesIndexPage lists the beginners card with a link and last-verifi
   assert.match(html, /Last verified 2026-08-16/);
   assert.match(html, /class="guide-card"/);
   assert.match(html, /First spawn to first tame/);
+  assert.match(html, /href="\/guides\/taming"/);
+  assert.match(html, /Taming Guide/);
+  assert.match(html, /Knockout and passive taming from first bola to first mount/);
 });
 
 test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped content', () => {
@@ -32,13 +50,15 @@ test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped c
   assert.match(html, /<h1>Beginner&#39;s Guide \u2014 ARK: Survival Ascended<\/h1>/);
   assert.match(html, /Last verified 2026-08-16/);
   for (const heading of SECTION_HEADINGS) {
-    assert.match(html, new RegExp(`<h2>${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</h2>`));
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(heading)}</h2>`));
   }
   assert.match(html, /class="callout"/);
   assert.match(html, /If a spawn goes badly/);
   assert.match(html, /href="\/lists\/official-pve"/);
   assert.match(html, /href="\/guides\/taming"/);
   assert.match(html, /Start PvE; switch later if the quiet bothers you\./);
+  assert.match(html, /methods and preparation in depth/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
 
   const hostile = renderGuidePage({
     guide: {
@@ -56,10 +76,39 @@ test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped c
   assert.match(hostile, /&lt;img onerror=1&gt;/);
 });
 
+test('renderGuidePage renders the taming guide h1, all 8 headings, callout, and rates link', () => {
+  const html = renderGuidePage({ guide: resolveGuide('taming') });
+  assert.match(html, /<h1>Taming Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /Last verified 2026-08-16/);
+  for (const heading of TAMING_HEADINGS) {
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(heading)}</h2>`));
+  }
+  assert.match(html, /class="callout"/);
+  assert.match(
+    html,
+    /The most common taming failure is not the animal waking up \u2014 it is the tamer arriving unprepared and improvising\./
+  );
+  assert.match(html, /href="\/rates"/);
+  assert.match(html, /see the live taming multiplier before you commit/);
+});
+
 test('related footer with unknown slugs renders without error and omits missing guides', () => {
   const html = renderGuidePage({ guide: resolveGuide('beginners') });
-  assert.doesNotMatch(html, /Related guides/);
-  assert.doesNotMatch(html, /href="\/guides\/taming".*Related/);
+  assert.match(html, /Related guides/);
+  const beginnersRelated = html.match(/class="guide-related"[\s\S]*?<\/nav>/);
+  assert.ok(beginnersRelated);
+  assert.match(beginnersRelated[0], /href="\/guides\/taming"/);
+  assert.doesNotMatch(beginnersRelated[0], /resource-locations/);
+  assert.doesNotMatch(beginnersRelated[0], /settings-performance/);
+
+  const tamingHtml = renderGuidePage({ guide: resolveGuide('taming') });
+  assert.match(tamingHtml, /Related guides/);
+  const tamingRelated = tamingHtml.match(/class="guide-related"[\s\S]*?<\/nav>/);
+  assert.ok(tamingRelated);
+  assert.match(tamingRelated[0], /href="\/guides\/beginners"/);
+  assert.doesNotMatch(tamingRelated[0], /breeding-mutations/);
+  assert.doesNotMatch(tamingRelated[0], /resource-locations/);
+
   const withKnown = renderGuidePage({
     guide: {
       slug: 'x',
@@ -82,5 +131,6 @@ test('renderGuideNotFoundPage is a shell-wrapped 404 that escapes the slug and l
   assert.doesNotMatch(html, /<script>nope<\/script>/);
   assert.match(html, /&lt;script&gt;nope&lt;\/script&gt;/);
   assert.match(html, /href="\/guides\/beginners"/);
+  assert.match(html, /href="\/guides\/taming"/);
   assert.match(html, /href="\/guides"/);
 });

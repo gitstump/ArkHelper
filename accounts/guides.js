@@ -114,7 +114,7 @@ const GUIDE_REGISTRY = [
           {
             type: 'links',
             items: [
-              { href: '/guides/taming', label: 'Taming guide', note: 'methods and preparation in depth (coming soon)' },
+              { href: '/guides/taming', label: 'Taming guide', note: 'methods and preparation in depth' },
             ],
           },
         ],
@@ -137,6 +137,123 @@ const GUIDE_REGISTRY = [
               { href: '/maps', label: 'Map hubs', note: 'live server telemetry for every official map' },
               { href: '/servers', label: 'Server browser', note: 'filter by map, mode, region, and free slots' },
               { href: '/rates', label: 'Official rates', note: 'check before committing to a long tame' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'taming',
+    title: 'Taming Guide — ARK: Survival Ascended',
+    shortTitle: 'Taming Guide',
+    description:
+      'Knockout and passive taming from first bola to first mount: preparation, torpor, feeding, traps, and keeping your target alive.',
+    lastVerified: '2026-08-16',
+    related: ['beginners', 'breeding-mutations', 'resource-locations'],
+    sections: [
+      {
+        heading: 'Check the rates, then pack for the whole job',
+        blocks: [
+          {
+            type: 'p',
+            text: "Every tame is a timer, and the server's taming multiplier sets how long that timer runs. During bonus-rate events the same animal can take a fraction of the usual time, so a five-minute check before you leave home can save you an afternoon. Then pack as if the tame will take twice as long as you hope: food for the animal, food for you, more sedatives than the plan requires, and something to fight with that you are not using to tame.",
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/rates', label: 'Current official rates', note: 'see the live taming multiplier before you commit' },
+            ],
+          },
+          {
+            type: 'callout',
+            text: 'The most common taming failure is not the animal waking up — it is the tamer arriving unprepared and improvising.',
+          },
+        ],
+      },
+      {
+        heading: 'Two families: knockout and passive',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Almost every tame falls into one of two methods. Knockout taming means rendering the creature unconscious and feeding it while it sleeps; it covers most of the animals you will want early. Passive taming means walking up to a conscious animal and feeding it by hand, usually on a repeating timer, and it is reserved for creatures that either flee or cannot reasonably be knocked out. The in-game dossier language and community shorthand both tell you which family a creature belongs to — when in doubt, assume knockout.',
+          },
+        ],
+      },
+      {
+        heading: 'The knockout: control first, torpor second',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Sedating an animal that is running away or eating you is miserable, so the real skill is control. Bolas root small and mid-sized creatures where they stand. Larger targets call for a trap, natural terrain they cannot climb out of, or a mount fast enough to kite safely. Only once the target cannot reach you does the sedation start.',
+          },
+          {
+            type: 'p',
+            text: 'Torpor tools scale with your progression: fists and clubs at the very start, a slingshot soon after, then tranquilizer arrows and eventually darts. Aimed hits to the head are generally more effective than body shots. Pace your shots — torpor from tranq ammunition builds over a moment rather than all at once, and an extra hit after the animal is already falling is wasted damage on something you are trying to keep alive.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Control the target before you sedate it, not after.',
+              'Match the tool to the target; a slingshot will not down a rex.',
+              'Damage and torpor are in tension: enough hits to sleep, few enough to survive.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Keeping it down and getting it fed',
+        blocks: [
+          {
+            type: 'p',
+            text: "An unconscious animal's torpor drains steadily, and if it hits zero the creature wakes up angry with your investment inside it. Watch the torpor bar and top it up with narcoberries or crafted narcotics before it runs low — narcotics are stronger and stack further, which is why they were on the engram list in the beginner guide.",
+          },
+          {
+            type: 'p',
+            text: "Feeding is simple: place the right food in the creature's inventory and it eats on its own schedule as it tames. Herbivores take berries, carnivores take meat, and nearly everything tames faster and better on food it specifically prefers. Prime meat and kibble sit at the top of that ladder — harder to source and quick to spoil, but the difference on a long tame is dramatic.",
+          },
+        ],
+      },
+      {
+        heading: 'Taming effectiveness is the hidden score',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Behind the progress bar sits an effectiveness percentage, and it only goes down. Every hit the animal takes while unconscious and every bite of second-rate food chips away at it. Effectiveness decides the bonus levels the creature receives when the tame completes, which is the difference between a workhorse and a trophy. This is the practical case for traps, preferred food, and patience: a fast sloppy tame and a careful one produce two very different animals from the same target.',
+          },
+        ],
+      },
+      {
+        heading: 'Passive taming: patience under pressure',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Passive tames trade violence for vigilance. You approach — sometimes crouched, sometimes from a required angle — feed from the hotbar, then wait out a timer and do it again until the bar fills. The rules that matter: striking the animal, or letting anything else strike it, typically resets or ruins the attempt, and many passive targets spook and scatter if you rush the approach. Clear the area of predators before you start, bring more of the food than the tame should need, and settle in. Boredom is the method working.',
+          },
+        ],
+      },
+      {
+        heading: 'Traps pay for themselves',
+        blocks: [
+          {
+            type: 'p',
+            text: 'A taming trap is any arrangement of structures the target can enter but not leave — commonly a small pen of reinforced walls or stone gateways with a gate you close behind the creature, or an open-topped box you lure it into while it chases you. The trap solves every hard part at once: the animal cannot flee, cannot reach you, and cannot be reached by whatever else wanders past. The materials cost an hour; the trap tames a dozen animals. Build it near where your target spawns, not near home — you are bringing the tame back, not the trap.',
+          },
+        ],
+      },
+      {
+        heading: 'After the tame',
+        blocks: [
+          {
+            type: 'p',
+            text: 'A fresh tame is at its most fragile in the first minutes: it wakes hungry, possibly far from safety, in territory that has not gotten friendlier. Name it, set its behavior to something cautious, and walk it home before you celebrate. Back at base, level it toward the job you tamed it for — weight for a hauler, stamina and damage for a fighter — and from here on, protect it like the time investment it is. Losing a first mount teaches a lesson; it is cheaper to learn it from this sentence.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/beginners', label: "Beginner's Guide", note: 'the survival fundamentals this guide builds on' },
+              { href: '/guides/resource-locations', label: 'Resource routes', note: 'where your new hauler earns its keep (coming soon)' },
+              { href: '/lists/official-pve', label: 'Official PvE servers', note: 'the calmest place to practice all of this' },
             ],
           },
         ],
