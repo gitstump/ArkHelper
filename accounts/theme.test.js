@@ -27,6 +27,10 @@ test('THEME_CSS uses a system font for prose and a mono stack for figures', () =
   assert.match(THEME_CSS, /font-variant-numeric:\s*tabular-nums/);
 });
 
+test('THEME_CSS hides the header tagline below 1280px', () => {
+  assert.match(THEME_CSS, /@media \(max-width: 1280px\)[\s\S]*?\.tagline \{ display: none; \}/);
+});
+
 test('THEME_CSS defines the spacing scale and one radius token', () => {
   assert.match(THEME_CSS, /--space-1:\s*4px/);
   assert.match(THEME_CSS, /--space-2:\s*8px/);

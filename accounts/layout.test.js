@@ -26,6 +26,11 @@ test('renderPage wraps body in the shared shell with theme CSS', () => {
   assert.match(html, /<\/html>$/);
 });
 
+test('renderPage hides the tagline at 1280px so nav stays on one row', () => {
+  const html = renderPage({ title: 'ArkHelper', currentPath: '/', body: '<p>hello</p>' });
+  assert.match(html, /@media \(max-width: 1280px\)[\s\S]*?\.tagline \{ display: none; \}/);
+});
+
 test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps Favorites as a link', () => {
   const html = renderNav('/rankings');
   assert.match(html, /<details class="nav-drop" name="mainnav">/);
@@ -98,12 +103,16 @@ test('renderAuth shows a Discord login link when logged out', () => {
   assert.doesNotMatch(html, /Log out/);
 });
 
-test('renderAuth shows the Discord name, id, and logout form when logged in', () => {
+test('renderAuth shows the username and logout without Discord ID when logged in', () => {
   const html = renderAuth({ username: 'brian', discordId: '42' });
-  assert.match(html, /Logged in as <strong>brian<\/strong>/);
-  assert.match(html, /Discord ID: 42/);
+  assert.match(html, /title="Logged in via Discord"/);
+  assert.match(html, />brian</);
   assert.match(html, /action="\/auth\/logout"/);
   assert.match(html, /method="POST"/);
+  assert.match(html, />Log out</);
+  assert.doesNotMatch(html, /Logged in as/);
+  assert.doesNotMatch(html, /Discord ID/);
+  assert.doesNotMatch(html, /42/);
 });
 
 test('renderAuth escapes a hostile username', () => {

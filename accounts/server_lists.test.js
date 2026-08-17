@@ -177,7 +177,8 @@ test('renderListPage uses a unique title, meta description, count, rows, and a b
   assert.match(html, /<title>ARK Official PvE Servers/);
   assert.match(html, /<meta name="description" content="Browse official ARK: Survival Ascended PvE servers/);
   assert.match(html, /<h1>Official PvE servers<\/h1>/);
-  assert.match(html, /matching servers/);
+  assert.match(html, /<p class="counters">Showing 5 official servers/);
+  assert.doesNotMatch(html, /matching servers\./);
   assert.match(html, /EU-PVE-TheIsland5313/);
   assert.match(html, /88\.8%/);
   assert.doesNotMatch(html, /Asia-PVP-LostColony2859/);

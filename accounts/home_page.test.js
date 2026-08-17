@@ -31,10 +31,13 @@ test('renderHomepage shows a login link when logged out', () => {
 
 test('renderHomepage shows the username and a logout form when logged in', () => {
   const html = renderHomepage({ account: { username: 'brian', discordId: '42' }, rosterMeta: null });
-  assert.match(html, /Logged in as <strong>brian<\/strong>/);
-  assert.match(html, /Discord ID: 42/);
+  assert.match(html, /title="Logged in via Discord"/);
+  assert.match(html, />brian</);
   assert.match(html, /action="\/auth\/logout"/);
   assert.match(html, /method="POST"/);
+  assert.doesNotMatch(html, /Logged in as/);
+  assert.doesNotMatch(html, /Discord ID/);
+  assert.doesNotMatch(html, /42/);
 });
 
 test('renderHomepage escapes a hostile username instead of injecting it raw (XSS check)', () => {
@@ -48,9 +51,9 @@ test('renderHomepage shows roster stats when meta is available', () => {
     account: null,
     rosterMeta: { totalOfficial: 3179, pveCount: 1420, pvpCount: 1759, generatedAt: '2026-08-15T16:52:24.124Z' },
   });
-  assert.match(html, /3179/);
-  assert.match(html, /1420/);
-  assert.match(html, /1759/);
+  assert.match(html, /3,179/);
+  assert.match(html, /1,420/);
+  assert.match(html, /1,759/);
   assert.match(html, /2026-08-15T16:52:24\.124Z/);
 });
 
@@ -60,9 +63,9 @@ test('renderHomepage adds unofficial count to the tracking line when meta is pre
     rosterMeta: { totalOfficial: 3179, pveCount: 1420, pvpCount: 1759, generatedAt: '2026-08-15T16:52:24.124Z' },
     unofficialMeta: { count: 56198 },
   });
-  assert.match(html, /3179/);
-  assert.match(html, /56198/);
-  assert.match(html, /official and .* unofficial servers/);
+  assert.match(html, /3,179/);
+  assert.match(html, /56,198/);
+  assert.match(html, /official \(1,420 PvE \/ 1,759 PvP\) and .* unofficial servers/);
 });
 
 test('renderHomepage tracking line omits unofficial count when meta is absent', () => {
@@ -70,7 +73,7 @@ test('renderHomepage tracking line omits unofficial count when meta is absent', 
     account: null,
     rosterMeta: { totalOfficial: 3179, pveCount: 1420, pvpCount: 1759, generatedAt: '2026-08-15T16:52:24.124Z' },
   });
-  assert.match(html, /Tracking <strong class="num">3179<\/strong> official servers /);
+  assert.match(html, /Tracking <strong class="num">3,179<\/strong> official \(1,420 PvE \/ 1,759 PvP\) servers/);
   assert.doesNotMatch(html, /official and /);
 });
 

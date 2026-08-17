@@ -96,9 +96,7 @@ function renderAuth(account) {
   if (account) {
     const name = account.username || 'unknown';
     return `<div class="auth">
-      <span>Logged in as <strong>${escapeHtml(name)}</strong>${
-        account.discordId != null ? ` (Discord ID: ${escapeHtml(String(account.discordId))})` : ''
-      }</span>
+      <span title="Logged in via Discord">${escapeHtml(name)}</span>
       <form method="POST" action="/auth/logout"><button type="submit">Log out</button></form>
     </div>`;
   }

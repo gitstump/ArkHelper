@@ -283,6 +283,11 @@ function formatCount(value) {
   return frac !== undefined ? `${grouped}.${frac}` : grouped;
 }
 
+function localeCount(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value.toLocaleString('en-US');
+  return String(value ?? '');
+}
+
 function fig(value, suffix = '') {
   if (value === null || value === undefined || Number.isNaN(value)) return '\u2014';
   const display = typeof value === 'number' ? formatCount(value) : String(value);
@@ -343,12 +348,12 @@ function renderHeroBand({ officialCounters, counters, rosterMeta, status, unoffi
 
   const unofficialBit =
     unofficialCount != null
-      ? ` and <strong class="num">${escapeHtml(String(unofficialCount))}</strong> unofficial`
+      ? ` and <strong class="num">${escapeHtml(localeCount(unofficialCount))}</strong> unofficial`
       : '';
   const metaLine =
     rosterMeta && rosterMeta.pveCount != null && rosterMeta.pvpCount != null
-      ? `<p class="note">Tracking <strong class="num">${escapeHtml(String(rosterMeta.totalOfficial))}</strong> official${unofficialBit} servers ` +
-        `(${escapeHtml(String(rosterMeta.pveCount))} PvE / ${escapeHtml(String(rosterMeta.pvpCount))} PvP). ` +
+      ? `<p class="note">Tracking <strong class="num">${escapeHtml(localeCount(rosterMeta.totalOfficial))}</strong> official ` +
+        `(${escapeHtml(localeCount(rosterMeta.pveCount))} PvE / ${escapeHtml(localeCount(rosterMeta.pvpCount))} PvP)${unofficialBit} servers. ` +
         `Last updated ${escapeHtml(String(rosterMeta.generatedAt))}.</p>`
       : '';
 
@@ -539,19 +544,21 @@ function renderBrowserBody({
     .map((key) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(String(f[key]))}">`)
     .join('');
 
-  const listLabel = sourceKind === 'unofficial' ? 'unofficial servers' : 'official servers';
+  const sourceWord = sourceKind === 'unofficial' ? 'unofficial' : 'official';
+  const pingBit =
+    counters && counters.avgPing !== null && counters.avgPing !== undefined
+      ? `${escapeHtml(localeCount(counters.avgPing))}ms avg ping`
+      : 'ping unavailable';
   const countersBar = rosterAvailable
-    ? `<p class="counters">${escapeHtml(String(counters.totalOfficial))} ${listLabel} &middot; ` +
-      `${escapeHtml(String(counters.playersOnline))} players online &middot; ` +
-      `${counters.avgPing !== null ? escapeHtml(String(counters.avgPing)) + 'ms avg ping' : 'ping unavailable'} &middot; ` +
-      `${escapeHtml(String(counters.pveCount))} PvE / ${escapeHtml(String(counters.pvpCount))} PvP</p>`
+    ? `<p class="counters">Showing ${escapeHtml(localeCount(counters.totalOfficial))} ${sourceWord} servers &middot; ` +
+      `${escapeHtml(localeCount(counters.playersOnline))} players on them &middot; ` +
+      `${pingBit} &middot; ` +
+      `${escapeHtml(localeCount(counters.pveCount))} PvE / ${escapeHtml(localeCount(counters.pvpCount))} PvP</p>`
     : `<p class="counters">Server roster data isn't available right now (the discovery service may not be running).</p>`;
   const homeMetaNote =
     showHero && !rosterMeta
       ? `<p class="note">Server roster data isn't available right now (the discovery service may not be running).</p>`
       : '';
-  const matchCount =
-    page && typeof page.totalCount === 'number' ? `<p class="counters">${escapeHtml(String(page.totalCount))} matching servers.</p>` : '';
 
   if (!rosterAvailable) {
     return `${hero}<h1>${escapeHtml(heading)}</h1>${introHtml}${toggle}${countersBar}${homeMetaNote}`;
@@ -632,7 +639,6 @@ function renderBrowserBody({
   return `${hero}
   <h1>${escapeHtml(heading)}</h1>
   ${introHtml}
-  ${matchCount}
   ${noteHtml}
   ${backLink}
   ${countersBar}

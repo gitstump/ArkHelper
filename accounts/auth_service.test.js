@@ -395,7 +395,10 @@ test('GET / shows the username when a valid session cookie is sent', async () =>
 
   const res = await fetch(`${base}/`, { headers: { Cookie: sessionCookie } });
   const html = await res.text();
-  assert.match(html, /Logged in as <strong>brian<\/strong>/);
+  assert.match(html, /title="Logged in via Discord"/);
+  assert.match(html, />brian</);
+  assert.doesNotMatch(html, /Logged in as/);
+  assert.doesNotMatch(html, /Discord ID/);
 
   server.close();
 });
@@ -413,7 +416,7 @@ test('GET / includes roster stats when the discovery feed is reachable', async (
 
   const res = await fetch(`${base}/`);
   const html = await res.text();
-  assert.match(html, /3179/);
+  assert.match(html, /3,179/);
 
   server.close();
 });
@@ -2211,9 +2214,9 @@ test('GET / includes unofficial count in the hero when unofficial meta is availa
 
   const res = await fetch(`${base}/`);
   const html = await res.text();
-  assert.match(html, /3179/);
-  assert.match(html, /56198/);
-  assert.match(html, /official and .* unofficial servers/);
+  assert.match(html, /3,179/);
+  assert.match(html, /56,198/);
+  assert.match(html, /official \(1,420 PvE \/ 1,759 PvP\) and .* unofficial servers/);
 
   server.close();
 });

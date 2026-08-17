@@ -238,6 +238,39 @@ test('renderBrowserPage renders rows for the given page of results', () => {
   assert.match(html, /Astraeos_WP/);
   assert.match(html, /LostColony_WP/);
   assert.match(html, /Page 1 of 1/);
+  assert.match(html, /<p class="counters">Showing 4 official servers &middot; 63 players on them &middot; 259ms avg ping &middot; 2 PvE \/ 2 PvP<\/p>/);
+});
+
+test('renderBrowserPage summary is one Showing line with grouped result-set counts', () => {
+  const servers = makeServers();
+  const html = renderBrowserPage({
+    page: paginateServers(sortServers(servers), 1, 25),
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: { totalOfficial: 3073, playersOnline: 18549, avgPing: 197, pveCount: 1380, pvpCount: 1693 },
+    mapOptions: getDistinctMaps(servers),
+    rosterAvailable: true,
+  });
+  assert.match(
+    html,
+    /<p class="counters">Showing 3,073 official servers &middot; 18,549 players on them &middot; 197ms avg ping &middot; 1,380 PvE \/ 1,693 PvP<\/p>/
+  );
+  assert.equal((html.match(/<p class="counters">/g) || []).length, 1);
+  assert.doesNotMatch(html, /matching servers\./);
+  assert.doesNotMatch(html, /players online/);
+});
+
+test('renderHeroBand tracking line nests PvE/PvP inside the official clause', () => {
+  const html = renderHeroBand({
+    counters: { totalOfficial: 10, playersOnline: 40 },
+    rosterMeta: { totalOfficial: 3073, pveCount: 1380, pvpCount: 1693, generatedAt: '2026-08-16T12:00:00.000Z' },
+    unofficialMeta: { count: 56027 },
+  });
+  assert.match(
+    html,
+    /Tracking <strong class="num">3,073<\/strong> official \(1,380 PvE \/ 1,693 PvP\) and <strong class="num">56,027<\/strong> unofficial servers\. Last updated 2026-08-16T12:00:00\.000Z\./
+  );
 });
 
 test('renderBrowserPage shows "no servers match" when the filtered page is empty', () => {
@@ -666,7 +699,9 @@ test('renderBrowserPage unofficial source uses Seen header and keeps filters wor
   assert.match(html, /Community Box/);
   assert.doesNotMatch(html, /href="\/servers\/u1"/);
   assert.match(html, /name="source" value="unofficial"/);
-  assert.match(html, /unofficial servers/);
+  assert.match(html, /<p class="counters">Showing 1 unofficial servers/);
+  assert.match(html, /4 players on them/);
+  assert.doesNotMatch(html, /matching servers\./);
 });
 
 test('renderHeroBand includes unofficial count when unofficial meta is present', () => {
@@ -675,9 +710,9 @@ test('renderHeroBand includes unofficial count when unofficial meta is present',
     rosterMeta: { totalOfficial: 3093, pveCount: 1400, pvpCount: 1693, generatedAt: 'T' },
     unofficialMeta: { count: 56198 },
   });
-  assert.match(html, /3093/);
-  assert.match(html, /56198/);
-  assert.match(html, /official and .* unofficial servers/);
+  assert.match(html, /3,093/);
+  assert.match(html, /56,198/);
+  assert.match(html, /official \(1,400 PvE \/ 1,693 PvP\) and .* unofficial servers/);
   assert.match(html, /Unofficial Servers Tracked/);
 });
 

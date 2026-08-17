@@ -208,6 +208,9 @@ input, select {
   border-radius: var(--radius);
   font-family: inherit;
 }
+@media (max-width: 1280px) {
+  .tagline { display: none; }
+}
 @media (max-width: 700px) {
   .footer-cols { grid-template-columns: 1fr; gap: var(--space-4); }
   .auth { margin-left: 0; width: 100%; }
