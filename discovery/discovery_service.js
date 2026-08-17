@@ -433,8 +433,12 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, 
     if (parsedUrl.pathname === '/unofficial/meta') {
       const dbMeta = unofficialDb ? getUnofficialMeta(unofficialDb) : null;
       const roster = unofficialState && unofficialState.roster;
+      const playersOnline = roster && Array.isArray(roster.servers)
+        ? roster.servers.reduce((sum, s) => sum + (s && s.playersNow ? s.playersNow : 0), 0)
+        : null;
       const body = JSON.stringify({
         count: roster ? roster.count : 0,
+        playersOnline,
         cycles_total: roster && typeof roster.cycles_total === 'number'
           ? roster.cycles_total
           : dbMeta

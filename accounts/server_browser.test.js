@@ -397,9 +397,11 @@ test('renderHeroBand shows em dashes when incident data is missing', () => {
   const html = renderHeroBand({ counters: null, rosterMeta: null, status: null });
   assert.match(html, /Official Servers Online/);
   assert.match(html, /Players Online/);
-  assert.match(html, /Network Uptime % \(24h\)/);
+  assert.match(html, /Official Uptime % \(24h\)/);
   assert.match(html, /href="\/is-ark-down"/);
   assert.match(html, /\u2014/);
+  assert.doesNotMatch(html, /Unofficial Servers Tracked/);
+  assert.doesNotMatch(html, /official \u00b7 .* unofficial/);
 });
 
 test('renderHeroBand links the network status word to /is-ark-down', () => {
@@ -674,5 +676,72 @@ test('renderHeroBand includes unofficial count when unofficial meta is present',
   assert.match(html, /3093/);
   assert.match(html, /56198/);
   assert.match(html, /official and .* unofficial servers/);
+  assert.match(html, /Unofficial Servers Tracked/);
+});
+
+test('renderHeroBand combines official and unofficial players and splits the sublabel', () => {
+  const html = renderHeroBand({
+    officialCounters: { totalOfficial: 10, playersOnline: 21386 },
+    rosterMeta: { totalOfficial: 3093, pveCount: 1400, pvpCount: 1693, generatedAt: 'T' },
+    unofficialMeta: { count: 56198, playersOnline: 14792 },
+  });
+  assert.match(html, /Unofficial Servers Tracked/);
+  assert.match(html, /56,198/);
+  assert.match(html, /36,178/);
+  assert.match(html, /21,386 official \u00b7 14,792 unofficial/);
+  assert.match(html, /Official Uptime % \(24h\)/);
+});
+
+test('renderHeroBand falls back to official-only players when unofficial meta is unavailable', () => {
+  const html = renderHeroBand({
+    officialCounters: { totalOfficial: 10, playersOnline: 21386 },
+    rosterMeta: { totalOfficial: 3093, pveCount: 1400, pvpCount: 1693, generatedAt: 'T' },
+    unofficialMeta: null,
+  });
+  assert.match(html, /21,386/);
+  assert.doesNotMatch(html, /Unofficial Servers Tracked/);
+  assert.doesNotMatch(html, /official \u00b7 .* unofficial/);
+  assert.doesNotMatch(html, />0</);
+});
+
+test('renderHeroBand is identical for official and unofficial browser views', () => {
+  const official = makeServers();
+  const unofficial = [
+    { id: 'u1', name: 'Community Box', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 4, maxPlayers: 20 },
+  ];
+  const shared = {
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    officialCounters: computeLiveCounters(official),
+    rosterMeta: { totalOfficial: 4, pveCount: 2, pvpCount: 2, generatedAt: 'T' },
+    unofficialMeta: { count: 1, playersOnline: 4 },
+    status: { state: 'NORMAL', onlineCount: 4, offlinePct: 2 },
+    rosterAvailable: true,
+    currentPath: '/servers',
+    showHero: true,
+  };
+  const officialHtml = renderBrowserPage({
+    ...shared,
+    page: paginateServers(official, 1, 25),
+    counters: computeLiveCounters(official),
+    mapOptions: getDistinctMaps(official),
+    source: 'official',
+  });
+  const unofficialHtml = renderBrowserPage({
+    ...shared,
+    page: paginateServers(unofficial, 1, 25),
+    counters: computeLiveCounters(unofficial),
+    mapOptions: getDistinctMaps(unofficial),
+    source: 'unofficial',
+  });
+  const heroOf = (html) => {
+    const match = html.match(/<section class="hero">[\s\S]*?<\/section>/);
+    assert.ok(match, 'expected a hero section');
+    return match[0];
+  };
+  assert.equal(heroOf(officialHtml), heroOf(unofficialHtml));
+  assert.match(heroOf(officialHtml), /67/);
+  assert.match(heroOf(officialHtml), /63 official \u00b7 4 unofficial/);
 });
 

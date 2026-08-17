@@ -2044,6 +2044,77 @@ test('GET / includes unofficial count in the hero when unofficial meta is availa
   server.close();
 });
 
+function heroSection(html) {
+  const match = html.match(/<section class="hero">[\s\S]*?<\/section>/);
+  assert.ok(match, 'expected a hero section');
+  return match[0];
+}
+
+test('GET /servers hero band is identical with source=unofficial', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeSplitBrowserDeps({
+      official: { servers: makeTestServers() },
+      unofficial: unofficialTestRoster(),
+    }),
+    homeDeps: fakeSplitHomeDeps({
+      official: { totalOfficial: 2, pveCount: 1, pvpCount: 1, generatedAt: 'T' },
+      unofficial: { count: 1, playersOnline: 4, cycles_total: 4, lastFetchStatus: 'ok' },
+    }),
+  });
+
+  const officialRes = await fetch(`${base}/servers`);
+  const unofficialRes = await fetch(`${base}/servers?source=unofficial`);
+  const officialHtml = await officialRes.text();
+  const unofficialHtml = await unofficialRes.text();
+  assert.equal(officialRes.status, 200);
+  assert.equal(unofficialRes.status, 200);
+  assert.equal(heroSection(officialHtml), heroSection(unofficialHtml));
+  assert.match(heroSection(officialHtml), /29/);
+  assert.match(heroSection(officialHtml), /25 official \u00b7 4 unofficial/);
+  assert.match(heroSection(officialHtml), /Unofficial Servers Tracked/);
+
+  const homeRes = await fetch(`${base}/`);
+  const homeHtml = await homeRes.text();
+  assert.equal(heroSection(homeHtml), heroSection(officialHtml));
+
+  server.close();
+});
+
+test('GET /servers hero band stays official-only when unofficial meta is unavailable', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeSplitBrowserDeps({
+      official: { servers: makeTestServers() },
+      unofficial: unofficialTestRoster(),
+    }),
+    homeDeps: fakeSplitHomeDeps({
+      official: { totalOfficial: 2, pveCount: 1, pvpCount: 1, generatedAt: 'T' },
+      unofficial: null,
+    }),
+  });
+
+  const res = await fetch(`${base}/servers?source=unofficial`);
+  const html = await res.text();
+  const hero = heroSection(html);
+  assert.match(hero, />25</);
+  assert.doesNotMatch(hero, /Unofficial Servers Tracked/);
+  assert.doesNotMatch(hero, /official \u00b7 .* unofficial/);
+  assert.doesNotMatch(hero, />0</);
+
+  server.close();
+});
+
 test('unofficial roster cache avoids a second fetch within the TTL', async () => {
   const db = openDb(':memory:');
   let unofficialCalls = 0;

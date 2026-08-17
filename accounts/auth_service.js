@@ -626,19 +626,25 @@ function createAuthServer({
       if (req.method === 'GET' && (url.pathname === '/servers' || url.pathname === '/')) {
         const isHome = url.pathname === '/';
         const source = url.searchParams.get('source') === 'unofficial' ? 'unofficial' : 'official';
+        const officialRosterPromise = browserDeps.fetchJsonSafe(rosterUrl);
         const rosterPromise = source === 'unofficial'
           ? rosterCache.get(unofficialRosterUrl, (target) => browserDeps.fetchJsonSafe(target, { timeoutMs: 15000 }))
-          : browserDeps.fetchJsonSafe(rosterUrl);
-        const [roster, rosterMeta, status, unofficialMeta] = await Promise.all([
+          : officialRosterPromise;
+        const [roster, officialRoster, rosterMeta, status, unofficialMeta] = await Promise.all([
           rosterPromise,
+          officialRosterPromise,
           homeDeps.fetchRosterMetaSafe(rosterMetaUrl),
           statusDeps.fetchJsonSafe(incidentStatusUrl),
           homeDeps.fetchRosterMetaSafe(unofficialMetaUrl),
         ]);
         const live = liveFromRoster(roster) || liveFromMeta(rosterMeta);
+        const officialCounters =
+          officialRoster && Array.isArray(officialRoster.servers)
+            ? computeLiveCounters(officialRoster.servers)
+            : null;
 
         if (!roster || !Array.isArray(roster.servers)) {
-          const fallbackOpts = { account, rosterMeta, unofficialMeta, status, live, rosterAvailable: false, source };
+          const fallbackOpts = { account, rosterMeta, unofficialMeta, status, live, rosterAvailable: false, source, officialCounters };
           const body = isHome
             ? renderHomepage(fallbackOpts)
             : renderBrowserPage({ ...fallbackOpts, currentPath: '/servers' });
@@ -681,6 +687,7 @@ function createAuthServer({
           sort,
           dir,
           counters: computeLiveCounters(roster.servers),
+          officialCounters,
           mapOptions: getDistinctMaps(roster.servers),
           platformOptions: getDistinctPlatforms(roster.servers),
           rosterAvailable: true,

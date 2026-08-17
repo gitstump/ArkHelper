@@ -196,7 +196,7 @@ function getDistinctMaps(servers) {
 // ---------------------------------------------------------------------
 const PAGE_CSS = `
 .hero { margin-bottom: var(--space-5); }
-.hero-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.hero-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: var(--space-3); }
 .hero-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); }
 .hero-stat .fig { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 1.7rem; font-weight: 700; color: var(--accent); line-height: 1.15; }
 .hero-stat .fig a { text-decoration: none; }
@@ -205,6 +205,7 @@ const PAGE_CSS = `
 .hero-stat .fig.update, .hero-stat .fig.degraded { color: var(--degraded); }
 .hero-stat .fig.unreachable { color: var(--muted); }
 .hero-stat .lbl { color: var(--muted); font-size: 0.75rem; margin-top: var(--space-1); }
+.hero-stat .sub { color: var(--muted); font-size: 0.7rem; margin-top: 2px; }
 .filters { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .filters .narrow { width: 6rem; }
 .pagination { display: flex; gap: var(--space-4); align-items: center; margin-top: var(--space-4); color: var(--muted); }
@@ -270,14 +271,31 @@ function networkUptime24h(status) {
   return Math.round((100 - status.offlinePct) * 10) / 10;
 }
 
+function formatCount(value) {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  const [whole, frac] = String(n).split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return frac !== undefined ? `${grouped}.${frac}` : grouped;
+}
+
 function fig(value, suffix = '') {
   if (value === null || value === undefined || Number.isNaN(value)) return '\u2014';
-  return `${escapeHtml(String(value))}${suffix}`;
+  const display = typeof value === 'number' ? formatCount(value) : String(value);
+  return `${escapeHtml(display)}${suffix}`;
 }
 
 function unofficialCountFromMeta(unofficialMeta) {
   if (!unofficialMeta || typeof unofficialMeta !== 'object') return null;
   if (typeof unofficialMeta.count === 'number' && Number.isFinite(unofficialMeta.count)) return unofficialMeta.count;
+  return null;
+}
+
+function unofficialPlayersFromMeta(unofficialMeta) {
+  if (!unofficialMeta || typeof unofficialMeta !== 'object') return null;
+  if (typeof unofficialMeta.playersOnline === 'number' && Number.isFinite(unofficialMeta.playersOnline)) {
+    return unofficialMeta.playersOnline;
+  }
   return null;
 }
 
@@ -290,23 +308,35 @@ function withSource(filters, source) {
   return source === 'unofficial' ? { ...filters, source: 'unofficial' } : filters;
 }
 
-function renderHeroBand({ counters, rosterMeta, status, unofficialMeta }) {
+function renderHeroBand({ officialCounters, counters, rosterMeta, status, unofficialMeta }) {
+  const officialStats = officialCounters !== undefined ? officialCounters : counters;
   const official =
     status && typeof status.onlineCount === 'number'
       ? status.onlineCount
-      : counters && typeof counters.totalOfficial === 'number'
-        ? counters.totalOfficial
+      : officialStats && typeof officialStats.totalOfficial === 'number'
+        ? officialStats.totalOfficial
         : rosterMeta && rosterMeta.totalOfficial != null
           ? rosterMeta.totalOfficial
           : null;
-  const players = counters && typeof counters.playersOnline === 'number' ? counters.playersOnline : null;
+  const officialPlayers =
+    officialStats && typeof officialStats.playersOnline === 'number' ? officialStats.playersOnline : null;
+  const unofficialCount = unofficialCountFromMeta(unofficialMeta);
+  const unofficialPlayers = unofficialPlayersFromMeta(unofficialMeta);
+  const combined = officialPlayers != null && unofficialPlayers != null;
+  const players = combined ? officialPlayers + unofficialPlayers : officialPlayers;
+  const playerSub = combined
+    ? `<div class="sub">${escapeHtml(formatCount(officialPlayers))} official \u00b7 ${escapeHtml(formatCount(unofficialPlayers))} unofficial</div>`
+    : '';
+  const unofficialCard =
+    unofficialCount != null
+      ? `<div class="hero-stat"><div class="fig num">${fig(unofficialCount)}</div><div class="lbl">Unofficial Servers Tracked</div></div>`
+      : '';
   const uptime = networkUptime24h(status);
   const word = statusWord(status);
   const wordHtml = word
     ? `<a class="fig ${escapeHtml(word.key)}" href="/is-ark-down">${escapeHtml(word.label)}</a>`
     : `<a class="fig" href="/is-ark-down">\u2014</a>`;
 
-  const unofficialCount = unofficialCountFromMeta(unofficialMeta);
   const unofficialBit =
     unofficialCount != null
       ? ` and <strong class="num">${escapeHtml(String(unofficialCount))}</strong> unofficial`
@@ -321,8 +351,9 @@ function renderHeroBand({ counters, rosterMeta, status, unofficialMeta }) {
   return `<section class="hero">
     <div class="hero-stats">
       <div class="hero-stat"><div class="fig num">${fig(official)}</div><div class="lbl">Official Servers Online</div></div>
-      <div class="hero-stat"><div class="fig num">${fig(players)}</div><div class="lbl">Players Online</div></div>
-      <div class="hero-stat"><div class="fig num">${fig(uptime, '%')}</div><div class="lbl">Network Uptime % (24h)</div></div>
+      ${unofficialCard}
+      <div class="hero-stat"><div class="fig num">${fig(players)}</div><div class="lbl">Players Online</div>${playerSub}</div>
+      <div class="hero-stat"><div class="fig num">${fig(uptime, '%')}</div><div class="lbl">Official Uptime % (24h)</div></div>
       <div class="hero-stat">${wordHtml}<div class="lbl">Network Status</div></div>
     </div>
     ${metaLine}
@@ -462,6 +493,7 @@ function renderBrowserBody({
   rosterMeta,
   status,
   unofficialMeta,
+  officialCounters,
   showHero,
   heading = 'Servers',
   intro = '',
@@ -486,7 +518,9 @@ function renderBrowserBody({
   const errorBar = errorText ? `<p class="preset-error">${escapeHtml(errorText)}</p>` : '';
   const presetBar = showPresets ? renderPresetBar({ presets, loggedIn, shareOrigin, currentQuery: query }) : '';
   const saveForm = showPresets ? renderSavePresetForm(query) : '';
-  const hero = showHero ? renderHeroBand({ counters, rosterMeta, status, unofficialMeta }) : '';
+  const hero = showHero
+    ? renderHeroBand({ officialCounters, counters, rosterMeta, status, unofficialMeta })
+    : '';
   const sourceKind = source === 'unofficial' ? 'unofficial' : 'official';
   const toggle = showSourceToggle ? renderSourceToggle({ source: sourceKind, filters: f, sort, dir, basePath }) : '';
   const listIndex = showListIndex ? renderListIndex() : '';
@@ -643,6 +677,8 @@ module.exports = {
   renderBrowserPage,
   renderBrowserBody,
   renderHeroBand,
+  unofficialPlayersFromMeta,
+  formatCount,
   renderPresetBar,
   renderSavePresetForm,
   renderServerRow,

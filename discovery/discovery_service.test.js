@@ -673,6 +673,7 @@ test('GET /unofficial/roster and /unofficial/meta serve the last good fetch', as
   const meta = await metaRes.json();
   assert.equal(metaRes.status, 200);
   assert.equal(meta.count, 2);
+  assert.equal(meta.playersOnline, 12);
   assert.equal(meta.cycles_total, 1);
   assert.equal(meta.lastFetchAt, '2026-08-16T11:00:00.000Z');
   assert.equal(meta.lastFetchStatus, 'ok');
@@ -696,6 +697,7 @@ test('GET /unofficial/roster is 503 before the first good fetch; meta still has 
   const meta = await metaRes.json();
   assert.equal(metaRes.status, 200);
   assert.equal(meta.count, 0);
+  assert.equal(meta.playersOnline, null);
   assert.equal(meta.cycles_total, 0);
   assert.equal(meta.lastFetchAt, null);
   assert.equal(meta.lastFetchStatus, null);
