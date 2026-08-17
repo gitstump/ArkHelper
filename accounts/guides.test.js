@@ -43,12 +43,26 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 4);
+  assert.equal(GUIDE_REGISTRY.length, 5);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
   assert.ok(slugs.includes('settings-performance'));
-  assert.doesNotMatch(JSON.stringify(GUIDE_REGISTRY), /\(coming soon\)/);
+  assert.ok(slugs.includes('breeding-mutations'));
+  const comingSoonNotes = [];
+  for (const g of GUIDE_REGISTRY) {
+    for (const section of g.sections) {
+      for (const block of section.blocks) {
+        if (block.type !== 'links') continue;
+        for (const item of block.items) {
+          if (typeof item.note === 'string' && /\(coming soon\)/.test(item.note)) {
+            comingSoonNotes.push(`${g.slug}:${item.href}`);
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual(comingSoonNotes, ['breeding-mutations:/guides/boss-strategies']);
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
       assert.ok(g[field] != null, `missing ${field} on ${g.slug}`);
@@ -98,6 +112,10 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(settings);
   assert.equal(settings.slug, 'settings-performance');
   assert.equal(settings.shortTitle, 'Settings & Performance');
+  const breeding = resolveGuide('breeding-mutations');
+  assert.ok(breeding);
+  assert.equal(breeding.slug, 'breeding-mutations');
+  assert.equal(breeding.shortTitle, 'Breeding & Mutations');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -244,4 +262,44 @@ test('settings-performance guide ships the brief prose and table verbatim', () =
   assert.equal(links[1].href, '/is-ark-down');
   assert.equal(links[2].href, '/guides/beginners');
   assert.equal(links[2].note, 'now that it runs, here is how to survive it');
+});
+
+test('breeding-mutations guide ships the brief prose verbatim', () => {
+  const g = resolveGuide('breeding-mutations');
+  assert.equal(g.title, 'Breeding & Mutations — ARK: Survival Ascended');
+  assert.equal(g.shortTitle, 'Breeding & Mutations');
+  assert.equal(g.lastVerified, '2026-08-16');
+  assert.equal(g.sections.length, 8);
+  assert.equal(g.related.join(','), 'taming,boss-strategies,beginners');
+  assert.equal(
+    g.description,
+    'From first egg to a bred line: the breeding loop, imprinting, how inheritance works, and what mutations really are — without the spreadsheet.'
+  );
+  assert.equal(
+    g.sections[0].blocks[0].text,
+    'A wild tame is a lottery ticket you already scratched; a bred creature is a design. Breeding lets you combine the best qualities of two parents, raise the baby under your protection, and imprint it to fight harder for you specifically. It is how tribes produce the animals that clear bosses and win wars — and it is the longest time investment in the game, so check the current breeding and maturation rates before you start a line. A bonus-rate weekend can compress days of raising into an evening.'
+  );
+  const rates = g.sections[0].blocks.find((b) => b.type === 'links').items[0];
+  assert.equal(rates.href, '/rates');
+  assert.equal(rates.note, 'maturation and imprint multipliers decide your calendar');
+  const callout = g.sections[1].blocks.find((b) => b.type === 'callout');
+  assert.equal(
+    callout.text,
+    'The first hour after hatching is the commitment. Clear your schedule before you clear the incubation.'
+  );
+  assert.equal(g.sections[3].heading, 'Inheritance: each stat flips its own coin');
+  const list = g.sections[3].blocks.find((b) => b.type === 'list');
+  assert.deepEqual(list.items, [
+    'Tame widely first: wild stats are the raw material of a line.',
+    'Track which parent carries which prize stat before pairing.',
+    'Keep the best offspring as breeders; the rest are boss fodder.',
+  ]);
+  assert.equal(g.sections[6].heading, "When is a line 'done'?");
+  const links = g.sections[7].blocks.find((b) => b.type === 'links').items;
+  assert.equal(links[0].href, '/guides/taming');
+  assert.equal(links[0].note, 'every line starts with wild-caught parents');
+  assert.equal(links[1].href, '/guides/boss-strategies');
+  assert.equal(links[1].note, 'what all this breeding is for (coming soon)');
+  assert.equal(links[2].href, '/rates');
+  assert.equal(links[2].note, 'time any serious hatch around the multipliers');
 });

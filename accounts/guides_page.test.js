@@ -49,6 +49,17 @@ const SETTINGS_HEADINGS = [
   'Where to go next',
 ];
 
+const BREEDING_HEADINGS = [
+  'Why breed at all',
+  'The loop: pair, wait, raise, repeat',
+  'Imprinting: raising it yourself pays',
+  'Inheritance: each stat flips its own coin',
+  'Mutations: rare, random, and stacked with care',
+  'Logistics: the part that actually defeats people',
+  "When is a line 'done'?",
+  'Where to go next',
+];
+
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -71,7 +82,10 @@ test('renderGuidesIndexPage lists the beginners card with a link and last-verifi
   assert.match(html, /href="\/guides\/settings-performance"/);
   assert.match(html, /Settings &amp; Performance/);
   assert.match(html, /Getting playable performance out of ASA/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 4);
+  assert.match(html, /href="\/guides\/breeding-mutations"/);
+  assert.match(html, /Breeding &amp; Mutations/);
+  assert.match(html, /From first egg to a bred line/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 5);
 });
 
 test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped content', () => {
@@ -162,6 +176,25 @@ test('renderGuidePage renders the settings-performance guide h1, 8 headings, tab
   assert.doesNotMatch(html, /\(coming soon\)/);
 });
 
+test('renderGuidePage renders the breeding-mutations guide h1, 8 headings, and callout', () => {
+  const html = renderGuidePage({ guide: resolveGuide('breeding-mutations') });
+  assert.match(html, /<h1>Breeding &amp; Mutations \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /Last verified 2026-08-16/);
+  for (const heading of BREEDING_HEADINGS) {
+    const htmlHeading = heading.replace(/'/g, '&#39;');
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(htmlHeading)}</h2>`));
+  }
+  assert.match(html, /class="callout"/);
+  assert.match(
+    html,
+    /The first hour after hatching is the commitment. Clear your schedule before you clear the incubation./
+  );
+  assert.match(html, /href="\/rates"/);
+  assert.match(html, /href="\/guides\/taming"/);
+  assert.match(html, /every line starts with wild-caught parents/);
+  assert.match(html, /what all this breeding is for \(coming soon\)/);
+});
+
 test('renderGuidePage table cells and caption are escaped; first column is th scope=row', () => {
   const html = renderGuidePage({
     guide: {
@@ -210,8 +243,18 @@ test('related footer with unknown slugs renders without error and omits missing 
   const tamingRelated = tamingHtml.match(/class="guide-related"[\s\S]*?<\/nav>/);
   assert.ok(tamingRelated);
   assert.match(tamingRelated[0], /href="\/guides\/beginners"/);
+  assert.match(tamingRelated[0], /href="\/guides\/breeding-mutations"/);
   assert.match(tamingRelated[0], /href="\/guides\/resource-locations"/);
-  assert.doesNotMatch(tamingRelated[0], /breeding-mutations/);
+  assert.equal((tamingRelated[0].match(/href="\/guides\//g) || []).length, 3);
+
+  const breedingHtml = renderGuidePage({ guide: resolveGuide('breeding-mutations') });
+  assert.match(breedingHtml, /Related guides/);
+  const breedingRelated = breedingHtml.match(/class="guide-related"[\s\S]*?<\/nav>/);
+  assert.ok(breedingRelated);
+  assert.match(breedingRelated[0], /href="\/guides\/taming"/);
+  assert.match(breedingRelated[0], /href="\/guides\/beginners"/);
+  assert.doesNotMatch(breedingRelated[0], /boss-strategies/);
+  assert.equal((breedingRelated[0].match(/href="\/guides\//g) || []).length, 2);
 
   const resourceHtml = renderGuidePage({ guide: resolveGuide('resource-locations') });
   assert.match(resourceHtml, /Related guides/);
@@ -246,5 +289,6 @@ test('renderGuideNotFoundPage is a shell-wrapped 404 that escapes the slug and l
   assert.match(html, /href="\/guides\/taming"/);
   assert.match(html, /href="\/guides\/resource-locations"/);
   assert.match(html, /href="\/guides\/settings-performance"/);
+  assert.match(html, /href="\/guides\/breeding-mutations"/);
   assert.match(html, /href="\/guides"/);
 });

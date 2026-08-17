@@ -2501,7 +2501,8 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(html, /href="\/guides\/taming"/);
   assert.match(html, /href="\/guides\/resource-locations"/);
   assert.match(html, /href="\/guides\/settings-performance"/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 4);
+  assert.match(html, /href="\/guides\/breeding-mutations"/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 5);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();
@@ -2554,6 +2555,7 @@ test('GET /guides/taming renders the guide h1', async () => {
   assert.match(html, /href="\/rates"/);
   assert.match(html, /The most common taming failure is not the animal waking up/);
   assert.match(html, /where your new hauler earns its keep/);
+  assert.match(html, /href="\/guides\/breeding-mutations"/);
   assert.doesNotMatch(html, /\(coming soon\)/);
 
   server.close();
@@ -2605,6 +2607,39 @@ test('GET /guides/settings-performance renders the guide h1', async () => {
   assert.match(html, /Symptoms to first suspects/);
   assert.match(html, /Choppy alone in a quiet base: your hardware/);
   assert.doesNotMatch(html, /\(coming soon\)/);
+
+  server.close();
+});
+
+test('GET /guides/breeding-mutations renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/breeding-mutations`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Breeding &amp; Mutations \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /Why breed at all/);
+  assert.match(html, /The loop: pair, wait, raise, repeat/);
+  assert.match(html, /Imprinting: raising it yourself pays/);
+  assert.match(html, /Inheritance: each stat flips its own coin/);
+  assert.match(html, /Mutations: rare, random, and stacked with care/);
+  assert.match(html, /Logistics: the part that actually defeats people/);
+  assert.match(html, /When is a line &#39;done&#39;\?/);
+  assert.match(html, /Where to go next/);
+  assert.match(html, /The first hour after hatching is the commitment/);
+  assert.match(html, /class="callout"/);
+  assert.match(html, /href="\/guides\/taming"/);
+  assert.match(html, /href="\/rates"/);
 
   server.close();
 });

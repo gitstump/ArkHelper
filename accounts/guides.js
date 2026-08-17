@@ -483,6 +483,115 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'breeding-mutations',
+    title: 'Breeding & Mutations — ARK: Survival Ascended',
+    shortTitle: 'Breeding & Mutations',
+    description:
+      'From first egg to a bred line: the breeding loop, imprinting, how inheritance works, and what mutations really are — without the spreadsheet.',
+    lastVerified: '2026-08-16',
+    related: ['taming', 'boss-strategies', 'beginners'],
+    sections: [
+      {
+        heading: 'Why breed at all',
+        blocks: [
+          {
+            type: 'p',
+            text: 'A wild tame is a lottery ticket you already scratched; a bred creature is a design. Breeding lets you combine the best qualities of two parents, raise the baby under your protection, and imprint it to fight harder for you specifically. It is how tribes produce the animals that clear bosses and win wars — and it is the longest time investment in the game, so check the current breeding and maturation rates before you start a line. A bonus-rate weekend can compress days of raising into an evening.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/rates', label: 'Current official rates', note: 'maturation and imprint multipliers decide your calendar' },
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'The loop: pair, wait, raise, repeat',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The mechanics are simple to start: two tamed creatures of the same species, opposite sexes, set to mating in close proximity and not on wander duty elsewhere. Egg-layers produce a fertilized egg that needs incubation at the right temperature — too hot or too cold and the egg takes damage instead of progress. Live-bearers carry a gestation instead. Either way the result is a baby that eats constantly, grows through juvenile and adolescent stages, and demands the most attention in exactly its earliest window, when it cannot feed from a trough and will starve fast without hand feeding. Do not start a hatch you cannot babysit.',
+          },
+          {
+            type: 'callout',
+            text: 'The first hour after hatching is the commitment. Clear your schedule before you clear the incubation.',
+          },
+        ],
+      },
+      {
+        heading: 'Imprinting: raising it yourself pays',
+        blocks: [
+          {
+            type: 'p',
+            text: 'While a baby grows, it periodically asks for care — a cuddle, a walk, a particular comfort food. Answering those requests as the same player builds imprint, and a fully imprinted creature is measurably tougher and hits harder when that player rides it. The requests arrive on an interval throughout maturation, which is the real cost of a perfect imprint: presence. Decide up front whether this animal is a personal mount worth the vigil or line stock where imprint matters less, and size your effort accordingly.',
+          },
+        ],
+      },
+      {
+        heading: 'Inheritance: each stat flips its own coin',
+        blocks: [
+          {
+            type: 'p',
+            text: "Every stat on the baby — health, melee, weight, and the rest — is inherited separately, drawn from one parent or the other, with the odds leaning toward the higher parent. That per-stat independence is the entire foundation of selective breeding: pair a father with outstanding health against a mother with outstanding melee, and some offspring will draw both winning cards. Those best-of-both babies become the next generation's parents. A bred line is nothing more than repeating that cull-and-combine loop until one animal carries every stat you care about.",
+          },
+          {
+            type: 'list',
+            items: [
+              'Tame widely first: wild stats are the raw material of a line.',
+              'Track which parent carries which prize stat before pairing.',
+              'Keep the best offspring as breeders; the rest are boss fodder.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Mutations: rare, random, and stacked with care',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Occasionally a baby is born with something neither parent has: a mutation. Each one adds levels to a single random stat, often with a color change as its calling card, and the game tracks them — the ancestry screen shows a mutation counter on each side of the lineage. The catch that organizes all serious breeding: a parent whose counter has hit its cap has effectively stopped producing new mutations, so long-running programs guard a supply of low-counter breeding stock to keep the door open. The standard pattern is one mutated line crossed repeatedly against clean partners, folding each new mutation back into the stack.',
+          },
+          {
+            type: 'p',
+            text: 'None of this needs a spreadsheet to begin. Breed good parents, keep babies that are strictly better, and treat any mutation in a stat you care about as a small lottery win to preserve — the deep optimization can come after the tenth generation, not before the first.',
+          },
+        ],
+      },
+      {
+        heading: 'Logistics: the part that actually defeats people',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Breeding programs fail on food and space before they fail on genetics. Growing babies eat astonishing amounts, so raising means full feeding troughs, a meat or berry pipeline to keep them full, and enough room that a dozen adolescents are not clipping through your walls. Air conditioning or careful biome choice handles egg temperatures; standing incubation infrastructure beats improvising with campfires every hatch. And name things — two generations in, an unlabeled pen of identical creatures is an unsearchable database of your own making.',
+          },
+        ],
+      },
+      {
+        heading: "When is a line 'done'?",
+        blocks: [
+          {
+            type: 'p',
+            text: 'It is not, and accepting that early saves grief. A line is good enough when it does its job: clears the boss tier you are targeting, hauls what you need hauled, wins the fights you pick. Chasing a perfect specimen is a hobby in itself — a fine one, but distinct from playing the rest of the game. Set a concrete goal for the line, reach it, and let the program rest until the goal changes. The best breeders ship.',
+          },
+        ],
+      },
+      {
+        heading: 'Where to go next',
+        blocks: [
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/taming', label: 'Taming guide', note: 'every line starts with wild-caught parents' },
+              { href: '/guides/boss-strategies', label: 'Boss strategies', note: 'what all this breeding is for (coming soon)' },
+              { href: '/rates', label: 'Official rates', note: 'time any serious hatch around the multipliers' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));
