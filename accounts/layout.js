@@ -59,6 +59,7 @@ const NAV = [
     match: ['/rankings', '/stats', '/leaderboards', '/is-ark-down', '/status', '/rates', '/news'],
     children: STATS_NAV,
   },
+  { href: '/guides', label: 'Guides', match: ['/guides'] },
   { href: '/favorites', label: 'Favorites', match: ['/favorites'] },
 ];
 
@@ -125,6 +126,7 @@ function renderFooter(live) {
         <ul>
           <li><a href="/servers">Browser</a></li>
           <li><a href="/maps">Maps</a></li>
+          <li><a href="/guides">Guides</a></li>
           ${listItems}
           ${statsItems}
           <li><a href="/favorites">Favorites</a></li>

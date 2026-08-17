@@ -311,6 +311,10 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/servers/:id'));
   assert.ok(body.routes.includes('/servers/:id/badge.svg'));
   assert.ok(body.routes.includes('/lists/:slug'));
+  assert.ok(body.routes.includes('/maps'));
+  assert.ok(body.routes.includes('/maps/:slug'));
+  assert.ok(body.routes.includes('/guides'));
+  assert.ok(body.routes.includes('/guides/:slug'));
   assert.ok(body.routes.includes('/rankings'));
   assert.ok(body.routes.includes('/favorites'));
   assert.ok(body.routes.includes('/alerts/:id'));
@@ -2470,6 +2474,71 @@ test('GET /maps degrades when the roster is unreachable', async () => {
   const html = await res.text();
   assert.equal(res.status, 200);
   assert.match(html, /isn't available right now/);
+
+  server.close();
+});
+
+test('GET /guides renders the index as HTML', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<title>Guides \u2014 ArkHelper<\/title>/);
+  assert.match(html, /href="\/guides\/beginners"/);
+  assert.match(html, /href="\/guides">Guides/);
+
+  server.close();
+});
+
+test('GET /guides/beginners renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/beginners`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Beginner&#39;s Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+
+  server.close();
+});
+
+test('GET /guides/nope returns 404 HTML', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/nope`);
+  const html = await res.text();
+  assert.equal(res.status, 404);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /Guide not found/);
+  assert.match(html, /nope/);
+  assert.match(html, /href="\/guides"/);
 
   server.close();
 });

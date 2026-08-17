@@ -23,6 +23,8 @@
  *   GET  /news                   -> launcher news (text and links only)
  *   GET  /maps                   -> official-map index
  *   GET  /maps/:slug             -> per-map telemetry page
+ *   GET  /guides                 -> guides index
+ *   GET  /guides/:slug           -> a single guide
  */
 
 const http = require('http');
@@ -113,6 +115,8 @@ const {
   renderMapPage,
   renderMapNotFoundPage,
 } = require('./maps_page.js');
+const { resolveGuide } = require('./guides.js');
+const { renderGuidesIndexPage, renderGuidePage, renderGuideNotFoundPage } = require('./guides_page.js');
 
 const SESSION_COOKIE = 'ark_session';
 const STATE_COOKIE = 'ark_oauth_state';
@@ -609,6 +613,45 @@ function createAuthServer({
         return;
       }
 
+      if (req.method === 'GET' && (url.pathname === '/guides' || url.pathname.startsWith('/guides/'))) {
+        let slug = url.pathname === '/guides' ? '' : url.pathname.slice('/guides/'.length);
+        try {
+          slug = decodeURIComponent(slug);
+        } catch {
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(renderGuideNotFoundPage({ slug: url.pathname.slice('/guides/'.length), account }));
+          return;
+        }
+        if (slug.includes('/')) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'not found' }));
+          return;
+        }
+
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const live = liveFromRoster(roster);
+
+        if (slug === '') {
+          const body = renderGuidesIndexPage({ account, live });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const guide = resolveGuide(slug);
+        if (!guide) {
+          const body = renderGuideNotFoundPage({ slug, account, live });
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const body = renderGuidePage({ guide, account, live });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
       const listMatch = req.method === 'GET' && url.pathname.match(/^\/lists\/([^/]+)$/);
       if (listMatch) {
         const def = getListDef(listMatch[1]);
@@ -912,7 +955,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));

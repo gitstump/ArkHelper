@@ -47,14 +47,19 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.match(html, /href="\/rates"/);
   assert.match(html, /href="\/news"/);
   assert.match(html, /href="\/favorites"/);
+  assert.match(html, /href="\/guides"/);
   assert.match(html, /class="active" href="\/rankings"/);
   assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
+  assert.match(html, />Guides<\/a>/);
   assert.match(html, />Favorites<\/a>/);
   const serversAt = html.indexOf('>Servers</summary>');
   const mapsAt = html.indexOf('>Maps</summary>');
   const statsAt = html.indexOf('>Stats</summary>');
+  const guidesAt = html.indexOf('>Guides</a>');
+  const favAt = html.indexOf('>Favorites</a>');
   assert.ok(serversAt !== -1 && mapsAt !== -1 && statsAt !== -1);
   assert.ok(serversAt < mapsAt && mapsAt < statsAt);
+  assert.ok(statsAt < guidesAt && guidesAt < favAt);
 });
 
 test('renderNav marks the Maps group active on per-map pages', () => {
@@ -67,6 +72,14 @@ test('renderNav marks the Servers group active on derived list pages', () => {
   const html = renderNav('/lists/low-ping');
   assert.match(html, /<summary class="active">Servers<\/summary>/);
   assert.match(html, /class="active" href="\/lists\/low-ping"/);
+});
+
+test('renderNav marks Guides active on the index and a guide page', () => {
+  const index = renderNav('/guides');
+  assert.match(index, /class="active" href="\/guides"/);
+  const page = renderNav('/guides/beginners');
+  assert.match(page, /class="active" href="\/guides"/);
+  assert.doesNotMatch(page, /<summary class="active">Guides<\/summary>/);
 });
 
 test('pathMatches treats / and /servers as the Servers section, including detail paths', () => {
@@ -104,6 +117,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /Server Tools/);
   assert.match(html, /href="\/servers">Browser/);
   assert.match(html, /href="\/maps">Maps/);
+  assert.match(html, /href="\/guides">Guides/);
   assert.match(html, /href="\/lists\/official-pve">Official PvE/);
   assert.match(html, /href="\/lists\/official-pvp">Official PvP/);
   assert.match(html, /href="\/lists\/low-ping">Low Ping/);
