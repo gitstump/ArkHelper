@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-17 — 681 tests passing — In flight: none
+Last updated: 2026-08-17 — 687 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -20,7 +20,7 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - **Derived server lists** (`/lists/official-pve`, `/lists/official-pvp`, `/lists/low-ping`, `/lists/most-populated`, `/lists/recently-wiped`, `/lists/available-now`) — canonical pre-filtered/pre-sorted views that reuse the browser pipeline. Recently-wiped reads the existing history change log (14-day window). Available-now labels slot counts as observed, not reserved.
 - **Nav** — Servers, Maps, and Stats are CSS `details` dropdowns (hover/focus-within plus tap-to-open); Favorites stays a plain link. All three share `name="mainnav"` so the browser closes one when another opens. An inline script adds outside-click and Escape close; the nav still works with JS off. Maps dropdown lists every registered map (two columns). Stats dropdown: Rankings, Leaderboards, Map Uptime, PvE vs PvP, Regions, Is ARK Down, Rates, News. Footer sitemap includes the Maps index under Server Tools. The ArkHelper wordmark links home (`/`). The footer Project column includes the required MaxMind GeoLite2 attribution.
 - **Maps** (`/maps`, `/maps/:slug`) — index of every map on the live official roster (server count, players online, avg 7-day uptime) plus per-map pages with original one-liners, telemetry (players, online/total, free slots, avg availability), PvE/PvP and platform-badge counts, observed versions, top-10 by rankScore, and currently-unavailable servers. Unknown/future map IDs get a generated slug and raw name instead of 500ing. SEO titles/meta target queries like "ark aberration servers".
-- **Guides** (`/guides`, `/guides/:slug`) — original-prose content track, server-rendered from a static registry. Index is a card grid; complete guides are the Beginner's Guide (server choice, spawn, first hour, bed, stats, first tame), the Taming Guide (knockout and passive methods, torpor, feeding, traps), Resource Locations (terrain-first farming, tools, hauling — no map coordinates), Settings & Performance (presets, upscaling, diagnosing frames vs lag), and Breeding & Mutations (the breeding loop, imprinting, inheritance, and mutations — no calculators or odds tables). Related slugs for unpublished guides are skipped silently. Unknown slugs return a 404 HTML page listing available guides.
+- **Guides** (`/guides`, `/guides/:slug`) — original-prose content track, server-rendered from a static registry. Index is a card grid; the six core guides match arkstatus's index: Beginner's Guide (server choice, spawn, first hour, bed, stats, first tame), Taming Guide (knockout and passive methods, torpor, feeding, traps), Resource Locations (terrain-first farming, tools, hauling — no map coordinates), Settings & Performance (presets, upscaling, diagnosing frames vs lag), Breeding & Mutations (the breeding loop, imprinting, inheritance, and mutations — no calculators or odds tables), and Boss Strategies (summoning, army composition, arena roles, and why preparation is the fight — no health/damage numbers, tribute lists, or loot tables). Related slugs for unpublished guides are skipped silently. Unknown slugs return a 404 HTML page listing available guides.
 - **Filter presets** — named snapshots of the current browser query string. Logged-out: up to 3 in an HttpOnly cookie (~2KB guard). Logged-in: up to 15 in SQLite, cookie presets migrate on login (name collisions skipped), shareable via public `/p/<token>` → `/servers?...` redirects.
 - **Server detail pages** (`/servers/:id`) — full facts (including country name + flag when GeoIP resolved), uptime %, history table, activity log (wipe/version changes), peak-time & downtime heatmaps (inline SVG), embeddable live-status badge (`/servers/:id/badge.svg`) with markdown/HTML snippets.
 - **Favorites** — add/remove per account, `/favorites` page. This is the actual point of having accounts at all — confirmed working end to end.
@@ -30,6 +30,10 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - **Incident detection & status** (`/is-ark-down`, alias `/status`) — each discovery cycle classifies the official network as NORMAL / DEGRADED / OUTAGE / UPDATE_ROLLOUT from roster presence, 24h offline baseline, version-change coverage, and consecutive CDN fetch failures. Incidents persist in the history SQLite (hysteresis: 3 consecutive NORMAL cycles to close). The public page renders the latest stored snapshot (`Cache-Control: public, max-age=30`), not a per-request recompute.
 - **Official rates** (`/rates`) — current multipliers for official / arkpocalypse / smalltribes / conquest from Wildcard's CDN `dynamicconfig.ini` files, a "Bonus rates active" banner when any official multiplier is not 1.0, and a recent change-log table.
 - **Launcher news** (`/news`) — text and outbound links only (no Wildcard imagery; fan-content policy check pending). Titles come from EntryData, else a humanized survivetheark article slug, else a humanized DLC name.
+
+## Future / deferred work
+
+- Remaining guides work: per-map resource and progression fan-outs (the six-guide core index now matches arkstatus: beginner, taming, resources, settings, breeding, bosses)
 
 ## Explicitly paused (not forgotten, not blocking)
 
@@ -43,7 +47,6 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - Mod-adoption aggregation — confirmed to be data-engineering, not writing, when researched; still unbuilt
 - Public API docs, theme toggle (dark-only currently), i18n (English-only)
 - Unofficial server tracking — Phase A (aggregate + browser filter) is built; per-cycle history, rankings/leaderboards/incidents/maps inclusion, favoriting, detail pages, GeoIP, and alerting are still out
-- Guides content — Beginner's Guide, Taming Guide, Resource Locations, Settings & Performance, and Breeding & Mutations are live; remaining planned work is per-map guide pages
 
 ## Production deployment
 

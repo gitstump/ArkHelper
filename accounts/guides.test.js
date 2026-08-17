@@ -43,26 +43,13 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 5);
+  assert.equal(GUIDE_REGISTRY.length, 6);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
   assert.ok(slugs.includes('settings-performance'));
   assert.ok(slugs.includes('breeding-mutations'));
-  const comingSoonNotes = [];
-  for (const g of GUIDE_REGISTRY) {
-    for (const section of g.sections) {
-      for (const block of section.blocks) {
-        if (block.type !== 'links') continue;
-        for (const item of block.items) {
-          if (typeof item.note === 'string' && /\(coming soon\)/.test(item.note)) {
-            comingSoonNotes.push(`${g.slug}:${item.href}`);
-          }
-        }
-      }
-    }
-  }
-  assert.deepEqual(comingSoonNotes, ['breeding-mutations:/guides/boss-strategies']);
+  assert.ok(slugs.includes('boss-strategies'));
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
       assert.ok(g[field] != null, `missing ${field} on ${g.slug}`);
@@ -116,6 +103,10 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(breeding);
   assert.equal(breeding.slug, 'breeding-mutations');
   assert.equal(breeding.shortTitle, 'Breeding & Mutations');
+  const bosses = resolveGuide('boss-strategies');
+  assert.ok(bosses);
+  assert.equal(bosses.slug, 'boss-strategies');
+  assert.equal(bosses.shortTitle, 'Boss Strategies');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -299,7 +290,100 @@ test('breeding-mutations guide ships the brief prose verbatim', () => {
   assert.equal(links[0].href, '/guides/taming');
   assert.equal(links[0].note, 'every line starts with wild-caught parents');
   assert.equal(links[1].href, '/guides/boss-strategies');
-  assert.equal(links[1].note, 'what all this breeding is for (coming soon)');
+  assert.equal(links[1].note, 'what all this breeding is for');
   assert.equal(links[2].href, '/rates');
   assert.equal(links[2].note, 'time any serious hatch around the multipliers');
+});
+
+function isUnpublishedGuideHref(href, liveSlugs) {
+  if (typeof href !== 'string') return false;
+  const match = /^\/guides\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(href);
+  return Boolean(match && !liveSlugs.has(match[1]));
+}
+
+test('coming-soon notes are allowed iff they point at an unpublished /guides slug', () => {
+  const liveSlugs = new Set(GUIDE_REGISTRY.map((g) => g.slug));
+
+  assert.equal(isUnpublishedGuideHref('/guides/beginners', liveSlugs), false);
+  assert.equal(isUnpublishedGuideHref('/guides/boss-strategies', liveSlugs), false);
+  assert.equal(isUnpublishedGuideHref('/guides/not-yet-a-guide', liveSlugs), true);
+  assert.equal(isUnpublishedGuideHref('/maps', liveSlugs), false);
+  assert.equal(isUnpublishedGuideHref('/rates', liveSlugs), false);
+  assert.equal(isUnpublishedGuideHref('/guides/', liveSlugs), false);
+
+  const comingSoonOnLive = [];
+  const comingSoonViolations = [];
+  for (const g of GUIDE_REGISTRY) {
+    for (const section of g.sections) {
+      for (const block of section.blocks) {
+        if (block.type !== 'links') continue;
+        for (const item of block.items) {
+          if (typeof item.note !== 'string' || !/\(coming soon\)/.test(item.note)) continue;
+          const slugMatch = typeof item.href === 'string' ? /^\/guides\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(item.href) : null;
+          if (slugMatch && liveSlugs.has(slugMatch[1])) {
+            comingSoonOnLive.push(`${g.slug}:${item.href}`);
+          }
+          if (!isUnpublishedGuideHref(item.href, liveSlugs)) {
+            comingSoonViolations.push(`${g.slug}:${item.href}`);
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual(comingSoonOnLive, [], 'coming-soon note must not point at a live slug');
+  assert.deepEqual(comingSoonViolations, [], 'coming-soon is allowed only on unpublished /guides/<slug>');
+});
+
+test('every related slug across the registry resolves to a live guide', () => {
+  for (const g of GUIDE_REGISTRY) {
+    assert.ok(Array.isArray(g.related));
+    for (const slug of g.related) {
+      assert.ok(resolveGuide(slug), `related slug ${slug} on ${g.slug} does not resolve`);
+    }
+  }
+});
+
+test('boss-strategies guide ships the brief prose verbatim', () => {
+  const g = resolveGuide('boss-strategies');
+  assert.equal(g.title, 'Boss Strategies — ARK: Survival Ascended');
+  assert.equal(g.shortTitle, 'Boss Strategies');
+  assert.equal(g.lastVerified, '2026-08-16');
+  assert.equal(g.sections.length, 8);
+  assert.equal(g.related.join(','), 'breeding-mutations,taming,resource-locations');
+  assert.equal(
+    g.description,
+    "Preparing for and surviving ARK's boss arenas: the summoning ritual, army composition, fight roles, and why the preparation is the fight."
+  );
+  assert.equal(
+    g.sections[0].blocks[0].text,
+    "ARK's bosses are the exam at the end of the course. The arena itself lasts minutes; everything that decides it — the bred creatures, the imprints, the saddles, the gear — happened at your base over the preceding weeks. If a boss attempt fails, the lesson is almost never 'fight better.' It is that the army was underbred, the saddles were thin, or the team walked in unrehearsed. This guide is mostly about the weeks, because the weeks are the fight."
+  );
+  const callout = g.sections[0].blocks.find((b) => b.type === 'callout');
+  assert.equal(
+    callout.text,
+    'You do not lose a boss fight in the arena. You lose it in the breeding pen, and the arena delivers the news.'
+  );
+  assert.equal(g.sections[1].heading, 'How a fight actually happens');
+  assert.equal(g.sections[2].heading, 'Choose your tier honestly');
+  assert.equal(g.sections[3].heading, 'The army: bred, imprinted, and saddled');
+  const list = g.sections[3].blocks.find((b) => b.type === 'list');
+  assert.deepEqual(list.items, [
+    'Health and melee win arenas; hauling stats stay home.',
+    'Imprint to the rider who will actually be in the arena.',
+    'Farm and craft for saddle quality like the fight depends on it, because it does.',
+  ]);
+  assert.equal(g.sections[4].heading, 'Roles in the arena');
+  assert.equal(g.sections[5].heading, 'Gear for the minutes that matter');
+  assert.equal(g.sections[6].heading, 'After the victory');
+  assert.equal(
+    g.sections[6].blocks[0].text,
+    "A won fight pays in three currencies: element, the endgame resource that powers the technology tier; engrams, unlocking that tier's crafting; and progression toward the map's ascension — the story climb that raises your level ceiling and leads to the next chapter. Element is why boss fights become routine rather than milestones: the technology it powers is consumed with use, so the arena becomes a farm. That is the endgame loop — breed, fight, spend, repeat — and it is exactly why the breeding guide ends with 'the best breeders ship.'"
+  );
+  const links = g.sections[7].blocks.find((b) => b.type === 'links').items;
+  assert.equal(links[0].href, '/guides/breeding-mutations');
+  assert.equal(links[0].note, 'the army does not tame itself into existence');
+  assert.equal(links[1].href, '/maps');
+  assert.equal(links[1].note, 'pick the map whose endgame you are gearing for');
+  assert.equal(links[2].href, '/rates');
+  assert.equal(links[2].note, 'breed and farm the army on the right weekend');
 });

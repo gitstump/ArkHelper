@@ -2502,7 +2502,8 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(html, /href="\/guides\/resource-locations"/);
   assert.match(html, /href="\/guides\/settings-performance"/);
   assert.match(html, /href="\/guides\/breeding-mutations"/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 5);
+  assert.match(html, /href="\/guides\/boss-strategies"/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 6);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();
@@ -2639,7 +2640,44 @@ test('GET /guides/breeding-mutations renders the guide h1', async () => {
   assert.match(html, /The first hour after hatching is the commitment/);
   assert.match(html, /class="callout"/);
   assert.match(html, /href="\/guides\/taming"/);
+  assert.match(html, /href="\/guides\/boss-strategies"/);
   assert.match(html, /href="\/rates"/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
+
+  server.close();
+});
+
+test('GET /guides/boss-strategies renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/boss-strategies`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Boss Strategies \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /The boss fight starts weeks earlier/);
+  assert.match(html, /How a fight actually happens/);
+  assert.match(html, /Choose your tier honestly/);
+  assert.match(html, /The army: bred, imprinted, and saddled/);
+  assert.match(html, /Roles in the arena/);
+  assert.match(html, /Gear for the minutes that matter/);
+  assert.match(html, /After the victory/);
+  assert.match(html, /Where to go next/);
+  assert.match(html, /You do not lose a boss fight in the arena/);
+  assert.match(html, /class="callout"/);
+  assert.match(html, /href="\/guides\/breeding-mutations"/);
+  assert.match(html, /href="\/maps"/);
+  assert.match(html, /href="\/rates"/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
 
   server.close();
 });

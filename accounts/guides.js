@@ -584,8 +584,107 @@ const GUIDE_REGISTRY = [
             type: 'links',
             items: [
               { href: '/guides/taming', label: 'Taming guide', note: 'every line starts with wild-caught parents' },
-              { href: '/guides/boss-strategies', label: 'Boss strategies', note: 'what all this breeding is for (coming soon)' },
+              { href: '/guides/boss-strategies', label: 'Boss strategies', note: 'what all this breeding is for' },
               { href: '/rates', label: 'Official rates', note: 'time any serious hatch around the multipliers' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'boss-strategies',
+    title: 'Boss Strategies — ARK: Survival Ascended',
+    shortTitle: 'Boss Strategies',
+    description:
+      "Preparing for and surviving ARK's boss arenas: the summoning ritual, army composition, fight roles, and why the preparation is the fight.",
+    lastVerified: '2026-08-16',
+    related: ['breeding-mutations', 'taming', 'resource-locations'],
+    sections: [
+      {
+        heading: 'The boss fight starts weeks earlier',
+        blocks: [
+          {
+            type: 'p',
+            text: "ARK's bosses are the exam at the end of the course. The arena itself lasts minutes; everything that decides it — the bred creatures, the imprints, the saddles, the gear — happened at your base over the preceding weeks. If a boss attempt fails, the lesson is almost never 'fight better.' It is that the army was underbred, the saddles were thin, or the team walked in unrehearsed. This guide is mostly about the weeks, because the weeks are the fight.",
+          },
+          {
+            type: 'callout',
+            text: 'You do not lose a boss fight in the arena. You lose it in the breeding pen, and the arena delivers the news.',
+          },
+        ],
+      },
+      {
+        heading: 'How a fight actually happens',
+        blocks: [
+          {
+            type: 'p',
+            text: "Each map's endgame runs through summoning terminals — at obelisks and certain other fixed structures — where you offer up the required tributes to open a fight. The map's exploration rewards, the trophies taken from formidable wild creatures, and the artifacts recovered from its hardest caves are the currency; gathering them is a campaign of its own and a decent dress rehearsal for the arena. Activating the summon teleports you and the creatures standing near you into a sealed arena with a timer. There is no retreating to resupply: whatever and whomever crossed the threshold is the entire plan.",
+          },
+        ],
+      },
+      {
+        heading: 'Choose your tier honestly',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Bosses come in ascending difficulty tiers, and the tiers are not a formality — each step up is a substantially harder version of the same fight, with rewards to match. The honest move is to clear the lowest tier first, treat it as reconnaissance with pay, and let the performance of your army there tell you whether the next tier is a plan or a donation. Wiping a bred army on an overambitious attempt sets a tribe back further than any patient ladder-climb ever would.',
+          },
+        ],
+      },
+      {
+        heading: 'The army: bred, imprinted, and saddled',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The backbone of most boss armies is a line of bred creatures with concentrated health and melee — the direct product of the breeding loop — imprinted to the player who will lead them, and wearing the best saddles your smithy can produce. Saddle armor is the quiet variable that decides fights: it reduces every hit every creature takes for the entire arena, and a strong saddle blueprint is worth more than another dozen levels of stats. Alongside the frontline, most compositions carry a support creature whose buff strengthens nearby allies — the classic edge that turns a close fight comfortable.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Health and melee win arenas; hauling stats stay home.',
+              'Imprint to the rider who will actually be in the arena.',
+              'Farm and craft for saddle quality like the fight depends on it, because it does.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Roles in the arena',
+        blocks: [
+          {
+            type: 'p',
+            text: "A boss team is small enough that everyone's job matters. The rider on the sturdiest mount takes and holds the boss's attention and keeps it pointed away from the pack. The rest of the riders bring the damage, hitting from the flanks. Whistle commands are the steering wheel for the unridden army — practice moving the pack as a group before the day, because the arena is a terrible classroom. Some fights add waves of lesser creatures or hazards that punish tunnel vision; someone must own the job of watching for them while everyone else watches the boss.",
+          },
+        ],
+      },
+      {
+        heading: 'Gear for the minutes that matter',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Riders die in arenas more often than mounts do. Bring the best armor you can craft, food and brews to keep yourself standing, and a ranged weapon for the phases where dismounting or losing your mount forces plan B. Cold, heat, or other environmental pressure inside some arenas can add a layer the boss itself never mentions — dress for the venue, not just the fight. And carry nothing you fear losing: arenas are where optimistic inventories go to be donated.',
+          },
+        ],
+      },
+      {
+        heading: 'After the victory',
+        blocks: [
+          {
+            type: 'p',
+            text: "A won fight pays in three currencies: element, the endgame resource that powers the technology tier; engrams, unlocking that tier's crafting; and progression toward the map's ascension — the story climb that raises your level ceiling and leads to the next chapter. Element is why boss fights become routine rather than milestones: the technology it powers is consumed with use, so the arena becomes a farm. That is the endgame loop — breed, fight, spend, repeat — and it is exactly why the breeding guide ends with 'the best breeders ship.'",
+          },
+        ],
+      },
+      {
+        heading: 'Where to go next',
+        blocks: [
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/breeding-mutations', label: 'Breeding & Mutations', note: 'the army does not tame itself into existence' },
+              { href: '/maps', label: 'Map hubs', note: 'pick the map whose endgame you are gearing for' },
+              { href: '/rates', label: 'Official rates', note: 'breed and farm the army on the right weekend' },
             ],
           },
         ],

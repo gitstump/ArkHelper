@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveGuide } = require('./guides.js');
+const { GUIDE_REGISTRY, resolveGuide } = require('./guides.js');
 const { renderGuidesIndexPage, renderGuidePage, renderGuideNotFoundPage } = require('./guides_page.js');
 
 const SECTION_HEADINGS = [
@@ -60,6 +60,17 @@ const BREEDING_HEADINGS = [
   'Where to go next',
 ];
 
+const BOSS_HEADINGS = [
+  'The boss fight starts weeks earlier',
+  'How a fight actually happens',
+  'Choose your tier honestly',
+  'The army: bred, imprinted, and saddled',
+  'Roles in the arena',
+  'Gear for the minutes that matter',
+  'After the victory',
+  'Where to go next',
+];
+
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -85,7 +96,10 @@ test('renderGuidesIndexPage lists the beginners card with a link and last-verifi
   assert.match(html, /href="\/guides\/breeding-mutations"/);
   assert.match(html, /Breeding &amp; Mutations/);
   assert.match(html, /From first egg to a bred line/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 5);
+  assert.match(html, /href="\/guides\/boss-strategies"/);
+  assert.match(html, /Boss Strategies/);
+  assert.match(html, /Preparing for and surviving ARK&#39;s boss arenas/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 6);
 });
 
 test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped content', () => {
@@ -192,7 +206,27 @@ test('renderGuidePage renders the breeding-mutations guide h1, 8 headings, and c
   assert.match(html, /href="\/rates"/);
   assert.match(html, /href="\/guides\/taming"/);
   assert.match(html, /every line starts with wild-caught parents/);
-  assert.match(html, /what all this breeding is for \(coming soon\)/);
+  assert.match(html, /what all this breeding is for/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
+});
+
+test('renderGuidePage renders the boss-strategies guide h1, 8 headings, and callout', () => {
+  const html = renderGuidePage({ guide: resolveGuide('boss-strategies') });
+  assert.match(html, /<h1>Boss Strategies \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /Last verified 2026-08-16/);
+  for (const heading of BOSS_HEADINGS) {
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(heading)}</h2>`));
+  }
+  assert.match(html, /class="callout"/);
+  assert.match(
+    html,
+    /You do not lose a boss fight in the arena. You lose it in the breeding pen, and the arena delivers the news./
+  );
+  assert.match(html, /href="\/guides\/breeding-mutations"/);
+  assert.match(html, /the army does not tame itself into existence/);
+  assert.match(html, /href="\/maps"/);
+  assert.match(html, /href="\/rates"/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
 });
 
 test('renderGuidePage table cells and caption are escaped; first column is th scope=row', () => {
@@ -228,6 +262,23 @@ test('renderGuidePage table cells and caption are escaped; first column is th sc
   assert.doesNotMatch(html, /<script>x<\/script>/);
 });
 
+test('every related list across the registry fully resolves in the footer', () => {
+  assert.equal(GUIDE_REGISTRY.length, 6);
+  for (const g of GUIDE_REGISTRY) {
+    const html = renderGuidePage({ guide: g });
+    const related = html.match(/class="guide-related"[\s\S]*?<\/nav>/);
+    assert.ok(related, `missing related footer on ${g.slug}`);
+    for (const slug of g.related) {
+      assert.match(related[0], new RegExp(`href="/guides/${slug}"`));
+    }
+    assert.equal(
+      (related[0].match(/href="\/guides\//g) || []).length,
+      g.related.length,
+      `silently-skipped related slug on ${g.slug}`
+    );
+  }
+});
+
 test('related footer with unknown slugs renders without error and omits missing guides', () => {
   const html = renderGuidePage({ guide: resolveGuide('beginners') });
   assert.match(html, /Related guides/);
@@ -253,8 +304,8 @@ test('related footer with unknown slugs renders without error and omits missing 
   assert.ok(breedingRelated);
   assert.match(breedingRelated[0], /href="\/guides\/taming"/);
   assert.match(breedingRelated[0], /href="\/guides\/beginners"/);
-  assert.doesNotMatch(breedingRelated[0], /boss-strategies/);
-  assert.equal((breedingRelated[0].match(/href="\/guides\//g) || []).length, 2);
+  assert.match(breedingRelated[0], /href="\/guides\/boss-strategies"/);
+  assert.equal((breedingRelated[0].match(/href="\/guides\//g) || []).length, 3);
 
   const resourceHtml = renderGuidePage({ guide: resolveGuide('resource-locations') });
   assert.match(resourceHtml, /Related guides/);
@@ -262,7 +313,17 @@ test('related footer with unknown slugs renders without error and omits missing 
   assert.ok(resourceRelated);
   assert.match(resourceRelated[0], /href="\/guides\/taming"/);
   assert.match(resourceRelated[0], /href="\/guides\/beginners"/);
-  assert.doesNotMatch(resourceRelated[0], /boss-strategies/);
+  assert.match(resourceRelated[0], /href="\/guides\/boss-strategies"/);
+  assert.equal((resourceRelated[0].match(/href="\/guides\//g) || []).length, 3);
+
+  const bossHtml = renderGuidePage({ guide: resolveGuide('boss-strategies') });
+  assert.match(bossHtml, /Related guides/);
+  const bossRelated = bossHtml.match(/class="guide-related"[\s\S]*?<\/nav>/);
+  assert.ok(bossRelated);
+  assert.match(bossRelated[0], /href="\/guides\/breeding-mutations"/);
+  assert.match(bossRelated[0], /href="\/guides\/taming"/);
+  assert.match(bossRelated[0], /href="\/guides\/resource-locations"/);
+  assert.equal((bossRelated[0].match(/href="\/guides\//g) || []).length, 3);
 
   const withKnown = renderGuidePage({
     guide: {
@@ -290,5 +351,6 @@ test('renderGuideNotFoundPage is a shell-wrapped 404 that escapes the slug and l
   assert.match(html, /href="\/guides\/resource-locations"/);
   assert.match(html, /href="\/guides\/settings-performance"/);
   assert.match(html, /href="\/guides\/breeding-mutations"/);
+  assert.match(html, /href="\/guides\/boss-strategies"/);
   assert.match(html, /href="\/guides"/);
 });
