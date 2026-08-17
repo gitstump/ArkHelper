@@ -20,6 +20,7 @@ const { renderPeakTimesHeatmap, renderDowntimeHeatmap, hasAnyData } = require('.
 const { buildEmbedSnippets } = require('./badge.js');
 const { platformBadge } = require('./server_browser.js');
 const { flagEmoji, countryDisplayName, normalizeCountryCode } = require('./country.js');
+const { siteOrigin } = require('./origin.js');
 
 const PAGE_CSS = `
 .facts td:first-child { color: var(--muted); width: 40%; }
@@ -58,7 +59,7 @@ function renderRosterUnavailablePage({ account = null, live = null } = {}) {
   });
 }
 
-function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, peakTimes, downtimePatterns, badgeUrl, account = null, live = null }) {
+function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, peakTimes, downtimePatterns, badgeUrl, account = null, live = null, origin } = {}) {
   const modList = server.modIds && server.modIds.length ? server.modIds.map((id) => escapeHtml(id)).join(', ') : 'None (vanilla server)';
 
   const favoriteSection = !loggedIn
@@ -125,7 +126,9 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
 
   const embedSection = badgeUrl
     ? (() => {
-        const snippets = buildEmbedSnippets(badgeUrl, `/servers/${encodeURIComponent(server.id)}`);
+        const base = siteOrigin(origin);
+        const pageUrl = `${base}/servers/${encodeURIComponent(server.id)}`;
+        const snippets = buildEmbedSnippets(`${pageUrl}/badge.svg`, pageUrl);
         return `<p><img src="${escapeHtml(badgeUrl)}" alt="Live status badge"></p>
         <p class="note">Markdown:</p><div class="embed-box">${escapeHtml(snippets.markdown)}</div>
         <p class="note">HTML:</p><div class="embed-box">${escapeHtml(snippets.html)}</div>`;

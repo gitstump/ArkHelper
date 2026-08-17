@@ -17,7 +17,8 @@ const {
   listAlertServerStates,
   persistAlertCycle,
 } = require('./db.js');
-const { dispatchPending, DEFAULT_ORIGIN } = require('./alert_dispatch.js');
+const { dispatchPending } = require('./alert_dispatch.js');
+const { siteOrigin } = require('./origin.js');
 
 const ALERT_COOLDOWN_MS = 10 * 60 * 1000;
 const STATUS_CONFIRM_COUNT = 2;
@@ -265,7 +266,7 @@ async function runAlertCycle({
   nameCache = new Map(),
   log = console,
   postFn,
-  origin = process.env.SITE_ORIGIN || DEFAULT_ORIGIN,
+  origin = siteOrigin(),
 } = {}) {
   let roster;
   try {
@@ -304,7 +305,7 @@ function startAlertEngine({
   runImmediately = true,
   log = console,
   postFn,
-  origin = process.env.SITE_ORIGIN || DEFAULT_ORIGIN,
+  origin = siteOrigin(),
 } = {}) {
   if (!db) throw new Error('startAlertEngine: db is required');
   if (typeof fetchRoster !== 'function') throw new Error('startAlertEngine: fetchRoster is required');

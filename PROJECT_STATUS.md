@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-17 — 753 tests passing — In flight: none
+Last updated: 2026-08-17 — 758 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 

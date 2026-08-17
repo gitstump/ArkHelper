@@ -1074,6 +1074,7 @@ async function main() {
   const { openDb } = require('./db.js');
   const { fetchJsonSafe } = require('./local_fetch.js');
   const { startAlertEngine, isAlertsEngineEnabled } = require('./alert_engine.js');
+  const { siteOrigin } = require('./origin.js');
   const clientId = process.env.DISCORD_CLIENT_ID;
   const clientSecret = process.env.DISCORD_CLIENT_SECRET;
   const port = Number(process.env.AUTH_PORT || 8793);
@@ -1093,7 +1094,7 @@ async function main() {
     alertEngine = startAlertEngine({
       db,
       fetchRoster: () => fetchJsonSafe('http://localhost:8792/roster'),
-      origin: process.env.SITE_ORIGIN || 'https://arkhelper.info',
+      origin: siteOrigin(),
     });
   }
   server.listen(port, () => {

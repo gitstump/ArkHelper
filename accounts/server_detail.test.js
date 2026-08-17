@@ -297,3 +297,48 @@ test('renderServerDetailPage renders the embed image and markdown/HTML snippets 
   assert.match(html, /!\[ArkHelper status\]/);
   assert.match(html, /HTML:/);
 });
+
+function snippetBoxes(html) {
+  return [...html.matchAll(/<div class="embed-box">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
+}
+
+test('embed snippets use the absolute site origin in all four URL positions', () => {
+  const html = renderServerDetailPage({
+    server: makeServer(),
+    uptime: null,
+    history: [],
+    badgeUrl: '/servers/abc123/badge.svg',
+  });
+  const boxes = snippetBoxes(html);
+  assert.equal(boxes.length, 2);
+  const [markdown, htmlSnippet] = boxes;
+  assert.match(markdown, /!\[ArkHelper status\]\(https:\/\/arkhelper\.info\/servers\/abc123\/badge\.svg\)/);
+  assert.match(markdown, /\]\(https:\/\/arkhelper\.info\/servers\/abc123\)/);
+  assert.match(htmlSnippet, /href=&quot;https:\/\/arkhelper\.info\/servers\/abc123&quot;/);
+  assert.match(htmlSnippet, /src=&quot;https:\/\/arkhelper\.info\/servers\/abc123\/badge\.svg&quot;/);
+  for (const box of boxes) {
+    assert.doesNotMatch(box, /(?:\]\(|href=&quot;|src=&quot;)\/servers\//);
+  }
+  assert.match(html, /<img src="\/servers\/abc123\/badge\.svg" alt="Live status badge">/);
+});
+
+test('embed snippets honor an origin override and strip a trailing slash', () => {
+  const html = renderServerDetailPage({
+    server: makeServer(),
+    uptime: null,
+    history: [],
+    badgeUrl: '/servers/abc123/badge.svg',
+    origin: 'https://staging.example/',
+  });
+  const boxes = snippetBoxes(html);
+  assert.equal(boxes.length, 2);
+  const [markdown, htmlSnippet] = boxes;
+  assert.match(markdown, /!\[ArkHelper status\]\(https:\/\/staging\.example\/servers\/abc123\/badge\.svg\)/);
+  assert.match(markdown, /\]\(https:\/\/staging\.example\/servers\/abc123\)/);
+  assert.match(htmlSnippet, /href=&quot;https:\/\/staging\.example\/servers\/abc123&quot;/);
+  assert.match(htmlSnippet, /src=&quot;https:\/\/staging\.example\/servers\/abc123\/badge\.svg&quot;/);
+  for (const box of boxes) {
+    assert.doesNotMatch(box, /staging\.example\/\//);
+    assert.doesNotMatch(box, /(?:\]\(|href=&quot;|src=&quot;)\/servers\//);
+  }
+});

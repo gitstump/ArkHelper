@@ -21,8 +21,8 @@ const {
   insertAlertDelivery,
   insertAlertEvent,
 } = require('./db.js');
+const { siteOrigin, DEFAULT_ORIGIN } = require('./origin.js');
 
-const DEFAULT_ORIGIN = 'https://arkhelper.info';
 const BATCH_CHAR_LIMIT = 1900;
 const POST_TIMEOUT_MS = 10_000;
 const DISABLE_AFTER_FAILURES = 3;
@@ -30,11 +30,6 @@ const DISABLE_AFTER_FAILURES = 3;
 const TEST_WEBHOOK_MESSAGE = 'ArkHelper test: your Discord webhook is working.';
 const WEBHOOK_DISABLED_MESSAGE =
   'Your Discord webhook was disabled after repeated failures. Save it again on the Alerts page to re-enable.';
-
-function normalizeOrigin(origin) {
-  const raw = origin == null || origin === '' ? DEFAULT_ORIGIN : String(origin);
-  return raw.replace(/\/+$/, '') || DEFAULT_ORIGIN;
-}
 
 function toIso(now) {
   if (typeof now === 'function') return toIso(now());
@@ -76,7 +71,7 @@ function validateWebhookUrl(url) {
 }
 
 function buildBatchMessage(events, origin) {
-  const base = normalizeOrigin(origin);
+  const base = siteOrigin(origin);
   const header = 'ArkHelper alerts:';
   const footer = `${base}/alerts`;
   const list = Array.isArray(events) ? events : [];
@@ -153,7 +148,7 @@ function insertDisabledSystemEvent(db, accountId, nowIso) {
 async function dispatchPending({ db, postFn = defaultPostFn, origin, now } = {}) {
   if (!db) return { accounts: 0 };
   const nowIso = toIso(now);
-  const siteOrigin = normalizeOrigin(origin);
+  const resolvedOrigin = siteOrigin(origin);
   const pending = listPendingAlertEvents(db);
   if (pending.length === 0) return { accounts: 0 };
 
@@ -174,7 +169,7 @@ async function dispatchPending({ db, postFn = defaultPostFn, origin, now } = {})
       continue;
     }
 
-    const message = buildBatchMessage(events, siteOrigin);
+    const message = buildBatchMessage(events, resolvedOrigin);
     const outcome = await deliverContent(webhook.url, message, postFn);
     insertAlertDelivery(
       db,

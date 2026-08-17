@@ -43,6 +43,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `auth_service.js` | The actual HTTP server — every route lives here |
 | `theme.js` | Shared design tokens and base stylesheet (CSS variables) |
 | `layout.js` | Shared page shell — header nav, footer sitemap, document wrapper |
+| `origin.js` | Public site origin from `SITE_ORIGIN` (default `https://arkhelper.info`, trailing slash stripped) |
 | `home_page.js` | Homepage is the server browser + hero stats; still exports `escapeHtml` |
 | `server_browser.js` | Filter/sort/paginate + the `/` and `/servers` list page |
 | `server_lists.js` | Canonical derived list pages (`/lists/...`) — pre-filtered views that reuse the browser pipeline |
