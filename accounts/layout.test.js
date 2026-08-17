@@ -43,6 +43,8 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.match(html, /href="\/leaderboards\/map-uptime"/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
   assert.match(html, /href="\/is-ark-down"/);
+  assert.match(html, /href="\/rates"/);
+  assert.match(html, /href="\/news"/);
   assert.match(html, /href="\/favorites"/);
   assert.match(html, /class="active" href="\/rankings"/);
   assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
@@ -112,6 +114,8 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/leaderboards\/map-uptime">Map Uptime/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp">PvE vs PvP/);
   assert.match(html, /href="\/is-ark-down">Is ARK Down/);
+  assert.match(html, /href="\/rates">Rates/);
+  assert.match(html, /href="\/news">News/);
   assert.match(html, /href="\/favorites">Favorites/);
   assert.match(html, /href="\/servers">Presets/);
   assert.match(html, /Project/);

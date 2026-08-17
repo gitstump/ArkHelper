@@ -8,7 +8,7 @@ discovery/    — port 8792. Pulls the live official ARK:SA roster, records hist
 accounts/     — port 8793. Everything a browser actually loads: login, homepage, server
                  browser, detail pages,                  favorites, alerts (settings only), stats, rankings,
                  status ("Is ARK down?"), derived server lists, leaderboard suite,
-                 maps index and per-map pages.
+                 maps index and per-map pages, official rates, launcher news.
 ```
 
 They're separate Node processes, talking over plain local HTTP — `accounts/` fetches from
@@ -23,13 +23,15 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `ark_official_api.js` | Fetches Wildcard's own official server list (no key needed) |
 | `unofficial_api.js` | Fetches Wildcard's unofficial list, trims immediately, rejects oversized bodies |
 | `unofficial_store.js` | Separate SQLite (`unofficial.sqlite`) — latest trimmed fields + first_seen/last_seen/cycles_seen; no per-cycle history |
+| `info_feeds.js` | Fetches/parses Wildcard CDN rate INIs and news.ini (injectable fetch) |
+| `info_store.js` | Separate SQLite (`feeds.sqlite`) — current rates per variant + change log; news entries hashed by imagePath+action |
 | `discovery_service.js` | CLI + scheduler + the HTTP server exposing everything below |
 | `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, wipe/version detection, heatmaps; gathers ranking inputs and stamps scores onto the roster; records network incidents |
 | `ranking.js` | Pure composite rank scorer (no DB / network / clock) — weights live here |
 | `incidents.js` | Pure incident classifier (thresholds, hysteresis, consecutive-fetch-failure counting) |
 | `geo_lookup.js` | GeoLite2/MaxMind country lookups — built, not yet configured (see `PROJECT_STATUS.md`) |
 
-**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/unofficial/roster`, `/unofficial/meta`, `/history/:id`, `/history/wipes`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`
+**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/unofficial/roster`, `/unofficial/meta`, `/history/:id`, `/history/wipes`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`, `/rates`, `/news`
 
 ## accounts/
 
@@ -50,6 +52,8 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `leaderboards_page.js` | The `/leaderboards` suite — index, map uptime, PvE vs PvP, top-100 alias, bottom-100 |
 | `stats_page.js` | The `/stats` page — network breakdowns; leaderboard previews link into the suite |
 | `status_page.js` | The `/is-ark-down` (alias `/status`) page — renders the stored incident snapshot |
+| `rates_page.js` | The `/rates` page — per-network multipliers, bonus-rate banner, change history |
+| `news_page.js` | The `/news` page — text and links only (no Wildcard imagery) |
 | `maps.js` | Official-map registry (id → display name / slug / blurb) plus unknown-id fallback |
 | `maps_page.js` | `/maps` index and `/maps/:slug` per-map telemetry pages |
 | `heatmap_svg.js` | Renders peak-time/downtime grids as inline SVG |
@@ -82,7 +86,9 @@ discovery_service.js  ->  roster.json    unofficial_store.js (unofficial.sqlite)
         |                     |                    |
         v                     v                    v
   history.js (SQLite)   GET /roster         GET /unofficial/roster
-        |                     |                    |
+        |
+        +-- info_feeds.js -> info_store.js (feeds.sqlite) -> GET /rates, GET /news
+        |
         +---------------------+--------------------+
                               |
                               v

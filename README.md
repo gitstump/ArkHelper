@@ -12,6 +12,8 @@ Live at **https://arkhelper.info**. It runs on a DigitalOcean droplet behind Cad
 - **Rankings** (`/rankings`) — composite 0–100 rank per official server, plus a Rank sort in the browser
 - **Filter presets** — named snapshots of the current browser query (cookie while logged out, SQLite once logged in), shareable via `/p/<token>`
 - **Incidents / Is ARK down?** (`/is-ark-down`, alias `/status`) — NORMAL / DEGRADED / OUTAGE / UPDATE_ROLLOUT from discovery-cycle snapshots
+- **Rates** (`/rates`) — live official-network multipliers and recent changes
+- **News** (`/news`) — launcher news as text and links (no Wildcard imagery)
 - **Favorites** — per-account add/remove and a `/favorites` page
 - **Badges** — embeddable live-status SVG at `/servers/:id/badge.svg`
 
@@ -41,8 +43,10 @@ Names only — never commit values. The services read `process.env` directly (no
 - `ARK_TOOLS_DB_PATH` (`ark_tools.db`)
 - `HISTORY_DB_PATH` (`ark_history.db`)
 - `GEOLITE2_DB_PATH` (unset — discovery runs without country fields)
+- `UNOFFICIAL_INTERVAL_MS` / `UNOFFICIAL_DB_PATH` (15 minutes / `unofficial.sqlite`)
+- `INFO_INTERVAL_MS` / `INFO_DB_PATH` (10 minutes / `feeds.sqlite`)
 
-Discovery's HTTP port and refresh interval are CLI flags, not env vars (`--port`, `--interval-minutes`).
+Discovery's HTTP port and refresh interval are CLI flags, not env vars (`--port`, `--interval-minutes`, `--info-interval`).
 
 ## Running
 

@@ -19,6 +19,8 @@
  *   POST /presets/delete         -> delete a preset (cookie or account)
  *   GET  /p/:token               -> public share-link redirect to /servers?...
  *   GET  /is-ark-down            -> public network status page (alias GET /status)
+ *   GET  /rates                  -> official network rates from the CDN info feeds
+ *   GET  /news                   -> launcher news (text and links only)
  *   GET  /maps                   -> official-map index
  *   GET  /maps/:slug             -> per-map telemetry page
  */
@@ -93,6 +95,8 @@ const {
   renderStatsPage,
 } = require('./stats_page.js');
 const { renderStatusPage } = require('./status_page.js');
+const { renderRatesPage } = require('./rates_page.js');
+const { renderNewsPage } = require('./news_page.js');
 const { resolveSlug } = require('./maps.js');
 const {
   serversForMap,
@@ -225,12 +229,15 @@ function createAuthServer({
   uptimeLeaderboardUrl = 'http://localhost:8792/leaderboards/uptime',
   rankingUrl = 'http://localhost:8792/rankings',
   incidentStatusUrl = 'http://localhost:8792/incidents/status',
+  ratesUrl = 'http://localhost:8792/rates',
+  newsUrl = 'http://localhost:8792/news',
   discordDeps = { buildAuthorizeUrl, exchangeCodeForToken, fetchDiscordUser, generateState },
   homeDeps = { fetchRosterMetaSafe },
   browserDeps = { fetchJsonSafe },
   detailDeps = { fetchJsonSafe },
   statsDeps = { fetchJsonSafe },
   statusDeps = { fetchJsonSafe },
+  feedsDeps = { fetchJsonSafe },
   randomToken = () => crypto.randomBytes(32).toString('hex'),
 }) {
   if (!db) throw new Error('createAuthServer: db is required');
@@ -410,6 +417,38 @@ function createAuthServer({
           topByPlayers: getTopServersByPlayers(roster.servers),
           account,
           live: liveFromRoster(roster),
+        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/rates') {
+        const [feed, rosterMeta] = await Promise.all([
+          feedsDeps.fetchJsonSafe(ratesUrl),
+          homeDeps.fetchRosterMetaSafe(rosterMetaUrl),
+        ]);
+        const body = renderRatesPage({
+          feedAvailable: Boolean(feed && feed.variants),
+          feed,
+          account,
+          live: liveFromMeta(rosterMeta),
+        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/news') {
+        const [feed, rosterMeta] = await Promise.all([
+          feedsDeps.fetchJsonSafe(newsUrl),
+          homeDeps.fetchRosterMetaSafe(rosterMetaUrl),
+        ]);
+        const body = renderNewsPage({
+          feedAvailable: Boolean(feed && Array.isArray(feed.entries)),
+          feed,
+          account,
+          live: liveFromMeta(rosterMeta),
         });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
@@ -860,7 +899,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts/:id', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));

@@ -33,6 +33,8 @@ const STATS_NAV = [
   { href: '/leaderboards/map-uptime', label: 'Map Uptime' },
   { href: '/leaderboards/pve-vs-pvp', label: 'PvE vs PvP' },
   { href: '/is-ark-down', label: 'Is ARK Down', match: ['/is-ark-down', '/status'] },
+  { href: '/rates', label: 'Rates' },
+  { href: '/news', label: 'News' },
 ];
 
 const MAPS_NAV = [...MAP_REGISTRY]
@@ -53,7 +55,7 @@ const NAV = [
   },
   {
     label: 'Stats',
-    match: ['/rankings', '/stats', '/leaderboards', '/is-ark-down', '/status'],
+    match: ['/rankings', '/stats', '/leaderboards', '/is-ark-down', '/status', '/rates', '/news'],
     children: STATS_NAV,
   },
   { href: '/favorites', label: 'Favorites', match: ['/favorites'] },

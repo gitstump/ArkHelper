@@ -67,8 +67,19 @@ const {
   recordUnofficialFetchFailure,
   getUnofficialMeta,
 } = require('./unofficial_store.js');
+const { fetchInfoFeeds } = require('./info_feeds.js');
+const {
+  openInfoDb,
+  recordInfoCycle,
+  recordInfoFetchFailure,
+  getRatesFeed,
+  getNewsFeed,
+  hasRateData,
+  hasNewsData,
+} = require('./info_store.js');
 
 const DEFAULT_UNOFFICIAL_INTERVAL_MS = 15 * 60 * 1000;
+const DEFAULT_INFO_INTERVAL_MS = 10 * 60 * 1000;
 
 // ---------------------------------------------------------------------
 // Persistence (atomic write: write to a temp file, then rename over the
@@ -246,6 +257,82 @@ async function refreshUnofficialCycle({
   }
 }
 
+async function refreshInfoCycle({
+  infoDb,
+  fetchInfo = fetchInfoFeeds,
+  fetchOpts = {},
+  now = () => new Date().toISOString(),
+} = {}) {
+  const fetchedAt = now();
+  let result;
+  try {
+    result = await fetchInfo(fetchOpts);
+  } catch (err) {
+    if (infoDb) {
+      try {
+        recordInfoFetchFailure(infoDb, { now: () => fetchedAt, error: err.message });
+      } catch {
+        // never mask the original fetch failure
+      }
+    }
+    throw err;
+  }
+  const rateCount = result && result.rates ? Object.keys(result.rates).length : 0;
+  const newsOk = result && Array.isArray(result.news);
+  if (rateCount === 0 && !newsOk) {
+    const detail =
+      result && result.errors && Object.keys(result.errors).length
+        ? Object.values(result.errors).join('; ')
+        : 'all info feeds failed';
+    if (infoDb) {
+      try {
+        recordInfoFetchFailure(infoDb, { now: () => fetchedAt, error: detail });
+      } catch {
+        // never mask the original fetch failure
+      }
+    }
+    throw new Error(detail);
+  }
+  if (infoDb) {
+    recordInfoCycle(infoDb, result, { now: () => fetchedAt });
+  }
+  return result;
+}
+
+function startInfoScheduledRefresh({
+  infoDb,
+  intervalMs,
+  fetchInfo = fetchInfoFeeds,
+  fetchOpts = {},
+  onCycle = () => {},
+  onError = (err) => console.error('[discovery] info-feed refresh failed:', err.message),
+  setIntervalFn = setInterval,
+  runImmediately = true,
+  now = () => new Date().toISOString(),
+}) {
+  let stopped = false;
+
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const result = await refreshInfoCycle({ infoDb, fetchInfo, fetchOpts, now });
+      onCycle(result);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const timer = setIntervalFn(tick, intervalMs);
+  if (runImmediately) tick();
+
+  return {
+    stop() {
+      stopped = true;
+      clearInterval(timer);
+    },
+  };
+}
+
 function startUnofficialScheduledRefresh({
   unofficialState,
   unofficialDb,
@@ -290,7 +377,7 @@ function startUnofficialScheduledRefresh({
 // ---------------------------------------------------------------------
 // Tiny HTTP feed
 // ---------------------------------------------------------------------
-function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, unofficialDb }) {
+function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, unofficialDb, infoDb }) {
   return http.createServer((req, res) => {
     const parsedUrl = new URL(req.url, 'http://internal');
 
@@ -452,6 +539,32 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, 
       return;
     }
 
+    if (parsedUrl.pathname === '/rates') {
+      if (!infoDb || !hasRateData(infoDb)) {
+        const body = JSON.stringify({ error: 'rates feed not generated yet' });
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(body);
+        return;
+      }
+      const body = JSON.stringify(getRatesFeed(infoDb));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(body);
+      return;
+    }
+
+    if (parsedUrl.pathname === '/news') {
+      if (!infoDb || !hasNewsData(infoDb)) {
+        const body = JSON.stringify({ error: 'news feed not generated yet' });
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(body);
+        return;
+      }
+      const body = JSON.stringify(getNewsFeed(infoDb));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(body);
+      return;
+    }
+
     if (parsedUrl.pathname === '/incidents/status') {
       if (!historyDb) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
@@ -471,7 +584,7 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, 
     }
 
     res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status', '/rates', '/news'] }));
   });
 }
 
@@ -523,6 +636,24 @@ function resolveUnofficialDbPath(args, env = process.env) {
   if (args['unofficial-db'] && typeof args['unofficial-db'] === 'string') return args['unofficial-db'];
   if (env.UNOFFICIAL_DB_PATH) return env.UNOFFICIAL_DB_PATH;
   return 'unofficial.sqlite';
+}
+
+function resolveInfoDbPath(args, env = process.env) {
+  if (args['info-db'] && typeof args['info-db'] === 'string') return args['info-db'];
+  if (env.INFO_DB_PATH) return env.INFO_DB_PATH;
+  return 'feeds.sqlite';
+}
+
+function resolveInfoIntervalMs(args, env = process.env) {
+  if (env.INFO_INTERVAL_MS) {
+    const fromEnv = Number(env.INFO_INTERVAL_MS);
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  }
+  if (args['info-interval'] && args['info-interval'] !== true) {
+    const minutes = Number(args['info-interval']);
+    if (Number.isFinite(minutes) && minutes > 0) return minutes * 60 * 1000;
+  }
+  return DEFAULT_INFO_INTERVAL_MS;
 }
 
 function resolveUnofficialIntervalMs(args, env = process.env) {
@@ -636,13 +767,31 @@ async function main() {
       },
     });
 
-    const server = createRosterServer({ outPath, historyDb, unofficialState, unofficialDb });
+    const infoDbPath = resolveInfoDbPath(args);
+    const infoDb = infoDbPath ? openInfoDb(infoDbPath) : undefined;
+    const infoIntervalMs = resolveInfoIntervalMs(args);
+    if (infoDb) {
+      console.log(`[discovery] info feeds on -> ${infoDbPath} (interval ${infoIntervalMs}ms)`);
+    }
+
+    const infoScheduler = startInfoScheduledRefresh({
+      infoDb,
+      intervalMs: infoIntervalMs,
+      onCycle: (result) => {
+        const variants = result && result.rates ? Object.keys(result.rates).join(',') : 'none';
+        const newsCount = result && Array.isArray(result.news) ? result.news.length : 'failed';
+        console.log(`[discovery] info feeds refreshed: rates [${variants}] news ${newsCount}`);
+      },
+    });
+
+    const server = createRosterServer({ outPath, historyDb, unofficialState, unofficialDb, infoDb });
     server.listen(port);
 
     const shutdown = () => {
       console.log('[discovery] shutting down');
       scheduler.stop();
       unofficialScheduler.stop();
+      infoScheduler.stop();
       server.close();
       process.exit(0);
     };
@@ -653,7 +802,7 @@ async function main() {
 
   console.log('Usage:');
   console.log('  node discovery_service.js discover-once [--out roster.json] [--debug] [--geo-db path]');
-  console.log('  node discovery_service.js run [--port 8792] [--interval-minutes 60] [--out roster.json] [--geo-db path] [--history-db path] [--no-history] [--unofficial-interval minutes] [--unofficial-db path]');
+  console.log('  node discovery_service.js run [--port 8792] [--interval-minutes 60] [--out roster.json] [--geo-db path] [--history-db path] [--no-history] [--unofficial-interval minutes] [--unofficial-db path] [--info-interval minutes] [--info-db path]');
   process.exitCode = 1;
 }
 
@@ -673,11 +822,16 @@ module.exports = {
   createUnofficialState,
   refreshUnofficialCycle,
   startUnofficialScheduledRefresh,
+  refreshInfoCycle,
+  startInfoScheduledRefresh,
   createRosterServer,
   parseArgs,
   resolveGeoDbPath,
   resolveHistoryDbPath,
   resolveUnofficialDbPath,
   resolveUnofficialIntervalMs,
+  resolveInfoDbPath,
+  resolveInfoIntervalMs,
   DEFAULT_UNOFFICIAL_INTERVAL_MS,
+  DEFAULT_INFO_INTERVAL_MS,
 };

@@ -1337,6 +1337,117 @@ test('GET /status is an alias of /is-ark-down', async () => {
   server.close();
 });
 
+test('GET /rates renders variant cards and the bonus banner from the discovery feed', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    feedsDeps: {
+      fetchJsonSafe: async () => ({
+        variants: {
+          official: { TamingSpeedMultiplier: 2, HarvestAmountMultiplier: 2, XPMultiplier: 2 },
+          arkpocalypse: { TamingSpeedMultiplier: 5 },
+        },
+        changes: [{ variant: 'official', key: 'TamingSpeedMultiplier', old: 1, new: 2, changedAt: '2026-08-14T00:00:00.000Z' }],
+      }),
+    },
+  });
+
+  const res = await fetch(`${base}/rates`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Bonus rates active/);
+  assert.match(html, /Official/);
+  assert.match(html, /Arkpocalypse/);
+  assert.match(html, /2\u00d7/);
+
+  server.close();
+});
+
+test('GET /rates falls back when the discovery feed is unreachable (200, not a crash)', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    feedsDeps: { fetchJsonSafe: async () => null },
+  });
+
+  const res = await fetch(`${base}/rates`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Rate data isn't available right now/);
+
+  server.close();
+});
+
+test('GET /news renders titles and links from the discovery feed', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    feedsDeps: {
+      fetchJsonSafe: async () => ({
+        entries: [
+          {
+            type: 'CTA',
+            title: null,
+            body: null,
+            action: 'Link::https://survivetheark.com/index.php?/articles.html/community-crunch-519-tusk-tusk-boom-r2553/',
+            url: 'https://survivetheark.com/index.php?/articles.html/community-crunch-519-tusk-tusk-boom-r2553/',
+            firstSeen: '2026-08-16T10:00:00.000Z',
+            active: true,
+          },
+          {
+            type: 'CTA',
+            title: null,
+            action: 'DLC::Dragontopia',
+            url: null,
+            firstSeen: '2026-08-10T00:00:00.000Z',
+            active: true,
+          },
+        ],
+      }),
+    },
+  });
+
+  const res = await fetch(`${base}/news`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Community Crunch 519: Tusk Tusk Boom/);
+  assert.match(html, /Dragontopia/);
+  assert.doesNotMatch(html, /<img\b/i);
+
+  server.close();
+});
+
+test('GET /news falls back when the discovery feed is unreachable (200, not a crash)', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    feedsDeps: { fetchJsonSafe: async () => null },
+  });
+
+  const res = await fetch(`${base}/news`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /News data isn't available right now/);
+
+  server.close();
+});
+
 test('GET /is-ark-down falls back when discovery status is unreachable (200, not a crash)', async () => {
   const db = openDb(':memory:');
   const { server, base } = await startServer({

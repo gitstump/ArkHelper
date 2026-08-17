@@ -15,15 +15,21 @@ const {
   createUnofficialState,
   refreshUnofficialCycle,
   startUnofficialScheduledRefresh,
+  refreshInfoCycle,
+  startInfoScheduledRefresh,
   createRosterServer,
   parseArgs,
   resolveGeoDbPath,
   resolveHistoryDbPath,
   resolveUnofficialDbPath,
   resolveUnofficialIntervalMs,
+  resolveInfoDbPath,
+  resolveInfoIntervalMs,
   DEFAULT_UNOFFICIAL_INTERVAL_MS,
+  DEFAULT_INFO_INTERVAL_MS,
 } = require('./discovery_service.js');
 const { openUnofficialDb, getUnofficialMeta } = require('./unofficial_store.js');
+const { openInfoDb, getCurrentRates, getNewsEntries, getFeedsMeta } = require('./info_store.js');
 const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun } = require('./history.js');
 
 function tmpFile(name) {
@@ -225,7 +231,7 @@ test('roster HTTP server 404s on unknown routes with a helpful body', async () =
   const res = await fetch(`http://127.0.0.1:${port}/nonsense`);
   const body = await res.json();
   assert.equal(res.status, 404);
-  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status']);
+  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status', '/rates', '/news']);
 
   server.close();
 });
@@ -739,4 +745,137 @@ test('resolveUnofficialDbPath defaults to unofficial.sqlite', () => {
   assert.equal(resolveUnofficialDbPath(parseArgs(['run']), {}), 'unofficial.sqlite');
   assert.equal(resolveUnofficialDbPath(parseArgs(['run', '--unofficial-db', '/from/flag.db']), { UNOFFICIAL_DB_PATH: '/from/env.db' }), '/from/flag.db');
   assert.equal(resolveUnofficialDbPath(parseArgs(['run']), { UNOFFICIAL_DB_PATH: '/from/env.db' }), '/from/env.db');
+});
+
+function fakeInfoFeeds() {
+  return {
+    rates: {
+      official: { TamingSpeedMultiplier: 2, XPMultiplier: 2, HarvestAmountMultiplier: 2 },
+      arkpocalypse: { TamingSpeedMultiplier: 5 },
+    },
+    news: [
+      {
+        type: 'CTA',
+        imagePath: 'https://cdn.example/a.jpg',
+        title: null,
+        body: null,
+        action: 'Link::https://survivetheark.com/index.php?/articles.html/community-crunch-519-tusk-tusk-boom-r2553/',
+        url: 'https://survivetheark.com/index.php?/articles.html/community-crunch-519-tusk-tusk-boom-r2553/',
+      },
+    ],
+    errors: {},
+  };
+}
+
+test('refreshInfoCycle stores rates and news from a successful poll', async () => {
+  const infoDb = openInfoDb(':memory:');
+  const result = await refreshInfoCycle({
+    infoDb,
+    fetchInfo: async () => fakeInfoFeeds(),
+    now: () => '2026-08-16T10:00:00.000Z',
+  });
+  assert.equal(result.rates.official.TamingSpeedMultiplier, 2);
+  assert.equal(getCurrentRates(infoDb).official.TamingSpeedMultiplier, 2);
+  assert.equal(getNewsEntries(infoDb).length, 1);
+  assert.equal(getFeedsMeta(infoDb).last_fetch_status, 'ok');
+});
+
+test('info-feed fetch failure leaves the official cycle untouched', async () => {
+  const file = tmpFile('roster.json');
+  const infoDb = openInfoDb(':memory:');
+  let officialCycles = 0;
+  let infoErrors = 0;
+  const fakeSetInterval = () => 'fake-timer-handle';
+
+  const official = startScheduledRefresh({
+    outPath: file,
+    intervalMs: 999999,
+    discoveryOpts: { httpGet: fakeOfficialServersGet(), sleep: async () => {} },
+    onCycle: () => {
+      officialCycles += 1;
+    },
+    setIntervalFn: fakeSetInterval,
+  });
+
+  const info = startInfoScheduledRefresh({
+    infoDb,
+    intervalMs: 999999,
+    fetchInfo: async () => {
+      throw new Error('cdn down');
+    },
+    onError: () => {
+      infoErrors += 1;
+    },
+    setIntervalFn: fakeSetInterval,
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(officialCycles, 1);
+  assert.equal(infoErrors, 1);
+  assert.ok(readRosterIfExists(file));
+  assert.equal(readRosterIfExists(file).totalOfficial, 2);
+  assert.equal(getFeedsMeta(infoDb).cycles_total, 0);
+  assert.match(getFeedsMeta(infoDb).last_fetch_status, /cdn down/);
+
+  official.stop();
+  info.stop();
+});
+
+test('GET /rates and /news serve stored feed data', async () => {
+  const file = tmpFile('roster.json');
+  const infoDb = openInfoDb(':memory:');
+  await refreshInfoCycle({
+    infoDb,
+    fetchInfo: async () => fakeInfoFeeds(),
+    now: () => '2026-08-16T11:00:00.000Z',
+  });
+
+  const server = createRosterServer({ outPath: file, infoDb });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const ratesRes = await fetch(`http://127.0.0.1:${port}/rates`);
+  const rates = await ratesRes.json();
+  assert.equal(ratesRes.status, 200);
+  assert.equal(rates.variants.official.TamingSpeedMultiplier, 2);
+  assert.equal(rates.lastFetchAt, '2026-08-16T11:00:00.000Z');
+  assert.ok(Array.isArray(rates.changes));
+
+  const newsRes = await fetch(`http://127.0.0.1:${port}/news`);
+  const news = await newsRes.json();
+  assert.equal(newsRes.status, 200);
+  assert.equal(news.entries.length, 1);
+  assert.equal(news.entries[0].firstSeen, '2026-08-16T11:00:00.000Z');
+
+  server.close();
+});
+
+test('GET /rates and /news are 503 before the first good fetch', async () => {
+  const file = tmpFile('roster.json');
+  const infoDb = openInfoDb(':memory:');
+  const server = createRosterServer({ outPath: file, infoDb });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const ratesRes = await fetch(`http://127.0.0.1:${port}/rates`);
+  assert.equal(ratesRes.status, 503);
+  const newsRes = await fetch(`http://127.0.0.1:${port}/news`);
+  assert.equal(newsRes.status, 503);
+
+  server.close();
+});
+
+test('resolveInfoIntervalMs prefers env milliseconds over the minutes flag', () => {
+  const args = parseArgs(['run', '--info-interval', '20']);
+  assert.equal(resolveInfoIntervalMs(args, { INFO_INTERVAL_MS: '45000' }), 45000);
+  assert.equal(resolveInfoIntervalMs(args, {}), 20 * 60 * 1000);
+  assert.equal(resolveInfoIntervalMs(parseArgs(['run']), {}), DEFAULT_INFO_INTERVAL_MS);
+});
+
+test('resolveInfoDbPath defaults to feeds.sqlite', () => {
+  assert.equal(resolveInfoDbPath(parseArgs(['run']), {}), 'feeds.sqlite');
+  assert.equal(resolveInfoDbPath(parseArgs(['run', '--info-db', '/from/flag.db']), { INFO_DB_PATH: '/from/env.db' }), '/from/flag.db');
+  assert.equal(resolveInfoDbPath(parseArgs(['run']), { INFO_DB_PATH: '/from/env.db' }), '/from/env.db');
 });
