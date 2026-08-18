@@ -96,3 +96,12 @@ test('servers without an id are skipped', () => {
   assert.equal(getUnofficialServer(db, 'ok').cycles_seen, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM unofficial_servers').get().n, 1);
 });
+
+test('tracked_total reflects unofficial_servers row count after cycles', () => {
+  const db = openUnofficialDb(':memory:');
+  assert.equal(getUnofficialMeta(db).tracked_total, 0);
+  recordUnofficialCycle(db, [sample('a'), sample('b')], { now: () => '2026-08-16T05:00:00.000Z' });
+  assert.equal(getUnofficialMeta(db).tracked_total, 2);
+  recordUnofficialCycle(db, [sample('a'), sample('c')], { now: () => '2026-08-16T05:15:00.000Z' });
+  assert.equal(getUnofficialMeta(db).tracked_total, 3);
+});

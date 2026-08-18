@@ -363,9 +363,17 @@ function renderHeroBand({ officialCounters, counters, rosterMeta, status, unoffi
   const playerSub = combined
     ? `<div class="sub">${escapeHtml(formatCount(officialPlayers))} official \u00b7 ${escapeHtml(formatCount(unofficialPlayers))} unofficial</div>`
     : '';
+  const trackedTotal =
+    unofficialMeta && typeof unofficialMeta.trackedTotal === 'number' && Number.isFinite(unofficialMeta.trackedTotal)
+      ? unofficialMeta.trackedTotal
+      : null;
+  const unofficialSub =
+    trackedTotal != null && unofficialCount != null && trackedTotal > unofficialCount
+      ? `<div class="sub">${escapeHtml(formatCount(trackedTotal))} tracked all-time</div>`
+      : '';
   const unofficialCard =
     unofficialCount != null
-      ? `<div class="hero-stat"><div class="fig num">${fig(unofficialCount)}</div><div class="lbl">Unofficial Servers Tracked</div></div>`
+      ? `<div class="hero-stat"><div class="fig num">${fig(unofficialCount)}</div><div class="lbl">Unofficial Servers Listed</div>${unofficialSub}</div>`
       : '';
   const uptime = networkUptime24h(status);
   const word = statusWord(status);
@@ -375,7 +383,7 @@ function renderHeroBand({ officialCounters, counters, rosterMeta, status, unoffi
 
   const unofficialBit =
     unofficialCount != null
-      ? ` and <strong class="num">${escapeHtml(localeCount(unofficialCount))}</strong> unofficial`
+      ? ` and <strong class="num">${escapeHtml(localeCount(unofficialCount))}</strong> listed unofficial`
       : '';
   const metaLine =
     rosterMeta && rosterMeta.pveCount != null && rosterMeta.pvpCount != null

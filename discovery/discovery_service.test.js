@@ -683,6 +683,7 @@ test('GET /unofficial/roster and /unofficial/meta serve the last good fetch', as
   assert.equal(meta.cycles_total, 1);
   assert.equal(meta.lastFetchAt, '2026-08-16T11:00:00.000Z');
   assert.equal(meta.lastFetchStatus, 'ok');
+  assert.equal(meta.trackedTotal, 2);
   assert.equal(meta.servers, undefined);
 
   server.close();
@@ -707,6 +708,7 @@ test('GET /unofficial/roster is 503 before the first good fetch; meta still has 
   assert.equal(meta.cycles_total, 0);
   assert.equal(meta.lastFetchAt, null);
   assert.equal(meta.lastFetchStatus, null);
+  assert.equal(meta.trackedTotal, 0);
 
   server.close();
 });

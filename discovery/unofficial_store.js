@@ -131,13 +131,16 @@ function recordUnofficialFetchFailure(db, { now = () => new Date().toISOString()
 
 function getUnofficialMeta(db) {
   const row = db.prepare('SELECT cycles_total, last_fetch_at, last_fetch_status FROM unofficial_meta WHERE id = 1').get();
+  const countRow = db.prepare('SELECT COUNT(*) AS n FROM unofficial_servers').get();
+  const tracked_total = countRow && typeof countRow.n === 'number' ? countRow.n : 0;
   if (!row) {
-    return { cycles_total: 0, last_fetch_at: null, last_fetch_status: null };
+    return { cycles_total: 0, last_fetch_at: null, last_fetch_status: null, tracked_total };
   }
   return {
     cycles_total: row.cycles_total,
     last_fetch_at: row.last_fetch_at,
     last_fetch_status: row.last_fetch_status,
+    tracked_total,
   };
 }
 

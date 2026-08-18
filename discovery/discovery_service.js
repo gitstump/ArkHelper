@@ -533,6 +533,7 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, 
             : 0,
         lastFetchAt: (unofficialState && unofficialState.lastFetchAt) || (dbMeta && dbMeta.last_fetch_at) || null,
         lastFetchStatus: (unofficialState && unofficialState.lastFetchStatus) || (dbMeta && dbMeta.last_fetch_status) || null,
+        trackedTotal: dbMeta ? dbMeta.tracked_total : null,
       });
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(body);

@@ -309,7 +309,7 @@ test('renderHeroBand tracking line nests PvE/PvP inside the official clause', ()
   });
   assert.match(
     html,
-    /Tracking <strong class="num">3,073<\/strong> official \(1,380 PvE \/ 1,693 PvP\) and <strong class="num">56,027<\/strong> unofficial servers\. Last updated 2026-08-16T12:00:00\.000Z\./
+    /Tracking <strong class="num">3,073<\/strong> official \(1,380 PvE \/ 1,693 PvP\) and <strong class="num">56,027<\/strong> listed unofficial servers\. Last updated 2026-08-16T12:00:00\.000Z\./
   );
 });
 
@@ -475,7 +475,7 @@ test('renderHeroBand shows em dashes when incident data is missing', () => {
   assert.match(html, /Official Uptime % \(24h\)/);
   assert.match(html, /href="\/is-ark-down"/);
   assert.match(html, /\u2014/);
-  assert.doesNotMatch(html, /Unofficial Servers Tracked/);
+  assert.doesNotMatch(html, /Unofficial Servers Listed/);
   assert.doesNotMatch(html, /official \u00b7 .* unofficial/);
 });
 
@@ -755,8 +755,8 @@ test('renderHeroBand includes unofficial count when unofficial meta is present',
   });
   assert.match(html, /3,093/);
   assert.match(html, /56,198/);
-  assert.match(html, /official \(1,400 PvE \/ 1,693 PvP\) and .* unofficial servers/);
-  assert.match(html, /Unofficial Servers Tracked/);
+  assert.match(html, /official \(1,400 PvE \/ 1,693 PvP\) and .* listed unofficial servers/);
+  assert.match(html, /Unofficial Servers Listed/);
 });
 
 test('renderHeroBand combines official and unofficial players and splits the sublabel', () => {
@@ -765,7 +765,7 @@ test('renderHeroBand combines official and unofficial players and splits the sub
     rosterMeta: { totalOfficial: 3093, pveCount: 1400, pvpCount: 1693, generatedAt: 'T' },
     unofficialMeta: { count: 56198, playersOnline: 14792 },
   });
-  assert.match(html, /Unofficial Servers Tracked/);
+  assert.match(html, /Unofficial Servers Listed/);
   assert.match(html, /56,198/);
   assert.match(html, /36,178/);
   assert.match(html, /21,386 official \u00b7 14,792 unofficial/);
@@ -779,9 +779,34 @@ test('renderHeroBand falls back to official-only players when unofficial meta is
     unofficialMeta: null,
   });
   assert.match(html, /21,386/);
-  assert.doesNotMatch(html, /Unofficial Servers Tracked/);
+  assert.doesNotMatch(html, /Unofficial Servers Listed/);
   assert.doesNotMatch(html, /official \u00b7 .* unofficial/);
   assert.doesNotMatch(html, />0</);
+});
+
+test('renderHeroBand shows tracked all-time only when it exceeds listed count', () => {
+  const withTracked = renderHeroBand({
+    counters: { totalOfficial: 10, playersOnline: 40 },
+    unofficialMeta: { count: 5, playersOnline: 3, trackedTotal: 120000 },
+  });
+  assert.match(withTracked, /Unofficial Servers Listed/);
+  assert.match(withTracked, />5</);
+  assert.match(withTracked, /120,000 tracked all-time/);
+
+  const absent = renderHeroBand({
+    counters: { totalOfficial: 10, playersOnline: 40 },
+    unofficialMeta: { count: 5, playersOnline: 3 },
+  });
+  assert.match(absent, /Unofficial Servers Listed/);
+  assert.match(absent, />5</);
+  assert.doesNotMatch(absent, /tracked all-time/);
+
+  const notGreater = renderHeroBand({
+    counters: { totalOfficial: 10, playersOnline: 40 },
+    unofficialMeta: { count: 5, playersOnline: 3, trackedTotal: 5 },
+  });
+  assert.match(notGreater, /Unofficial Servers Listed/);
+  assert.doesNotMatch(notGreater, /tracked all-time/);
 });
 
 test('renderHeroBand is identical for official and unofficial browser views', () => {

@@ -2682,7 +2682,7 @@ test('GET /servers hero band is identical with source=unofficial', async () => {
   assert.equal(heroSection(officialHtml), heroSection(unofficialHtml));
   assert.match(heroSection(officialHtml), /29/);
   assert.match(heroSection(officialHtml), /25 official \u00b7 4 unofficial/);
-  assert.match(heroSection(officialHtml), /Unofficial Servers Tracked/);
+  assert.match(heroSection(officialHtml), /Unofficial Servers Listed/);
 
   const homeRes = await fetch(`${base}/`);
   const homeHtml = await homeRes.text();
@@ -2713,7 +2713,7 @@ test('GET /servers hero band stays official-only when unofficial meta is unavail
   const html = await res.text();
   const hero = heroSection(html);
   assert.match(hero, />25</);
-  assert.doesNotMatch(hero, /Unofficial Servers Tracked/);
+  assert.doesNotMatch(hero, /Unofficial Servers Listed/);
   assert.doesNotMatch(hero, /official \u00b7 .* unofficial/);
   assert.doesNotMatch(hero, />0</);
 
