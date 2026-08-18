@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-17 — 817 tests passing — In flight: none
+Last updated: 2026-08-17 — 819 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -12,6 +12,18 @@ Coordinate-data policy (fan-out research verdict, 2026-08-17): no third-party da
 
 Live wild/tamed dino counts on official servers are **not** a parity item — arkstatus.com does not show them (they need RCON/admin access, which neither they nor we have on official). Their taming/breeding calculators are static creature-stat tools, not live in-server counts. Those calculators belong under the wiki-tools success bar above, built clean-room.
 
+North Star (2026-08-17): ArkHelper's long-term frame is an ASA
+intelligence and companion platform organized as five systems —
+network intelligence (built), game database, tools, maps (together the
+Tier 4 clean-room track), and personal accounts — with aggressive
+cross-linking between the live network layer and the game-knowledge
+layer. The accumulated observation history is a core asset, not chart
+plumbing. Near-term candidates that compound existing data with zero
+licensing exposure: cluster pages (/clusters/:id from the clusterId
+field) and population intelligence (typical-hour baselines,
+abnormality deltas, and version-rollout percentages derived from
+existing history).
+
 ## What's built and working (live-verified, not just tested)
 
 - **Discovery** (`discovery/`) — full official ARK:SA roster (~3,189 servers as of last live run), no API key needed, refreshing on a schedule, history recording (uptime tracking, wipe/version change detection, peak-time and downtime-pattern heatmaps). Unofficial pipeline (Phase A): separate 15-minute fetch of `unofficialserverlist.json`, trimmed in-memory roster, aggregate SQLite (`unofficial.sqlite`) with first_seen/last_seen/cycles_seen, served at `/unofficial/roster` and `/unofficial/meta`. CDN info feeds: separate 10-minute poll of Wildcard's rate INIs and `news.ini` into `feeds.sqlite` (current rates + change log; news first_seen/last_seen/inactive), served at `/rates` and `/news`. Failures on unofficial or info-feed cycles never touch the official cycle.
@@ -22,7 +34,7 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - **Derived server lists** (`/lists/official-pve`, `/lists/official-pvp`, `/lists/low-ping`, `/lists/most-populated`, `/lists/recently-wiped`, `/lists/available-now`) — canonical pre-filtered/pre-sorted views that reuse the browser pipeline. Recently-wiped reads the existing history change log (14-day window). Available-now labels slot counts as observed, not reserved.
 - **Nav** — Servers, Maps, and Stats are CSS `details` dropdowns (hover/focus-within plus tap-to-open); Guides, Alerts, and Favorites stay plain links. All three dropdowns share `name="mainnav"` so the browser closes one when another opens. An inline script adds outside-click and Escape close; the nav still works with JS off. Maps dropdown lists every registered map (two columns). Stats dropdown: Rankings, Leaderboards, Map Uptime, PvE vs PvP, Regions, Is ARK Down, Rates, News. Footer sitemap includes the Maps index under Server Tools. The ArkHelper wordmark links home (`/`). The footer Project column includes the required MaxMind GeoLite2 attribution.
 - **Maps** (`/maps`, `/maps/:slug`) — index of every map on the live official roster (server count, players online, avg 7-day uptime) plus per-map pages with original one-liners, telemetry (players, online/total, free slots, avg availability), PvE/PvP and platform-badge counts, observed versions, top-10 by rankScore, and currently-unavailable servers. Unknown/future map IDs get a generated slug and raw name instead of 500ing. SEO titles/meta target queries like "ark aberration servers".
-- **Guides** (`/guides`, `/guides/:slug`) — original-prose content track, server-rendered from a static registry. Index is a card grid; the six core guides match arkstatus's index: Beginner's Guide (server choice, spawn, first hour, bed, stats, first tame), Taming Guide (knockout and passive methods, torpor, feeding, traps), Resource Locations (terrain-first farming, tools, hauling — no map coordinates), Settings & Performance (presets, upscaling, diagnosing frames vs lag), Breeding & Mutations (the breeding loop, imprinting, inheritance, and mutations — no calculators or odds tables), and Boss Strategies (summoning, army composition, arena roles, and why preparation is the fight — no health/damage numbers, tribute lists, or loot tables). Scorched Earth Progression (desert water and heat, sandstorms, first tames, wyverns, deathworms, and the Manticore — no coordinates or stat tables). Aberration Progression (charge light, verticality, radiation, Rock Drakes, and Rockwell — no coordinates or stat tables). Related slugs for unpublished guides are skipped silently. Unknown slugs return a 404 HTML page listing available guides.
+- **Guides** (`/guides`, `/guides/:slug`) — original-prose content track, server-rendered from a static registry. Index is a card grid; the six core guides match arkstatus's index: Beginner's Guide (server choice, spawn, first hour, bed, stats, first tame), Taming Guide (knockout and passive methods, torpor, feeding, traps), Resource Locations (terrain-first farming, tools, hauling — no map coordinates), Settings & Performance (presets, upscaling, diagnosing frames vs lag), Breeding & Mutations (the breeding loop, imprinting, inheritance, and mutations — no calculators or odds tables), and Boss Strategies (summoning, army composition, arena roles, and why preparation is the fight — no health/damage numbers, tribute lists, or loot tables). Scorched Earth Progression (desert water and heat, sandstorms, first tames, wyverns, deathworms, and the Manticore — no coordinates or stat tables). Aberration Progression (charge light, verticality, radiation, Rock Drakes, and Rockwell — no coordinates or stat tables). Extinction Progression (city scavenging, corruption, Element defenses, Titans, and the King Titan — no coordinates or stat tables). Related slugs for unpublished guides are skipped silently. Unknown slugs return a 404 HTML page listing available guides.
 - **Filter presets** — named snapshots of the current browser query string. Logged-out: up to 3 in an HttpOnly cookie (~2KB guard). Logged-in: up to 15 in SQLite, cookie presets migrate on login (name collisions skipped), shareable via public `/p/<token>` → `/servers?...` redirects.
 - **Server detail pages** (`/servers/:id`) — full facts (including country name + flag when GeoIP resolved), uptime %, history table, rank neighborhood (percentile line plus nearby-ranked servers, current row highlighted), activity log (wipe/version changes), peak-time & downtime heatmaps (inline SVG), embeddable live-status badge (`/servers/:id/badge.svg`) with markdown/HTML snippets.
 - **Compare** (`/compare`) — side-by-side official servers, selection entirely in the URL (`?s=<id>&s=<id>`, cap 4, bookmarkable). Add via the server browser's checkbox column (`Compare selected`, official source including homepage and `/lists/*`) or an on-page name search. Ping / uptime / rank cells highlight the best value when two or more columns have a number.
@@ -42,6 +54,12 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
   2. Per-map resource guides — terrain/biome-first prose like the Resource Locations guide, no coordinates, unblocked now.
   3. Owner-waypoint enrichment — curated farming routes with Owner's own in-game GPS readings; staged behind the screenshot safari, judgment content not coverage.
   4. Interactive coverage maps — reachable only via self-extraction (parked; revisit only if the site commits to interactive maps as a feature).
+
+- Cluster pages — /clusters/:id from the existing clusterId field:
+  members, maps represented, combined capacity, cluster-wide uptime.
+- Population intelligence — typical-hour population baselines,
+  "N% above normal" deltas, and version-rollout percentages, all
+  derived from the existing history SQLite. No new data sources.
 
 - Remaining guides work: per-map resource and progression fan-outs (the six-guide core index now matches arkstatus: beginner, taming, resources, settings, breeding, bosses)
 

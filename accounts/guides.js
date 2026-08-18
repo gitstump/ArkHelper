@@ -983,10 +983,155 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'extinction-progression',
+    title: 'Extinction Progression Guide — ARK: Survival Ascended',
+    shortTitle: 'Extinction Progression',
+    description:
+      'The ruined Earth from city scavenging to the King Titan: corruption, Element, orbital drops, the three Titans, and the order that makes the endgame earnable.',
+    lastVerified: '2026-08-17',
+    related: ['aberration-progression', 'boss-strategies', 'breeding-mutations', 'genesis-progression'],
+    sections: [
+      {
+        heading: 'What Extinction asks of you',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Extinction is not an ARK. It is the Earth the ARKs left behind — a ruined homeworld overgrown with Element, patrolled by creatures the corruption has already claimed, and dotted with the wreckage of the civilization that built everything you have been climbing toward. This is the destination of the original trilogy, and the map assumes you finished growing up somewhere else. Its opening is gentler than Aberration\'s, but its endgame is the hardest content the first three maps have.',
+          },
+          {
+            type: 'p',
+            text: 'As before, you can transfer an established survivor through an obelisk or supply drop, or start fresh in the ruins. Fresh starts are genuinely viable here — the map\'s opening zone is one of the more protective in the game — but Extinction is the trilogy\'s finale, and it reads best in order: the habits Scorched Earth drilled and the discipline Aberration demanded are exactly what the wasteland spends. Either way, the early game is about the city, and the city is kinder than it looks.',
+          },
+          {
+            type: 'callout',
+            text: 'Aberration\'s gradient ran downward. Extinction\'s runs outward: the city is the easy ring, the open wasteland is the test, and the domes and the forbidden zone are the endgame. Progression here is the story of earning your way out.',
+          },
+        ],
+      },
+      {
+        heading: 'The city is your green zone',
+        blocks: [
+          {
+            type: 'p',
+            text: 'You start in the Sanctuary — a dead city under a failing shield, and the safest ground the map offers. Its streets hold gentle wildlife and its edges hold everything else, so the early rule is simple: the deeper into the city you are, the safer you are. Base inside it, modestly, the way the beginner path bases on an easy beach, and treat the shield boundary as the line between learning the map and being tested by it.',
+          },
+          {
+            type: 'p',
+            text: 'The city has one habit no other map teaches: it is harvestable. Lampposts, benches, wrecked vehicles, and broken structures break down into metal, crystal, electronics, and scrap at rates other maps reserve for mountaintops. The ruins are a starter kit — a survivor who spends their first days stripping streets will hit mid-game technology faster here than anywhere else in the trilogy. Scavenge first, mine later.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/maps/extinction', label: 'Live Extinction servers', note: 'population, uptime, and versions right now' },
+              { href: '/lists/official-pve', label: 'Official PvE servers', note: 'the recommended pool for a first Extinction run' },
+              { href: '/guides/beginners', label: "Beginner's Guide", note: 'the habits the wasteland will spend' },
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Corruption, and the enemies that never tame',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The corruption is Extinction\'s standing threat. Corrupted creatures — Element-warped versions of animals you know — roam the wasteland in packs, attack anything uncorrupted on sight, and chew through structures with unusual appetite. They are the reason the open map feels hostile in a way no weather system ever managed: the danger is not an environment you dress for but a population that hunts.',
+          },
+          {
+            type: 'p',
+            text: 'Plan around them the way Aberration taught you to plan around the dark. Travel with escorts, build with defense in mind even in quiet stretches, and treat any corrupted sighting as a pack until proven otherwise. Their pressure scales with how far from the city you are, which is the map\'s gradient enforcing itself.',
+          },
+          {
+            type: 'callout',
+            text: 'On every other map, each predator is a future mount. Corrupted creatures are not: nothing corrupted can ever be tamed. There is no clever method and no exception — fight them or route around them.',
+          },
+        ],
+      },
+      {
+        heading: 'First tames of the wasteland',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Extinction\'s native bench is the strangest in the game, and three of its tames restructure your economy outright. The Gacha is a walking production line — feed it stone and scrap and it produces crystals containing resources and loot. Gasbags is an absurd, lovable hauler that carries enormous weight and floats down from any height. The Velonasaur is a living turret whose spines answer the corrupted-pack problem directly. Between those three, the map\'s logistics, and much of its defense, are solved.',
+          },
+          {
+            type: 'p',
+            text: 'The colder and greener reaches add the Snow Owl, whose dive can freeze and whose presence can heal — the closest thing the game has to a field medic — and the Managarmr, a frost-breathing dasher that makes distance trivial. Under all of it, the fundamentals have not changed: torpor, the right food, and a safe perimeter still tame everything tameable, so the taming guide applies unchanged here.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/taming', label: 'Taming Guide', note: 'knockout and passive methods, torpor, and traps' },
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Element nodes and orbital drops',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The wasteland\'s core loop is defense. Element nodes erupt from the ground and orbital supply drops fall from the sky, and both work the same way: activate one, and escalating waves of corrupted creatures come to destroy it while you hold the line. Win, and the node yields harvestable Element — the endgame currency every other map locks behind bosses — while the drop opens into loot that scales with the difficulty you defended.',
+          },
+          {
+            type: 'p',
+            text: 'Respect the tiers. Low-difficulty defenses are honest early-game content the moment you have a Velonasaur and a wall; the highest tiers will delete an unprepared army without slowing down. Work upward deliberately, fortify before you activate rather than after, and treat each defense as a rehearsal for the fight this map ends on — because that is exactly what they are.',
+          },
+          {
+            type: 'callout',
+            text: 'Extinction hands out Element without a boss fight, and that is the map\'s quiet gift: the endgame materials every earlier map gated behind arenas are farmable here by anyone who can hold a wall.',
+          },
+        ],
+      },
+      {
+        heading: 'The domes and the deep wasteland',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Past the open wasteland, the map concentrates its biomes into sealed extremes: a desert dome and a snow dome, each a compressed, harsher version of the climates earlier maps spread across whole regions, and a sunken forest crater that hides the map\'s strangest wildlife. Each holds creatures and resources the city and wasteland do not, and each assumes you arrive equipped — the domes are destinations, not detours.',
+          },
+          {
+            type: 'p',
+            text: 'Beyond even those lies the forbidden zone, the Element-saturated heart of the corruption where the map keeps its final terminal and its worst inhabitants. You do not wander in. Everything the map has taught — city economy, corrupted-pack discipline, defense rehearsals, dome-hardened gear — is the entry fee, and the zone collects it in full.',
+          },
+        ],
+      },
+      {
+        heading: 'The Titans',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Extinction\'s mid-bosses are the Desert, Ice, and Forest Titans — creatures at a scale the game has not asked you to fight before, each summoned at its own arena in the region it rules. They are the trilogy\'s strangest power spike: a Titan defeated the right way can be brought over to your side, temporarily, as a raid-scale ally. The map is explicit about the trade — Titans do not last, so a tamed one is a window, not a possession, and the window is meant to be spent.',
+          },
+          {
+            type: 'p',
+            text: 'Fight them even if you never intend to tame one. Each Titan is a lesson in the grammar the King Titan speaks — huge health pools, arena mechanics that punish standing still, and armies as ammunition — delivered at a survivable scale. Survivors who arrive at the final terminal without having fought a Titan are taking the exam without the coursework.',
+          },
+        ],
+      },
+      {
+        heading: 'The King Titan, and where the story goes next',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The map ends where the corruption began: the King Titan, summoned at the forbidden zone\'s terminal, the final boss of the original trilogy and the hardest fight in it. Everything is legal here — bred armies, crafted war machines, even a tamed Titan brought as a siege partner — and the fight expects all of it. This is the encounter the entire progression chain has been quietly preparing you for since the first beach.',
+          },
+          {
+            type: 'p',
+            text: 'Victory closes the story the first three maps told — and opens the next one. Beyond Extinction the ARKs\' tale continues into Genesis and its simulated worlds, where the rules bend again and the preparation starts over. The trilogy\'s lesson travels with you: every map teaches its own grammar, and the survivors who thrive are the ones who arrive ready to learn it.',
+          },
+          {
+            type: 'callout',
+            text: 'The law from every arena still holds, at its largest scale yet: the King Titan is won in the months before the terminal, not the minutes after it. The Boss Strategies guide covers the shape of that preparation.',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 // planned future guides that `related` arrays may reference before they exist.
-const PLANNED_SLUGS = ['extinction-progression'];
+const PLANNED_SLUGS = ['genesis-progression'];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));
 

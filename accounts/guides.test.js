@@ -43,7 +43,7 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 8);
+  assert.equal(GUIDE_REGISTRY.length, 9);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
@@ -52,6 +52,7 @@ test('registry slugs are unique and every entry has the required fields', () => 
   assert.ok(slugs.includes('boss-strategies'));
   assert.ok(slugs.includes('scorched-earth-progression'));
   assert.ok(slugs.includes('aberration-progression'));
+  assert.ok(slugs.includes('extinction-progression'));
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
       assert.ok(g[field] != null, `missing ${field} on ${g.slug}`);
@@ -486,4 +487,30 @@ test('aberration-progression guide ships the brief prose verbatim', () => {
   assert.equal(g.sections[5].heading, 'Radiation and the hazard suit');
   assert.equal(g.sections[6].heading, 'Rock Drakes and the grave of the lost');
   assert.equal(g.sections[7].heading, 'Rockwell, and where the story goes next');
+});
+
+test('extinction-progression guide ships the brief prose verbatim', () => {
+  const g = resolveGuide('extinction-progression');
+  assert.ok(g);
+  assert.equal(g.title, 'Extinction Progression Guide — ARK: Survival Ascended');
+  assert.equal(g.shortTitle, 'Extinction Progression');
+  assert.equal(g.lastVerified, '2026-08-17');
+  assert.equal(g.sections.length, 8);
+  assert.equal(g.related.join(','), 'aberration-progression,boss-strategies,breeding-mutations,genesis-progression');
+  assert.equal(
+    g.description,
+    'The ruined Earth from city scavenging to the King Titan: corruption, Element, orbital drops, the three Titans, and the order that makes the endgame earnable.'
+  );
+  assert.equal(
+    g.sections[0].blocks[0].text,
+    'Extinction is not an ARK. It is the Earth the ARKs left behind — a ruined homeworld overgrown with Element, patrolled by creatures the corruption has already claimed, and dotted with the wreckage of the civilization that built everything you have been climbing toward. This is the destination of the original trilogy, and the map assumes you finished growing up somewhere else. Its opening is gentler than Aberration\'s, but its endgame is the hardest content the first three maps have.'
+  );
+  assert.equal(g.sections[0].heading, 'What Extinction asks of you');
+  assert.equal(g.sections[1].heading, 'The city is your green zone');
+  assert.equal(g.sections[2].heading, 'Corruption, and the enemies that never tame');
+  assert.equal(g.sections[3].heading, 'First tames of the wasteland');
+  assert.equal(g.sections[4].heading, 'Element nodes and orbital drops');
+  assert.equal(g.sections[5].heading, 'The domes and the deep wasteland');
+  assert.equal(g.sections[6].heading, 'The Titans');
+  assert.equal(g.sections[7].heading, 'The King Titan, and where the story goes next');
 });

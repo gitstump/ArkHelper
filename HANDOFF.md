@@ -35,6 +35,10 @@ vs arkstatus.com: PROJECT_STATUS.md.
   real code before verdicting anything substantial. Verify
   adjacent-system claims (whitelists, invariants, endpoints) by
   grepping code during brief prep — never assert from memory.
+- When a brief modifies a shared function or publishes a previously
+  planted identifier, grep the WHOLE tree (code and tests) for every
+  consumer/reference and name each one in the brief — misses here
+  caused the only Builder-side scope surprises to date.
 - Parallel Builder sessions ONLY for file-disjoint briefs; flag
   parallel-safe pairs explicitly.
 - Content briefs: verbatim prose is the source of truth; test wording
