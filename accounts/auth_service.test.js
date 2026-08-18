@@ -337,9 +337,13 @@ function fakeBrowserDeps(roster = null) {
   return { fetchJsonSafe: async () => roster };
 }
 
-function fakeDetailDeps({ roster = null, historyData = null } = {}) {
+function fakeDetailDeps({ roster = null, historyData = null, rankingData = null } = {}) {
   return {
-    fetchJsonSafe: async (url) => (url.includes('/history/') ? historyData : roster),
+    fetchJsonSafe: async (url) => {
+      if (url.includes('/history/')) return historyData;
+      if (url.includes('/rankings/')) return rankingData;
+      return roster;
+    },
   };
 }
 
@@ -721,6 +725,66 @@ test('GET /servers/:id always includes a badge embed section pointed at the righ
   const res = await fetch(`${base}/servers/abc`);
   const html = await res.text();
   assert.match(html, /src="\/servers\/abc\/badge\.svg"/);
+
+  server.close();
+});
+
+test('GET /servers/:id shows the rank neighborhood when the rankings fetch succeeds', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: 'abc', name: 'A Server', map: 'M', gameMode: 'pve', modIds: [] },
+      { id: 'nbr', name: 'Neighbor Server', map: 'M', gameMode: 'pve', modIds: [] },
+    ],
+  };
+  const rankingData = {
+    serverId: 'abc',
+    ranking: {
+      rank: 4,
+      percentile: 91.2,
+      totalRanked: 50,
+      neighbors: [
+        { serverId: 'nbr', rank: 3, rankScore: 88, uptimePercent: 99 },
+        { serverId: 'abc', rank: 4, rankScore: 87, uptimePercent: 98 },
+      ],
+    },
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    detailDeps: fakeDetailDeps({ roster, historyData: null, rankingData }),
+  });
+
+  const res = await fetch(`${base}/servers/abc`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<h2>Rank neighborhood<\/h2>/);
+  assert.match(html, /Ranked #4 of 50 \u2014 top 91\.2%/);
+  assert.match(html, /href="\/servers\/nbr"/);
+
+  server.close();
+});
+
+test('GET /servers/:id still renders when the rankings fetch fails', async () => {
+  const db = openDb(':memory:');
+  const roster = { servers: [{ id: 'abc', name: 'A Server', map: 'M', gameMode: 'pve', modIds: [] }] };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    detailDeps: fakeDetailDeps({ roster, historyData: null, rankingData: null }),
+  });
+
+  const res = await fetch(`${base}/servers/abc`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /A Server/);
+  assert.doesNotMatch(html, /Rank neighborhood/);
 
   server.close();
 });

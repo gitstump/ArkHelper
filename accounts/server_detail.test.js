@@ -285,6 +285,110 @@ test('renderServerDetailPage omits the rank badge when the server has no score y
   assert.doesNotMatch(html, /class="rank-badge"/);
 });
 
+// ---------------------------------------------------------------------
+// renderServerDetailPage — rank neighborhood
+// ---------------------------------------------------------------------
+function makeNeighborhood(overrides = {}) {
+  return {
+    serverId: 'abc123',
+    totalRuns: 200,
+    eligibleServerCount: 100,
+    ranking: {
+      rank: 10,
+      percentile: 90.1,
+      totalRanked: 100,
+      neighbors: [
+        { serverId: 'n1', rank: 8, rankScore: 82.1, uptimePercent: 99.2 },
+        { serverId: 'n2', rank: 9, rankScore: 81.0, uptimePercent: 98.0 },
+        { serverId: 'abc123', rank: 10, rankScore: 80.5, uptimePercent: 97.5 },
+        { serverId: 'n3', rank: 11, rankScore: 79.0, uptimePercent: 96.1 },
+        { serverId: 'n4', rank: 12, rankScore: 78.2, uptimePercent: 95.0 },
+      ],
+    },
+    ...overrides,
+  };
+}
+
+const NEIGHBOR_NAMES = new Map([
+  ['n1', 'Alpha'],
+  ['n2', 'Bravo'],
+  ['abc123', 'EU-PVE-TheIsland5313'],
+  ['n3', 'Charlie'],
+  ['n4', 'Delta'],
+]);
+
+test('renderServerDetailPage shows a rank neighborhood table with the current server highlighted', () => {
+  const html = renderServerDetailPage({
+    server: makeServer(),
+    uptime: null,
+    history: [],
+    rankNeighborhood: makeNeighborhood(),
+    serverNames: NEIGHBOR_NAMES,
+  });
+  assert.match(html, /<h2>Rank neighborhood<\/h2>/);
+  assert.match(html, /Ranked #10 of 100 \u2014 top 90\.1%/);
+  const currentRow = html.match(/<tr class="rank-current">[\s\S]*?<\/tr>/);
+  assert.ok(currentRow, 'current server row should be highlighted');
+  assert.match(currentRow[0], /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(currentRow[0], /<a /);
+  assert.match(html, /href="\/servers\/n1"/);
+  assert.match(html, /href="\/servers\/n2"/);
+  assert.match(html, /href="\/servers\/n3"/);
+  assert.match(html, /href="\/servers\/n4"/);
+  assert.doesNotMatch(html, /href="\/servers\/abc123"/);
+});
+
+test('renderServerDetailPage falls back to the raw serverId when a neighbor is not on the roster', () => {
+  const names = new Map([
+    ['n1', 'Alpha'],
+    ['abc123', 'EU-PVE-TheIsland5313'],
+  ]);
+  const html = renderServerDetailPage({
+    server: makeServer(),
+    uptime: null,
+    history: [],
+    rankNeighborhood: makeNeighborhood(),
+    serverNames: names,
+  });
+  assert.match(html, /n2/);
+  assert.match(html, /class="note num">n2</);
+  assert.match(html, /href="\/servers\/n2"/);
+});
+
+test('renderServerDetailPage omits the rank neighborhood section when there is nothing to show', () => {
+  const cases = [
+    { rankNeighborhood: null },
+    { rankNeighborhood: { ranking: null } },
+    { rankNeighborhood: { ranking: { rank: 1, percentile: 99, totalRanked: 10, neighbors: [] } } },
+    { rankNeighborhood: { ranking: { rank: 1, percentile: 99, totalRanked: 10 } } },
+  ];
+  for (const extra of cases) {
+    const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [], ...extra });
+    assert.doesNotMatch(html, /Rank neighborhood/);
+  }
+});
+
+test('renderServerDetailPage renders em-dashes for a malformed neighbor without throwing', () => {
+  const html = renderServerDetailPage({
+    server: makeServer(),
+    uptime: null,
+    history: [],
+    rankNeighborhood: {
+      ranking: {
+        rank: 1,
+        percentile: 99.9,
+        totalRanked: 10,
+        neighbors: [{ serverId: 'ghost' }],
+      },
+    },
+    serverNames: new Map(),
+  });
+  assert.match(html, /Rank neighborhood/);
+  assert.match(html, /ghost/);
+  assert.match(html, /<td class="num">\u2014<\/td><td><a href="\/servers\/ghost">/);
+  assert.match(html, /ghost<\/span><\/a><\/td><td class="num">\u2014<\/td><td class="num">\u2014<\/td>/);
+});
+
 test('renderServerDetailPage omits the embed section when no badgeUrl is given', () => {
   const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [] });
   assert.doesNotMatch(html, /Markdown:/);

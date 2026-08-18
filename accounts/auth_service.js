@@ -345,7 +345,19 @@ function createAuthServer({
         const isFavorited = accountRow ? listFavorites(db, accountRow.id).includes(serverId) : false;
         const alertSettings = accountRow ? getAlertSettings(db, accountRow.id, serverId) : null;
 
-        const historyData = await detailDeps.fetchJsonSafe(`${historyUrlBase}/${encodeURIComponent(serverId)}`);
+        const serverNames = new Map();
+        for (const s of roster.servers) {
+          if (s && s.id != null && typeof s.name === 'string' && s.name) {
+            serverNames.set(s.id, s.name);
+          }
+        }
+
+        const encodedId = encodeURIComponent(serverId);
+        const [historyData, rankRaw] = await Promise.all([
+          detailDeps.fetchJsonSafe(`${historyUrlBase}/${encodedId}`),
+          detailDeps.fetchJsonSafe(`${rankingUrl}/${encodedId}`),
+        ]);
+        const rankNeighborhood = rankRaw && typeof rankRaw === 'object' ? rankRaw : null;
         const body = renderServerDetailPage({
           server,
           uptime: historyData ? historyData.uptime : null,
@@ -353,10 +365,12 @@ function createAuthServer({
           changeLog: historyData ? historyData.changeLog : [],
           peakTimes: historyData ? historyData.peakTimes : undefined,
           downtimePatterns: historyData ? historyData.downtimePatterns : undefined,
+          rankNeighborhood,
+          serverNames,
           loggedIn: Boolean(account),
           isFavorited,
           alertSettings,
-          badgeUrl: `/servers/${encodeURIComponent(serverId)}/badge.svg`,
+          badgeUrl: `/servers/${encodedId}/badge.svg`,
           account,
           live: liveFromRoster(roster),
         });

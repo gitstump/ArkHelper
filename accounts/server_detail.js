@@ -6,9 +6,9 @@
  *
  * The per-server page — reached by clicking a server name in the
  * browser. Shows everything the roster knows about it, uptime %, a
- * simple history table, alert configuration (feed + optional Discord
- * webhook), peak-times and downtime-pattern heatmaps, a wipe/
- * version change log, and an embeddable status badge.
+ * simple history table, a rank-neighborhood table, alert configuration
+ * (feed + optional Discord webhook), peak-times and downtime-pattern
+ * heatmaps, a wipe/version change log, and an embeddable status badge.
  *
  * Same pattern as the rest of the accounts service: pure render
  * function for testability, server-side HTML, no client JS needed.
@@ -33,6 +33,7 @@ const PAGE_CSS = `
 .change-log li { margin-bottom: var(--space-1); }
 .rank-badge { display: inline-block; background: var(--surface); border: 1px solid var(--border); color: var(--accent); padding: 2px 10px; border-radius: 999px; font-size: 0.85rem; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-left: var(--space-2); vertical-align: middle; }
 .rank-badge a { color: var(--accent); text-decoration: none; }
+.rank-current { background: var(--surface); box-shadow: inset 3px 0 0 var(--accent); }
 `;
 
 function renderServerNotFoundPage(serverId, { account = null, live = null } = {}) {
@@ -59,7 +60,54 @@ function renderRosterUnavailablePage({ account = null, live = null } = {}) {
   });
 }
 
-function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, peakTimes, downtimePatterns, badgeUrl, account = null, live = null, origin } = {}) {
+function dashNumber(value, suffix = '') {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value}${suffix}` : '\u2014';
+}
+
+function lookupServerName(serverNames, serverId) {
+  if (!serverNames || serverId == null) return null;
+  const name = typeof serverNames.get === 'function' ? serverNames.get(serverId) : serverNames[serverId];
+  return typeof name === 'string' && name ? name : null;
+}
+
+function renderRankNeighborhoodSection(rankNeighborhood, currentServerId, serverNames) {
+  const ranking = rankNeighborhood && rankNeighborhood.ranking;
+  if (!ranking) return '';
+  const neighbors = ranking.neighbors;
+  if (!Array.isArray(neighbors) || neighbors.length === 0) return '';
+
+  const rows = neighbors
+    .map((raw) => {
+      const n = raw && typeof raw === 'object' ? raw : {};
+      const id = n.serverId;
+      const isCurrent = id != null && id === currentServerId;
+      const name = lookupServerName(serverNames, id);
+      const idLabel = id == null || id === '' ? '\u2014' : String(id);
+      let serverCell;
+      if (name) {
+        serverCell = isCurrent
+          ? escapeHtml(name)
+          : `<a href="/servers/${encodeURIComponent(id)}">${escapeHtml(name)}</a>`;
+      } else {
+        const rawId = `<span class="note num">${escapeHtml(idLabel)}</span>`;
+        serverCell = isCurrent || id == null || id === ''
+          ? rawId
+          : `<a href="/servers/${encodeURIComponent(id)}">${rawId}</a>`;
+      }
+      const rowClass = isCurrent ? ' class="rank-current"' : '';
+      return `<tr${rowClass}><td class="num">${escapeHtml(dashNumber(n.rank))}</td><td>${serverCell}</td><td class="num">${escapeHtml(dashNumber(n.rankScore))}</td><td class="num">${escapeHtml(dashNumber(n.uptimePercent, '%'))}</td></tr>`;
+    })
+    .join('');
+
+  return `<h2>Rank neighborhood</h2>
+  <p>Ranked #${escapeHtml(String(ranking.rank ?? '\u2014'))} of ${escapeHtml(String(ranking.totalRanked ?? '\u2014'))} \u2014 top ${escapeHtml(String(ranking.percentile ?? '\u2014'))}%</p>
+  <table>
+    <thead><tr><th>#</th><th>Server</th><th>Score</th><th>Uptime</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, peakTimes, downtimePatterns, badgeUrl, account = null, live = null, origin, rankNeighborhood = null, serverNames = null } = {}) {
   const modList = server.modIds && server.modIds.length ? server.modIds.map((id) => escapeHtml(id)).join(', ') : 'None (vanilla server)';
 
   const favoriteSection = !loggedIn
@@ -140,6 +188,8 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
       ? `<span class="rank-badge"><a href="/rankings" title="Composite rank score out of 100">#${escapeHtml(String(server.rank ?? '\u2014'))} \u00b7 ${escapeHtml(String(server.rankScore))}</a></span>`
       : '';
 
+  const rankNeighborhoodSection = renderRankNeighborhoodSection(rankNeighborhood, server && server.id, serverNames);
+
   return renderPage({
     title: `ArkHelper \u2014 ${server.name || 'Server'}`,
     currentPath: `/servers/${server.id || ''}`,
@@ -192,6 +242,8 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
 
   <h2>Downtime patterns</h2>
   ${downtimeSection}
+
+  ${rankNeighborhoodSection}
 
   <h2>Embed this server's status</h2>
   ${embedSection}
