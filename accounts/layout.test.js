@@ -24,7 +24,8 @@ test('renderPage head includes favicon links and og:title matching the page titl
 
 test('renderPage wordmark links to home', () => {
   const html = renderPage({ title: 'ArkHelper', currentPath: '/rankings', body: '<p>x</p>' });
-  assert.match(html, /<a class="wordmark" href="\/">ArkHelper<\/a>/);
+  assert.match(html, /<a class="wordmark" href="\/"><img src="\/assets\/icon-192\.png" alt="ArkHelper" width="48" height="48" class="wordmark-logo"><\/a>/);
+  assert.match(html, /Live tracking for the ARK: Survival Ascended network/);
 });
 
 test('renderPage wraps body in the shared shell with theme CSS', () => {

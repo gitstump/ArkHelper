@@ -60,7 +60,8 @@ test('renderRatesPage shows the live bonus-rate banner, variant cards, and chang
   assert.match(html, /TamingSpeedMultiplier/);
   assert.match(html, /1 \u2192 2/);
   assert.match(html, /2026-08-14 00:00:00 UTC/);
-  assert.doesNotMatch(html, /<img\b/i);
+  const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+  assert.doesNotMatch(main, /<img\b/i);
 });
 
 test('renderRatesPage falls back when the feed is unavailable', () => {

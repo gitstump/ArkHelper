@@ -201,7 +201,7 @@ ${extraCss}
   <header class="site-header">
     <div class="header-inner">
       <div class="brand">
-        <a class="wordmark" href="/">ArkHelper</a>
+        <a class="wordmark" href="/"><img src="/assets/icon-192.png" alt="ArkHelper" width="48" height="48" class="wordmark-logo"></a>
         <p class="tagline">Live tracking for the ARK: Survival Ascended network.</p>
       </div>
       <nav class="nav">${renderNav(currentPath)}</nav>

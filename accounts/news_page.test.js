@@ -181,7 +181,8 @@ test('an entry without imagePath keeps the text-only row', () => {
   assert.match(html, /Code of Conduct/);
   assert.match(html, /class="news-item"/);
   assert.doesNotMatch(html, /class="news-item has-image"/);
-  assert.doesNotMatch(html, /<img\b/i);
+  const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+  assert.doesNotMatch(main, /<img\b/i);
 });
 
 test('a hostile imagePath renders the text-only row', () => {
@@ -203,7 +204,8 @@ test('a hostile imagePath renders the text-only row', () => {
     },
   });
   assert.match(html, /Bonus rates/);
-  assert.doesNotMatch(html, /<img\b/i);
+  const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+  assert.doesNotMatch(main, /<img\b/i);
   assert.doesNotMatch(html, /evil\.example/);
   assert.doesNotMatch(html, /class="news-item has-image"/);
 });

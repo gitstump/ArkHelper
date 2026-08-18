@@ -1886,7 +1886,8 @@ test('GET /news renders titles and links from the discovery feed', async () => {
   const html = await res.text();
   assert.match(html, /Community Crunch 519: Tusk Tusk Boom/);
   assert.match(html, /Dragontopia/);
-  assert.doesNotMatch(html, /<img\b/i);
+  const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+  assert.doesNotMatch(main, /<img\b/i);
 
   server.close();
 });
@@ -3436,6 +3437,28 @@ test('HTML pages include favicon, apple-touch-icon, og:image, and twitter card',
   assert.ok(ogImage, 'expected an og:image meta tag');
   assert.ok(ogImage[1].startsWith(siteOrigin()), `og:image ${ogImage[1]} should start with ${siteOrigin()}`);
   assert.match(html, /name="twitter:card" content="summary_large_image"/);
+
+  server.close();
+});
+
+test('HTML pages include the full logo in the header', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides`);
+  const html = await res.text();
+  const headerStart = html.indexOf('<header');
+  const headerEnd = html.indexOf('</header>');
+  assert.ok(headerStart !== -1 && headerEnd !== -1);
+  const header = html.slice(headerStart, headerEnd);
+  assert.match(header, /\/assets\/icon-192\.png/);
 
   server.close();
 });

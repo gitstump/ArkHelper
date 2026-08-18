@@ -71,8 +71,12 @@ h1 a, h2 a { text-decoration: none; }
   letter-spacing: 0.02em;
   color: var(--text);
   text-decoration: none;
+  display: inline-block;
+  line-height: 0;
 }
 .wordmark:hover { color: var(--accent); }
+.wordmark-logo { display: block; border-radius: 6px; }
+.wordmark:hover .wordmark-logo { filter: brightness(1.12); }
 .tagline { margin: 0; color: var(--muted); font-size: 0.78rem; }
 .nav { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; flex: 1; }
 .nav a, .nav summary {
