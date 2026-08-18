@@ -8,6 +8,7 @@ Last updated: 2026-08-17 — 765 tests passing — In flight: none
 
 Full public-feature parity with arkstatus.com is the neutral baseline — falling short is failure, matching is neutral. Success additionally means: parity with BattleMetrics' PUBLIC pages (server stats/graphs; their RCON/admin suite is explicitly OUT of scope), and parity with the ARK wiki's TOOLS (calculators, reference data, maps) built clean-room from game facts and original assets — the wiki's CC BY-NC-SA license means we never copy its text or images. The wiki-tools reference implementation is [wikily.gg/ark-survival-ascended](https://wikily.gg/ark-survival-ascended) — still clean-room: game-file facts and original prose/assets only. Exceeding all of this without degrading anything is the actual goal.
 Imagery policy: official promotional/announcement assets and Owner's own gameplay screenshots only, per Wildcard Fan Content Guidelines (individual, non-commercial); hotlinked from official CDN, never re-served; no game-file extractions, wiki, or competitor images; site remains non-commercial while any Wildcard imagery is live; logo and brand assets original.
+Coordinate-data policy (fan-out research verdict, 2026-08-17): no third-party dataset exists that is clean-room-compatible for ASA per-map resource coordinates — arkutils Obelisk is ASE-only for maps, lacks resource nodes, and carries no data license; Beacon is GPL-3.0 with no separate data license, no resource coordinates, and would be a runtime dependency; the wiki is license-tainted (and self-reports its ASA extraction as incomplete); wikily.gg is a competitor reference and off-limits. Comprehensive resource maps are therefore only reachable via our own extraction (CUE4Parse, MIT, against the free anonymous-SteamCMD ASA dedicated-server paks) — legitimate but heavy (UE5 World Partition scatters resource instances across streaming-cell packages as HISM foliage) and parked, not scheduled. Manual in-game collection is explicitly NOT a coverage strategy (no competitor built coverage by hand; all use extraction); Owner-collected GPS waypoints are reserved for curated route content only — a handful of verified waypoints per map wrapped in original prose. Standing sub-rule unchanged: no coordinates may ever be transcribed from wiki or competitor sites.
 
 Live wild/tamed dino counts on official servers are **not** a parity item — arkstatus.com does not show them (they need RCON/admin access, which neither they nor we have on official). Their taming/breeding calculators are static creature-stat tools, not live in-server counts. Those calculators belong under the wiki-tools success bar above, built clean-room.
 
@@ -34,6 +35,12 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - **Launcher news** (`/news`) — titles, outbound links, and hotlinked official announcement thumbnails from Wildcard's CDN (fan-content policy, 2026-08-17 — see Imagery policy). Titles come from EntryData, else a humanized survivetheark article slug, else a humanized DLC name. Entries with no resolvable ImagePath stay text-only.
 
 ## Future / deferred work
+
+- Guides fan-outs, re-scoped after the 2026-08-17 coordinate-data research (see Coordinate-data policy above). Queue order:
+  1. Per-DLC progression guides — pure prose in the G-track mold, no external dataset needed, unblocked now.
+  2. Per-map resource guides — terrain/biome-first prose like the Resource Locations guide, no coordinates, unblocked now.
+  3. Owner-waypoint enrichment — curated farming routes with Owner's own in-game GPS readings; staged behind the screenshot safari, judgment content not coverage.
+  4. Interactive coverage maps — reachable only via self-extraction (parked; revisit only if the site commits to interactive maps as a feature).
 
 - Remaining guides work: per-map resource and progression fan-outs (the six-guide core index now matches arkstatus: beginner, taming, resources, settings, breeding, bosses)
 
