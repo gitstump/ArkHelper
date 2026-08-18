@@ -71,6 +71,17 @@ const BOSS_HEADINGS = [
   'Where to go next',
 ];
 
+const SCORCHED_HEADINGS = [
+  'What Scorched Earth asks of you',
+  'Water is the real tutorial',
+  'Heat, insulation, and the adobe answer',
+  'The desert food chain, and your first tames',
+  'Sandstorms and the weather that fights back',
+  'Wyverns and the scar in the world',
+  'Deathworms and the deep desert',
+  'The Manticore, and where the story goes next',
+];
+
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -99,7 +110,10 @@ test('renderGuidesIndexPage lists the beginners card with a link and last-verifi
   assert.match(html, /href="\/guides\/boss-strategies"/);
   assert.match(html, /Boss Strategies/);
   assert.match(html, /Preparing for and surviving ARK&#39;s boss arenas/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 6);
+  assert.match(html, /href="\/guides\/scorched-earth-progression"/);
+  assert.match(html, /Scorched Earth Progression/);
+  assert.match(html, /Surviving the desert from first canteen to the Manticore/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 7);
 });
 
 test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped content', () => {
@@ -229,6 +243,27 @@ test('renderGuidePage renders the boss-strategies guide h1, 8 headings, and call
   assert.doesNotMatch(html, /\(coming soon\)/);
 });
 
+test('renderGuidePage renders the scorched-earth-progression guide h1, 8 headings, and callout', () => {
+  const html = renderGuidePage({ guide: resolveGuide('scorched-earth-progression') });
+  assert.match(html, /<h1>Scorched Earth Progression Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /Last verified 2026-08-17/);
+  for (const heading of SCORCHED_HEADINGS) {
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(heading)}</h2>`));
+  }
+  assert.match(html, /class="callout"/);
+  assert.match(
+    html,
+    /The map has a difficulty gradient like any other: the outer dunes and lowlands are the easy zone/
+  );
+  assert.match(html, /href="\/guides\/taming"/);
+  assert.match(html, /knockout and passive methods that all transfer to the desert/);
+  assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/guides\/boss-strategies"/);
+  assert.match(html, /href="\/guides\/beginners"/);
+  assert.doesNotMatch(html, /aberration-progression/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
+});
+
 test('renderGuidePage table cells and caption are escaped; first column is th scope=row', () => {
   const html = renderGuidePage({
     guide: {
@@ -263,18 +298,22 @@ test('renderGuidePage table cells and caption are escaped; first column is th sc
 });
 
 test('every related list across the registry fully resolves in the footer', () => {
-  assert.equal(GUIDE_REGISTRY.length, 6);
+  assert.equal(GUIDE_REGISTRY.length, 7);
   for (const g of GUIDE_REGISTRY) {
     const html = renderGuidePage({ guide: g });
     const related = html.match(/class="guide-related"[\s\S]*?<\/nav>/);
     assert.ok(related, `missing related footer on ${g.slug}`);
-    for (const slug of g.related) {
+    const liveRelated = g.related.filter((slug) => resolveGuide(slug));
+    for (const slug of liveRelated) {
       assert.match(related[0], new RegExp(`href="/guides/${slug}"`));
+    }
+    for (const slug of g.related.filter((s) => !resolveGuide(s))) {
+      assert.doesNotMatch(related[0], new RegExp(slug));
     }
     assert.equal(
       (related[0].match(/href="\/guides\//g) || []).length,
-      g.related.length,
-      `silently-skipped related slug on ${g.slug}`
+      liveRelated.length,
+      `related footer link count mismatch on ${g.slug}`
     );
   }
 });
@@ -325,6 +364,16 @@ test('related footer with unknown slugs renders without error and omits missing 
   assert.match(bossRelated[0], /href="\/guides\/resource-locations"/);
   assert.equal((bossRelated[0].match(/href="\/guides\//g) || []).length, 3);
 
+  const scorchedHtml = renderGuidePage({ guide: resolveGuide('scorched-earth-progression') });
+  assert.match(scorchedHtml, /Related guides/);
+  const scorchedRelated = scorchedHtml.match(/class="guide-related"[\s\S]*?<\/nav>/);
+  assert.ok(scorchedRelated);
+  assert.match(scorchedRelated[0], /href="\/guides\/boss-strategies"/);
+  assert.match(scorchedRelated[0], /href="\/guides\/resource-locations"/);
+  assert.match(scorchedRelated[0], /href="\/guides\/beginners"/);
+  assert.doesNotMatch(scorchedRelated[0], /aberration-progression/);
+  assert.equal((scorchedRelated[0].match(/href="\/guides\//g) || []).length, 3);
+
   const withKnown = renderGuidePage({
     guide: {
       slug: 'x',
@@ -352,5 +401,6 @@ test('renderGuideNotFoundPage is a shell-wrapped 404 that escapes the slug and l
   assert.match(html, /href="\/guides\/settings-performance"/);
   assert.match(html, /href="\/guides\/breeding-mutations"/);
   assert.match(html, /href="\/guides\/boss-strategies"/);
+  assert.match(html, /href="\/guides\/scorched-earth-progression"/);
   assert.match(html, /href="\/guides"/);
 });

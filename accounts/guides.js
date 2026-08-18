@@ -691,6 +691,147 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'scorched-earth-progression',
+    title: 'Scorched Earth Progression Guide — ARK: Survival Ascended',
+    shortTitle: 'Scorched Earth Progression',
+    description:
+      'Surviving the desert from first canteen to the Manticore: water, heat, sandstorms, wyverns, and the order that makes the map beatable.',
+    lastVerified: '2026-08-17',
+    related: ['boss-strategies', 'resource-locations', 'aberration-progression', 'beginners'],
+    sections: [
+      {
+        heading: 'What Scorched Earth asks of you',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Scorched Earth is the first story expansion, and it teaches by subtraction. There are no forgiving coastlines, no easy freshwater, and no gentle starter biome — the whole map is desert, and the desert is the antagonist. Everything you learned on The Island still applies; the map just adds a second clock. On The Island you managed food and safety. Here you also manage water and temperature, all the time, everywhere.',
+          },
+          {
+            type: 'p',
+            text: 'You can arrive two ways: transfer an established survivor through an obelisk or supply drop, or start fresh on the sand. A transferred character keeps levels and engrams, which softens the early game considerably. A fresh start is the harder, purer version — and a popular one, because Scorched Earth rewards exactly the habits the beginner path builds. Either way, your first days are about infrastructure, not exploration.',
+          },
+          {
+            type: 'callout',
+            text: 'The map has a difficulty gradient like any other: the outer dunes and lowlands are the easy zone, the central canyons and mountains are not. Progression on this map is mostly the story of earning your way inward.',
+          },
+        ],
+      },
+      {
+        heading: 'Water is the real tutorial',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Thirst drains faster here than anywhere else, and open water is scarce and rarely safe to camp beside. Your progression through the map tracks your progression through water technology: drink from the rare oases when you find them, then carry water in jars, then stop hauling it at all. Wells and reservoirs let a base bank its own supply, and irrigation makes crop plots viable in a place that otherwise refuses to grow anything.',
+          },
+          {
+            type: 'p',
+            text: 'The desert also offers water in stranger forms. Certain cacti yield a sap you can drink your way through, some insects can be harvested for hydration in a pinch, and one local herbivore is essentially a walking water tank — tame one early and your gathering runs stop being timed by your canteen. Learning these backup sources is the difference between a bad afternoon and a corpse run.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Never leave base without more water than you think the trip needs.',
+              'Build your first real base within reach of a reliable water source, then engineer your way to independence from it.',
+              'Heat multiplies thirst: the hotter the hour, the shorter your range.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Heat, insulation, and the adobe answer',
+        blocks: [
+          {
+            type: 'p',
+            text: "Daytime heat on this map will cook an unprepared survivor through their armor, and the nights swing cold enough to bite. The clothing answer is counterintuitive: desert-appropriate gear protects against both extremes, and sometimes the right move in a heat wave is less armor, not more. Watch your insulation readouts and dress for the weather, not the fight.",
+          },
+          {
+            type: 'p',
+            text: "The building answer is adobe. This map introduces a building tier made from local materials that insulates far better than stone against the desert's swings, and a structure that shades and cools whatever stands under it. An adobe base with shade and stored water turns the climate from a constant threat into background noise — which is precisely what lets you start thinking about the rest of the map.",
+          },
+        ],
+      },
+      {
+        heading: 'The desert food chain, and your first tames',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The local wildlife is a study in specialization. A small shoulder pet will flinch and cry before weather events hit, giving you a warning system that no crafted item replaces. The water-storing herbivore doubles as an early pack animal. Vultures wheel over anything dead and will mob you at a carcass, which is both a hazard and a dinner bell. Familiar Island species roam here too, so your existing taming instincts still earn their keep.',
+          },
+          {
+            type: 'p',
+            text: 'Tame in this order of need, not prestige: weather warning, water carrier, then a fast mount that can outrun what you cannot fight. Speed matters more here than raw power for most of the early map, because the correct response to half the desert\'s threats is to leave.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/taming', label: 'Taming Guide', note: 'knockout and passive methods that all transfer to the desert' },
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'terrain-first farming logic that applies on every map' },
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Sandstorms and the weather that fights back',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Scorched Earth\'s weather is an active participant. Sandstorms drop visibility to arm\'s length, sap your stamina, and ground any sensible flyer; heat waves push the day\'s temperature from hostile to lethal. Neither can be fought — both can be scheduled around. When your shoulder pet panics, you have a short window to get under a roof, and a base with shade, water, and walls makes weather a coffee break instead of an emergency.',
+          },
+          {
+            type: 'callout',
+            text: 'Getting caught in the open by a sandstorm is survivable if you stop moving, hunker behind terrain, and wait it out. Getting caught in the open and pressing on is how the desert collects gear.',
+          },
+        ],
+      },
+      {
+        heading: 'Wyverns and the scar in the world',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The map\'s signature predators are wyverns, and they mark the midgame line. They nest in the great trench that cuts through the map, and they cannot be tamed the way anything else can: you raise one, from an egg, stolen from that trench while its owners object. An egg heist is a genuine operation — you need a fast way in, a faster way out, and a plan for the escort of angry adults that follows you home.',
+          },
+          {
+            type: 'p',
+            text: 'A stolen egg is only half the job. Hatching one demands serious temperature control, and a hatchling will only accept a special milk that comes from the very creatures you just robbed. The whole loop — heist, hatch, milk runs — is the map\'s midgame in miniature: preparation-heavy, terrifying the first time, and routine by the third. A raised wyvern then trivializes travel and rewrites what you can hunt.',
+          },
+        ],
+      },
+      {
+        heading: 'Deathworms and the deep desert',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The open dunes hide the map\'s ambush predator: a burrowing horror that erupts under anything heavy crossing the deep sand. Deathworms gatekeep the emptiest stretches of the map and, importantly, drop a trophy the endgame requires — so you cannot simply avoid them forever. Fight them on your terms: bring a hard-hitting mount, watch the sand for movement, and never wander the deep desert encumbered and slow.',
+          },
+          {
+            type: 'p',
+            text: 'By the time deathworms are farmable rather than frightening, you have effectively finished the map\'s curriculum: your water is infrastructure, your base ignores the weather, and your stable includes speed, cargo, and violence. What remains is the exam.',
+          },
+        ],
+      },
+      {
+        heading: 'The Manticore, and where the story goes next',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The desert\'s guardian is the Manticore, fought in its own arena and reached the way all guardians are: gather the artifacts hidden in the map\'s caves, pay the arena\'s entry requirements, and bring a team of creatures bred and armored for the job. It is a flying, stinging fight that punishes ground-only armies — plan your composition around a boss that refuses to stay put. The general preparation logic is the same as every boss fight, and the Boss Strategies guide covers it.',
+          },
+          {
+            type: 'p',
+            text: 'Beating the guardian is not just a victory screen; in the story\'s arc it is the reason the map exists. Scorched Earth is the bridge between The Island\'s ending and what waits underground on Aberration, and finishing here — ascending through the guardian\'s arena — is how a survivor follows the story forward. When you leave the desert, you leave it upward.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/boss-strategies', label: 'Boss Strategies', note: 'army composition, arena roles, and why preparation is the fight' },
+              { href: '/guides/beginners', label: "Beginner's Guide", note: 'the fundamentals the desert assumes you know' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));

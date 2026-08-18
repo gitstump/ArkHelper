@@ -2761,7 +2761,9 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(html, /href="\/guides\/settings-performance"/);
   assert.match(html, /href="\/guides\/breeding-mutations"/);
   assert.match(html, /href="\/guides\/boss-strategies"/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 6);
+  assert.match(html, /href="\/guides\/scorched-earth-progression"/);
+  assert.match(html, /Scorched Earth Progression/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 7);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();
@@ -2935,6 +2937,31 @@ test('GET /guides/boss-strategies renders the guide h1', async () => {
   assert.match(html, /href="\/guides\/breeding-mutations"/);
   assert.match(html, /href="\/maps"/);
   assert.match(html, /href="\/rates"/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
+
+  server.close();
+});
+
+test('GET /guides/scorched-earth-progression renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/scorched-earth-progression`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Scorched Earth Progression Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /Wyverns and the scar in the world/);
+  assert.match(html, /href="\/guides\/boss-strategies"/);
+  assert.doesNotMatch(html, /aberration-progression/);
   assert.doesNotMatch(html, /\(coming soon\)/);
 
   server.close();

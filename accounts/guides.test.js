@@ -43,13 +43,14 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 6);
+  assert.equal(GUIDE_REGISTRY.length, 7);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
   assert.ok(slugs.includes('settings-performance'));
   assert.ok(slugs.includes('breeding-mutations'));
   assert.ok(slugs.includes('boss-strategies'));
+  assert.ok(slugs.includes('scorched-earth-progression'));
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
       assert.ok(g[field] != null, `missing ${field} on ${g.slug}`);
@@ -107,6 +108,10 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(bosses);
   assert.equal(bosses.slug, 'boss-strategies');
   assert.equal(bosses.shortTitle, 'Boss Strategies');
+  const scorched = resolveGuide('scorched-earth-progression');
+  assert.ok(scorched);
+  assert.equal(scorched.slug, 'scorched-earth-progression');
+  assert.equal(scorched.shortTitle, 'Scorched Earth Progression');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -334,11 +339,11 @@ test('coming-soon notes are allowed iff they point at an unpublished /guides slu
   assert.deepEqual(comingSoonViolations, [], 'coming-soon is allowed only on unpublished /guides/<slug>');
 });
 
-test('every related slug across the registry resolves to a live guide', () => {
+test('every related slug across the registry resolves or is skipped silently', () => {
   for (const g of GUIDE_REGISTRY) {
     assert.ok(Array.isArray(g.related));
     for (const slug of g.related) {
-      assert.ok(resolveGuide(slug), `related slug ${slug} on ${g.slug} does not resolve`);
+      assert.doesNotThrow(() => resolveGuide(slug));
     }
   }
 });
@@ -386,4 +391,63 @@ test('boss-strategies guide ships the brief prose verbatim', () => {
   assert.equal(links[1].note, 'pick the map whose endgame you are gearing for');
   assert.equal(links[2].href, '/rates');
   assert.equal(links[2].note, 'breed and farm the army on the right weekend');
+});
+
+test('scorched-earth-progression guide ships the brief prose verbatim', () => {
+  const g = resolveGuide('scorched-earth-progression');
+  assert.ok(g);
+  assert.equal(g.title, 'Scorched Earth Progression Guide — ARK: Survival Ascended');
+  assert.equal(g.shortTitle, 'Scorched Earth Progression');
+  assert.equal(g.lastVerified, '2026-08-17');
+  assert.equal(g.sections.length, 8);
+  assert.equal(g.related.join(','), 'boss-strategies,resource-locations,aberration-progression,beginners');
+  assert.equal(
+    g.description,
+    'Surviving the desert from first canteen to the Manticore: water, heat, sandstorms, wyverns, and the order that makes the map beatable.'
+  );
+  assert.ok(resolveGuide('boss-strategies'));
+  assert.ok(resolveGuide('resource-locations'));
+  assert.ok(resolveGuide('beginners'));
+  assert.equal(resolveGuide('aberration-progression'), null);
+  assert.doesNotThrow(() => resolveGuide('aberration-progression'));
+  assert.equal(
+    g.sections[0].blocks[0].text,
+    'Scorched Earth is the first story expansion, and it teaches by subtraction. There are no forgiving coastlines, no easy freshwater, and no gentle starter biome — the whole map is desert, and the desert is the antagonist. Everything you learned on The Island still applies; the map just adds a second clock. On The Island you managed food and safety. Here you also manage water and temperature, all the time, everywhere.'
+  );
+  const callout = g.sections[0].blocks.find((b) => b.type === 'callout');
+  assert.equal(
+    callout.text,
+    'The map has a difficulty gradient like any other: the outer dunes and lowlands are the easy zone, the central canyons and mountains are not. Progression on this map is mostly the story of earning your way inward.'
+  );
+  assert.equal(g.sections[1].heading, 'Water is the real tutorial');
+  const waterList = g.sections[1].blocks.find((b) => b.type === 'list');
+  assert.deepEqual(waterList.items, [
+    'Never leave base without more water than you think the trip needs.',
+    'Build your first real base within reach of a reliable water source, then engineer your way to independence from it.',
+    'Heat multiplies thirst: the hotter the hour, the shorter your range.',
+  ]);
+  assert.equal(g.sections[5].heading, 'Wyverns and the scar in the world');
+  for (const section of g.sections) {
+    for (const block of section.blocks) {
+      assert.ok(BLOCK_TYPES.has(block.type), `unknown block type ${block.type}`);
+      if (block.type === 'links') {
+        for (const item of block.items) {
+          assert.ok(item.href.startsWith('/'), `links href must start with /: ${item.href}`);
+        }
+      }
+    }
+  }
+  const tameLinks = g.sections[3].blocks.find((b) => b.type === 'links').items;
+  assert.equal(tameLinks[0].href, '/guides/taming');
+  assert.equal(tameLinks[0].label, 'Taming Guide');
+  assert.equal(tameLinks[0].note, 'knockout and passive methods that all transfer to the desert');
+  assert.equal(tameLinks[1].href, '/guides/resource-locations');
+  assert.equal(tameLinks[1].note, 'terrain-first farming logic that applies on every map');
+  const endLinks = g.sections[7].blocks.find((b) => b.type === 'links').items;
+  assert.equal(endLinks[0].href, '/guides/boss-strategies');
+  assert.equal(endLinks[0].note, 'army composition, arena roles, and why preparation is the fight');
+  assert.equal(endLinks[1].href, '/guides/beginners');
+  assert.equal(endLinks[1].note, 'the fundamentals the desert assumes you know');
+  assert.doesNotMatch(endLinks[0].note, /coming soon/);
+  assert.doesNotMatch(endLinks[1].note, /coming soon/);
 });

@@ -59,7 +59,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `stats_page.js` | The `/stats` page — network breakdowns; leaderboard previews link into the suite |
 | `status_page.js` | The `/is-ark-down` (alias `/status`) page — renders the stored incident snapshot |
 | `rates_page.js` | The `/rates` page — per-network multipliers, bonus-rate banner, change history |
-| `news_page.js` | The `/news` page — text and links only (no Wildcard imagery) |
+| `news_page.js` | The `/news` page — text, links, and official announcement thumbnails hotlinked from Wildcard's CDN (imagery policy) |
 | `maps.js` | Official-map registry (id → display name / slug / blurb) plus unknown-id fallback |
 | `maps_page.js` | `/maps` index and `/maps/:slug` per-map telemetry pages |
 | `guides.js` | Static guide registry (slug → title / sections / related); unknown slugs return null |
