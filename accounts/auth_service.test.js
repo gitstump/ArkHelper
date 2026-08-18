@@ -2918,7 +2918,8 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(html, /Scorched Earth Progression/);
   assert.match(html, /href="\/guides\/aberration-progression"/);
   assert.match(html, /href="\/guides\/extinction-progression"/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 9);
+  assert.match(html, /href="\/guides\/genesis-progression"/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 10);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();
@@ -3174,6 +3175,34 @@ test('GET /guides/extinction-progression renders the guide h1', async () => {
   const aberrationRes = await fetch(`${base}/guides/aberration-progression`);
   const aberrationHtml = await aberrationRes.text();
   assert.match(aberrationHtml, /href="\/guides\/extinction-progression"/);
+
+  server.close();
+});
+
+test('GET /guides/genesis-progression renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/genesis-progression`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Genesis Progression Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /Missions, Hexagons, and the simulation&#39;s economy/);
+  assert.match(html, /href="\/guides\/extinction-progression"/);
+  assert.doesNotMatch(html, /\(coming soon\)/);
+
+  const extinctionRes = await fetch(`${base}/guides/extinction-progression`);
+  const extinctionHtml = await extinctionRes.text();
+  assert.match(extinctionHtml, /href="\/guides\/genesis-progression"/);
 
   server.close();
 });

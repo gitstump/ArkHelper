@@ -116,7 +116,7 @@ test('renderGuidesIndexPage lists the beginners card with a link and last-verifi
   assert.match(html, /href="\/guides\/aberration-progression"/);
   assert.match(html, /Aberration Progression/);
   assert.match(html, /The underground ARK from first Bulbdog to Rockwell/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 9);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 10);
 });
 
 test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped content', () => {
@@ -301,7 +301,7 @@ test('renderGuidePage table cells and caption are escaped; first column is th sc
 });
 
 test('every related list across the registry fully resolves in the footer', () => {
-  assert.equal(GUIDE_REGISTRY.length, 9);
+  assert.equal(GUIDE_REGISTRY.length, 10);
   for (const g of GUIDE_REGISTRY) {
     const html = renderGuidePage({ guide: g });
     const related = html.match(/class="guide-related"[\s\S]*?<\/nav>/);

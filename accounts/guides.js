@@ -1128,10 +1128,144 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'genesis-progression',
+    title: 'Genesis Progression Guide — ARK: Survival Ascended',
+    shortTitle: 'Genesis Progression',
+    description:
+      'The simulation from first mission to the Master Controller: five biomes, HLN-A, Hexagons, the remade ocean, and the order that makes the tests passable.',
+    lastVerified: '2026-08-18',
+    related: ['extinction-progression', 'boss-strategies', 'taming'],
+    sections: [
+      {
+        heading: 'What Genesis asks of you',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Genesis is not a place. It is a simulation — a training program run by a small holographic companion named HLN-A, who greets you on arrival and never really leaves. The world it simulates is five hostile biomes, and the rules you have relied on since the first beach start bending immediately: progression here is not a march across a landscape but a curriculum, delivered as missions, graded in difficulty tiers, and paid out in a currency the simulation invents for the purpose. The maps before this one tested how you survive. Genesis tests how you perform.',
+          },
+          {
+            type: 'p',
+            text: 'Arrival is unusually generous: you choose your starting biome and even the compass direction you enter it from, and you can make that choice badly with very little penalty — the simulation is built for re-entry. What it is not built for is wandering. Every biome wants you dead in its own way, and the connective tissue between them is not a gentle overland route but open water and teleportation. Pick one biome, learn it the way you once learned a starter beach, and let the mission list — not curiosity — decide when you leave.',
+          },
+          {
+            type: 'callout',
+            text: 'One boundary to know before anything else: this guide covers the free Genesis map that every ASA owner has. The paid Tides of Fortune expansion that launched beside it — pirate ships, its own campaign and creatures — is separate content and none of it is required for anything below.',
+          },
+        ],
+      },
+      {
+        heading: 'Missions, Hexagons, and the simulation\'s economy',
+        blocks: [
+          {
+            type: 'p',
+            text: 'HLN-A offers missions across every biome — hunts, escorts, races, waves of enemies, and stranger tests — each at selectable difficulty tiers you can attempt at your own pace. Completing them pays Hexagons, the simulation\'s currency, which you spend on resources, technology, and gear from HLN-A\'s shop. This inverts the usual ARK economy: on every earlier map, materials came from the world and progress came from materials. Here, performance is a resource in itself, and a survivor good at missions can buy their way past bottlenecks that took weeks of gathering elsewhere.',
+          },
+          {
+            type: 'p',
+            text: 'The open world participates too. Glitches — small shimmering anomalies scattered through the biomes — replace the explorer notes of older maps, and fixing them pays Hexagons and pieces of the story. Between missions and glitches, the map is constantly offering you a next objective, which is exactly the habit it wants to build: the final door in Genesis is opened by mission completions, so the curriculum is not optional. Treat the mission list the way earlier guides treated the tech tree.',
+          },
+          {
+            type: 'callout',
+            text: 'Spend Hexagons on bottlenecks, not groceries. Anything you can gather in ten safe minutes is a waste of the currency; the shop earns its keep on the things your current biome refuses to give you.',
+          },
+        ],
+      },
+      {
+        heading: 'Pick one biome and learn it',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The classic first pick is the Bog — a fetid, green, dangerous swamp that is nonetheless the most conventionally ARK-like of the five, with familiar taming targets, dense resources, and hazards that punish carelessness rather than existence. The Arctic and the Ocean\'s calmer margins are workable starts for survivors who know what they are signing up for. The Volcanic biome and the Lunar surface are not starts at all; they are destinations, and the simulation will make that clear quickly if you test it.',
+          },
+          {
+            type: 'p',
+            text: 'Whichever you choose, the opening plays like a compressed first week anywhere: shelter, a bed, basic tools, and a small bench of working tames before anything ambitious. The difference is what the base is for. On Genesis a home biome is a mission hub — you will leave from it, fail missions, and return to re-equip far more often than you will defend it from sieges. Build for quick turnaround: storage you can restock from in one pass beats walls you never needed.',
+          },
+        ],
+      },
+      {
+        heading: 'The five biomes, briefly',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The Bog is the green tutorial: swamp predators, thick resources, and constant low-grade danger. The Arctic is the cold test — altitude, predators, and weather that kills the underdressed, familiar in kind from other maps but sharpened here. The Ocean is the map\'s showpiece in this version: rebuilt as a true open sea with rolling waves, working buoyancy, scattered islands, and ships you can actually build and sail, it has gone from the gap between biomes to a place with its own economy, wildlife, and dangers in the water column below.',
+          },
+          {
+            type: 'p',
+            text: 'The Volcanic biome is the forge: lava fields, brutal heat, the map\'s richest veins of high-end minerals, and the creatures that guard them. The Lunar biome is the strangest ground in the game — low gravity, vacuum pockets, meteor strikes, and technology-tier threats — and it is best understood as endgame terrain that happens to be standing next to the rest of the map. Each biome keeps its own hazards, its own signature creatures, and its own reason to visit; the progression is learning them in the order their difficulty suggests.',
+          },
+        ],
+      },
+      {
+        heading: 'Getting around: HLN-A and the open sea',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Travel between biomes runs through HLN-A\'s teleportation, and one habit will save you real grief: teleport with HLN-A rather than relying on beds, because bed travel drops what you are carrying while HLN-A moves you intact — tames nearby can come along too. Treat teleportation the way earlier maps treated obelisk runs: a deliberate act with a packing list, not a casual hop. Arriving in a new biome with the wrong gear is the classic Genesis death.',
+          },
+          {
+            type: 'p',
+            text: 'The remade ocean adds a second option this map never used to have: sailing. With the zones joined by open water, a seaworthy vessel turns the sea into a road — slower than teleporting, but it moves cargo, lets you fish the water column and its islands on the way, and makes the Ocean biome a journey rather than a menu entry. Most survivors will use both: HLN-A for speed, the sea for freight and for the pleasure of it.',
+          },
+        ],
+      },
+      {
+        heading: 'The simulation\'s signature tames',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Genesis stocks creatures built for its own strange geography. The Bloodstalker is the movement answer — a web-slinging spider mount that turns the Bog\'s canopy into a highway. The Ferox is a pocket-sized companion with a monstrous transformation and a costly appetite for the element that triggers it. The Magmasaur is the Volcanic biome\'s prize, a walking furnace that smelts as it fights. The Megachelon is a turtle so large it doubles as a mobile base, and the deep water hides the Astrocetus, the space whale, and the Palaeoctopus, new to this version of the map.',
+          },
+          {
+            type: 'p',
+            text: 'Around the exotics, the biomes also run their own hardened variants of familiar creatures — visually distinct, meaner, and notably harder to bring down than their ordinary cousins, so pad your estimates and your narcotic supply accordingly. The fundamentals have not moved: torpor, the right food, and a controlled situation still tame everything tameable, and the taming guide applies here unchanged.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/taming', label: 'Taming Guide', note: 'knockout and passive methods, torpor, and traps' },
+              { href: '/maps/genesis', label: 'Live Genesis servers', note: 'population, uptime, and versions right now' },
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Climbing the mission ladder',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Missions are the map\'s actual progression axis, and they scale from genuinely gentle to genuinely cruel. Start at the lowest tiers in your home biome — early wins pay Hexagons, teach the mission grammar, and cost almost nothing to fail. Move up a tier when the current one stops feeling dangerous, and spread sideways into other biomes\' missions as your travel kit matures. The simulation counts your completions, and that count is the key that unlocks the way forward.',
+          },
+          {
+            type: 'p',
+            text: 'The ladder has a mid-boss: Moeder, the master of the deep, reached through an ocean mission and fought in open water. She is the map\'s rehearsal dinner — the first time Genesis asks you to bring real preparation to a single fight rather than a mission\'s worth of stamina — and clearing her is both a story beat and an honest signal about whether your bench is ready for what the simulation is building toward.',
+          },
+        ],
+      },
+      {
+        heading: 'The Master Controller, and where the story goes next',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The simulation ends with its administrator. The Master Controller — corrupted, hostile, and fought in an arena that plays by mission rules rather than open-world ones — is gated behind mission completions across the biomes: the curriculum was the key all along. The fight leans on everything the map graded you on — performance under time pressure, a deep bench of tames, and gear bought with the currency of your own competence — and it caps the strangest and most structured progression in the game.',
+          },
+          {
+            type: 'p',
+            text: 'Beating the Controller closes this chapter of the story, but the story itself is visibly unfinished — Genesis was built as a two-part tale, and its second half has not yet arrived in ASA. When it does, the preparation starts over, as it always has. Until then, this is where the progression chain rests: five maps, five grammars, and a survivor who has learned all of them.',
+          },
+          {
+            type: 'callout',
+            text: 'The arena law holds even inside a simulation: the Master Controller is won in the weeks of missions before the fight, not the minutes inside it. The Boss Strategies guide covers the shape of that preparation.',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
-// planned future guides that `related` arrays may reference before they exist.
-const PLANNED_SLUGS = ['genesis-progression'];
+// planned future guides that `related` arrays may reference before they exist; currently empty because no future guide is planted.
+const PLANNED_SLUGS = [];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));
 

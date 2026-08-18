@@ -43,7 +43,7 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 9);
+  assert.equal(GUIDE_REGISTRY.length, 10);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
@@ -53,6 +53,7 @@ test('registry slugs are unique and every entry has the required fields', () => 
   assert.ok(slugs.includes('scorched-earth-progression'));
   assert.ok(slugs.includes('aberration-progression'));
   assert.ok(slugs.includes('extinction-progression'));
+  assert.ok(slugs.includes('genesis-progression'));
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
       assert.ok(g[field] != null, `missing ${field} on ${g.slug}`);
@@ -513,4 +514,26 @@ test('extinction-progression guide ships the brief prose verbatim', () => {
   assert.equal(g.sections[5].heading, 'The domes and the deep wasteland');
   assert.equal(g.sections[6].heading, 'The Titans');
   assert.equal(g.sections[7].heading, 'The King Titan, and where the story goes next');
+});
+
+test('genesis-progression guide ships the brief prose verbatim', () => {
+  const g = resolveGuide('genesis-progression');
+  assert.ok(g);
+  assert.equal(g.title, 'Genesis Progression Guide — ARK: Survival Ascended');
+  assert.equal(g.shortTitle, 'Genesis Progression');
+  assert.equal(g.lastVerified, '2026-08-18');
+  assert.equal(g.sections.length, 8);
+  assert.equal(g.related.join(','), 'extinction-progression,boss-strategies,taming');
+  assert.equal(
+    g.sections[0].blocks[0].text,
+    'Genesis is not a place. It is a simulation — a training program run by a small holographic companion named HLN-A, who greets you on arrival and never really leaves. The world it simulates is five hostile biomes, and the rules you have relied on since the first beach start bending immediately: progression here is not a march across a landscape but a curriculum, delivered as missions, graded in difficulty tiers, and paid out in a currency the simulation invents for the purpose. The maps before this one tested how you survive. Genesis tests how you perform.'
+  );
+  assert.equal(g.sections[0].heading, 'What Genesis asks of you');
+  assert.equal(g.sections[1].heading, 'Missions, Hexagons, and the simulation\'s economy');
+  assert.equal(g.sections[2].heading, 'Pick one biome and learn it');
+  assert.equal(g.sections[3].heading, 'The five biomes, briefly');
+  assert.equal(g.sections[4].heading, 'Getting around: HLN-A and the open sea');
+  assert.equal(g.sections[5].heading, 'The simulation\'s signature tames');
+  assert.equal(g.sections[6].heading, 'Climbing the mission ladder');
+  assert.equal(g.sections[7].heading, 'The Master Controller, and where the story goes next');
 });
