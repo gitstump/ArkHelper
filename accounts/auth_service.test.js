@@ -2,8 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 const { openDb, getAlertSettings } = require('./db.js');
 const { parseCookies, buildSetCookie, createAuthServer, SESSION_COOKIE, STATE_COOKIE, PRESET_COOKIE } = require('./auth_service.js');
+const { siteOrigin } = require('./origin.js');
 
 // ---------------------------------------------------------------------
 // Cookie helpers
@@ -65,6 +67,20 @@ test('createAuthServer throws without required options', () => {
   assert.throws(() => createAuthServer({ clientId: 'a', clientSecret: 'b', redirectUri: 'http://x' }), /db is required/);
   assert.throws(() => createAuthServer({ db, redirectUri: 'http://x' }), /clientId and clientSecret/);
   assert.throws(() => createAuthServer({ db, clientId: 'a', clientSecret: 'b' }), /redirectUri is required/);
+});
+
+test('createAuthServer throws naming a missing brand asset file', () => {
+  const db = openDb(':memory:');
+  assert.throws(
+    () => createAuthServer({
+      db,
+      clientId: 'a',
+      clientSecret: 'b',
+      redirectUri: 'http://x',
+      assetsDir: path.join(__dirname, 'assets', '__missing-brand-assets__'),
+    }),
+    /brand asset missing or unreadable: favicon\.ico/
+  );
 });
 
 // ---------------------------------------------------------------------
@@ -3336,6 +3352,90 @@ test('GET /servers/:id renders a Compare this server link', async () => {
   const res = await fetch(`${base}/servers/abc`);
   const html = await res.text();
   assert.match(html, /href="\/compare\?s=abc">Compare this server</);
+
+  server.close();
+});
+
+// ---------------------------------------------------------------------
+// Brand assets
+// ---------------------------------------------------------------------
+test('GET /favicon.ico serves the icon with cache headers', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const res = await fetch(`${base}/favicon.ico`);
+  const body = Buffer.from(await res.arrayBuffer());
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /image\/x-icon/);
+  assert.ok(body.length > 0);
+  assert.match(res.headers.get('cache-control'), /public,\s*max-age=86400/);
+  assert.equal(res.headers.get('content-length'), String(body.length));
+
+  server.close();
+});
+
+test('GET /assets/og-image.png serves the social card', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const res = await fetch(`${base}/assets/og-image.png`);
+  const body = Buffer.from(await res.arrayBuffer());
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /image\/png/);
+  assert.ok(body.length > 0);
+  assert.match(res.headers.get('cache-control'), /public,\s*max-age=86400/);
+
+  server.close();
+});
+
+test('GET /assets/does-not-exist.png returns 404', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const res = await fetch(`${base}/assets/does-not-exist.png`);
+  assert.equal(res.status, 404);
+
+  server.close();
+});
+
+test('HTML pages include favicon, apple-touch-icon, og:image, and twitter card', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /rel="icon"/);
+  assert.match(html, /rel="apple-touch-icon"/);
+  const ogImage = html.match(/property="og:image" content="([^"]+)"/);
+  assert.ok(ogImage, 'expected an og:image meta tag');
+  assert.ok(ogImage[1].startsWith(siteOrigin()), `og:image ${ogImage[1]} should start with ${siteOrigin()}`);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
 
   server.close();
 });

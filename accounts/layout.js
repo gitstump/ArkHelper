@@ -15,6 +15,7 @@
 
 const { THEME_CSS, escapeHtml } = require('./theme.js');
 const { MAP_REGISTRY } = require('./maps.js');
+const { siteOrigin } = require('./origin.js');
 
 const GITHUB_REPO = 'https://github.com/gitstump/ArkHelper';
 
@@ -167,16 +168,29 @@ function renderFooter(live, year = new Date().getFullYear()) {
 </footer>`;
 }
 
-function renderPage({ title, description, currentPath, account, live, extraCss = '', body, year }) {
+function renderPage({ title, description, currentPath, account, live, extraCss = '', body, year, origin }) {
+  const pageTitle = title || 'ArkHelper';
+  const escapedTitle = escapeHtml(pageTitle);
   const metaDescription = description
-    ? `<meta name="description" content="${escapeHtml(description)}">\n`
+    ? `<meta name="description" content="${escapeHtml(description)}">
+<meta property="og:description" content="${escapeHtml(description)}">
+`
     : '';
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title || 'ArkHelper')}</title>
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+<meta property="og:site_name" content="ArkHelper">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${escapedTitle}">
+<meta property="og:image" content="${escapeHtml(siteOrigin(origin))}/assets/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<title>${escapedTitle}</title>
 ${metaDescription}<style>
 ${THEME_CSS}
 ${extraCss}

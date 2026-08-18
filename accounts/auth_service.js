@@ -34,6 +34,8 @@
 
 const http = require('http');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   buildAuthorizeUrl,
   exchangeCodeForToken,
@@ -223,6 +225,33 @@ function notFoundShare(res) {
   res.end(JSON.stringify({ error: 'not found' }));
 }
 
+const BRAND_ASSET_FILES = [
+  { urlPath: '/favicon.ico', fileName: 'favicon.ico', contentType: 'image/x-icon' },
+  { urlPath: '/assets/favicon-16.png', fileName: 'favicon-16.png', contentType: 'image/png' },
+  { urlPath: '/assets/favicon-32.png', fileName: 'favicon-32.png', contentType: 'image/png' },
+  { urlPath: '/assets/apple-touch-icon.png', fileName: 'apple-touch-icon.png', contentType: 'image/png' },
+  { urlPath: '/assets/icon-192.png', fileName: 'icon-192.png', contentType: 'image/png' },
+  { urlPath: '/assets/icon-512.png', fileName: 'icon-512.png', contentType: 'image/png' },
+  { urlPath: '/assets/og-image.png', fileName: 'og-image.png', contentType: 'image/png' },
+  { urlPath: '/assets/logo-full.png', fileName: 'logo-full.png', contentType: 'image/png' },
+];
+
+function loadBrandAssets(assetsDir) {
+  const dir = assetsDir || path.join(__dirname, 'assets');
+  const map = new Map();
+  for (const asset of BRAND_ASSET_FILES) {
+    const filePath = path.join(dir, asset.fileName);
+    let body;
+    try {
+      body = fs.readFileSync(filePath);
+    } catch {
+      throw new Error(`createAuthServer: brand asset missing or unreadable: ${asset.fileName}`);
+    }
+    map.set(asset.urlPath, { body, contentType: asset.contentType });
+  }
+  return map;
+}
+
 function redirectWithPresetError(res, query, code) {
   const base = serversLocation(query);
   const location = `${base}${base.includes('?') ? '&' : '?'}presetError=${encodeURIComponent(code)}`;
@@ -279,12 +308,14 @@ function createAuthServer({
   feedsDeps = { fetchJsonSafe },
   randomToken = () => crypto.randomBytes(32).toString('hex'),
   webhookPostFn = defaultPostFn,
+  assetsDir,
 }) {
   if (!db) throw new Error('createAuthServer: db is required');
   if (!clientId || !clientSecret) throw new Error('createAuthServer: clientId and clientSecret are required');
   if (!redirectUri) throw new Error('createAuthServer: redirectUri is required');
 
   const rosterCache = unofficialRosterCache || createTtlCache();
+  const brandAssets = loadBrandAssets(assetsDir);
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://internal'); // base is irrelevant, we only use path+query
@@ -293,6 +324,20 @@ function createAuthServer({
     const account = accountView(accountRow);
 
     try {
+      if (req.method === 'GET') {
+        const asset = brandAssets.get(url.pathname);
+        if (asset) {
+          const headers = {
+            'Content-Type': asset.contentType,
+            'Cache-Control': 'public, max-age=86400',
+            'Content-Length': asset.body.length,
+          };
+          res.writeHead(200, headers);
+          res.end(asset.body);
+          return;
+        }
+      }
+
       const shareMatch = req.method === 'GET' && url.pathname.match(/^\/p\/([^/]+)$/);
       if (shareMatch) {
         let token;

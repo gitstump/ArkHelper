@@ -7,6 +7,19 @@ const { renderPage, renderNav, renderAuth, renderFooter, pathMatches, GITHUB_REP
 test('renderPage includes a meta description when one is provided', () => {
   const html = renderPage({ title: 'Low ping', description: 'Find ARK low ping servers.', currentPath: '/', body: '<p>x</p>' });
   assert.match(html, /<meta name="description" content="Find ARK low ping servers.">/);
+  assert.match(html, /<meta property="og:description" content="Find ARK low ping servers.">/);
+});
+
+test('renderPage head includes favicon links and og:title matching the page title', () => {
+  const html = renderPage({ title: 'Low ping \u2014 ArkHelper', currentPath: '/', body: '<p>x</p>' });
+  const headEnd = html.indexOf('</head>');
+  const head = html.slice(0, headEnd);
+  assert.match(head, /<link rel="icon" href="\/favicon.ico" sizes="48x48">/);
+  assert.match(head, /<link rel="icon" type="image\/png" sizes="32x32" href="\/assets\/favicon-32.png">/);
+  assert.match(head, /<link rel="icon" type="image\/png" sizes="16x16" href="\/assets\/favicon-16.png">/);
+  assert.match(head, /<link rel="apple-touch-icon" sizes="180x180" href="\/assets\/apple-touch-icon.png">/);
+  assert.match(head, /<title>Low ping \u2014 ArkHelper<\/title>/);
+  assert.match(head, /<meta property="og:title" content="Low ping \u2014 ArkHelper">/);
 });
 
 test('renderPage wordmark links to home', () => {
