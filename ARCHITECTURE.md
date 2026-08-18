@@ -49,6 +49,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `server_lists.js` | Canonical derived list pages (`/lists/...`) — pre-filtered views that reuse the browser pipeline |
 | `presets.js` | Named filter snapshots — query sanitization, cookie cap/size guards; share tokens live in db.js |
 | `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
+| `compare_page.js` | The `/compare` page — URL-as-state side-by-side comparison (cap 4 servers), add-a-server search, best-value highlights |
 | `favorites_page.js` | The `/favorites` page |
 | `alert_engine.js` | Pure alert evaluator (hysteresis, latches, cooldown) plus a timer wrapper; no HTTP of its own |
 | `alert_dispatch.js` | Discord webhook delivery for pending `alert_events` (URL allowlist, batching, drop-not-queue) |
