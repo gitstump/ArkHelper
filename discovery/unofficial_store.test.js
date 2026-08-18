@@ -8,6 +8,12 @@ const {
   recordUnofficialFetchFailure,
   getUnofficialMeta,
   getUnofficialServer,
+  getUnknownModIds,
+  getStaleModIds,
+  upsertMods,
+  markModsFailed,
+  getModsSummary,
+  getMod,
 } = require('./unofficial_store.js');
 
 function sample(id, extra = {}) {
@@ -22,6 +28,7 @@ function sample(id, extra = {}) {
     platformType: extra.platformType || 'PC',
     ping: extra.ping ?? 40,
     hasPassword: extra.hasPassword ?? false,
+    modIds: extra.modIds || [],
   };
 }
 
@@ -104,4 +111,128 @@ test('tracked_total reflects unofficial_servers row count after cycles', () => {
   assert.equal(getUnofficialMeta(db).tracked_total, 2);
   recordUnofficialCycle(db, [sample('a'), sample('c')], { now: () => '2026-08-16T05:15:00.000Z' });
   assert.equal(getUnofficialMeta(db).tracked_total, 3);
+});
+
+test('recordUnofficialCycle replaces server_mods each cycle including clearing', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(
+    db,
+    [sample('a', { modIds: [10, 20] }), sample('b', { modIds: [20] })],
+    { now: () => '2026-08-18T00:00:00.000Z' }
+  );
+  const first = db
+    .prepare('SELECT server_key, mod_id FROM server_mods ORDER BY server_key, mod_id')
+    .all()
+    .map((r) => ({ server_key: r.server_key, mod_id: r.mod_id }));
+  assert.deepEqual(first, [
+    { server_key: 'a', mod_id: 10 },
+    { server_key: 'a', mod_id: 20 },
+    { server_key: 'b', mod_id: 20 },
+  ]);
+
+  recordUnofficialCycle(
+    db,
+    [sample('a', { modIds: [30] }), sample('b', { modIds: [] })],
+    { now: () => '2026-08-18T00:15:00.000Z' }
+  );
+  const second = db
+    .prepare('SELECT server_key, mod_id FROM server_mods ORDER BY server_key, mod_id')
+    .all()
+    .map((r) => ({ server_key: r.server_key, mod_id: r.mod_id }));
+  assert.deepEqual(second, [{ server_key: 'a', mod_id: 30 }]);
+});
+
+test('getUnknownModIds orders by how many servers run the mod', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(
+    db,
+    [
+      sample('a', { modIds: [1, 2] }),
+      sample('b', { modIds: [1] }),
+      sample('c', { modIds: [1, 3] }),
+    ],
+    { now: () => '2026-08-18T01:00:00.000Z' }
+  );
+  upsertMods(db, [{ id: 2, name: 'known' }], { now: () => '2026-08-18T01:00:00.000Z' });
+  assert.deepEqual(getUnknownModIds(db, 10), [1, 3]);
+  assert.deepEqual(getUnknownModIds(db, 1), [1]);
+});
+
+test('getStaleModIds returns resolved mods older than the cutoff', () => {
+  const db = openUnofficialDb(':memory:');
+  upsertMods(db, [{ id: 1, name: 'old' }], { now: () => '2026-08-01T00:00:00.000Z' });
+  upsertMods(db, [{ id: 2, name: 'fresh' }], { now: () => '2026-08-18T00:00:00.000Z' });
+  markModsFailed(db, [3], { now: () => '2026-08-02T00:00:00.000Z' });
+  assert.deepEqual(getStaleModIds(db, '2026-08-10T00:00:00.000Z', 10), [1, 3]);
+  assert.deepEqual(getStaleModIds(db, '2026-08-10T00:00:00.000Z', 1), [1]);
+});
+
+test('getModsSummary counts only currently-listed servers for adoption', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(
+    db,
+    [
+      sample('listed-a', { playersNow: 10, modIds: [100, 200] }),
+      sample('listed-b', { playersNow: 5, modIds: [100] }),
+      sample('listed-c', { playersNow: 2, modIds: [300] }),
+    ],
+    { now: () => '2026-08-18T10:00:00.000Z' }
+  );
+  recordUnofficialCycle(
+    db,
+    [
+      sample('listed-a', { playersNow: 8, modIds: [100, 200] }),
+      sample('listed-b', { playersNow: 4, modIds: [100] }),
+    ],
+    { now: () => '2026-08-18T10:15:00.000Z' }
+  );
+  upsertMods(
+    db,
+    [
+      { id: 100, name: 'S+', author: 'A', downloadCount: 1000 },
+      { id: 200, name: 'Awesome', author: 'B', downloadCount: 50 },
+    ],
+    { now: () => '2026-08-18T10:16:00.000Z' }
+  );
+
+  const rows = getModsSummary(db, { lastFetchAt: '2026-08-18T10:15:00.000Z' });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].mod_id, 100);
+  assert.equal(rows[0].name, 'S+');
+  assert.equal(rows[0].server_count, 2);
+  assert.equal(rows[0].players_now, 12);
+  assert.equal(rows[1].mod_id, 200);
+  assert.equal(rows[1].server_count, 1);
+  assert.equal(rows[1].players_now, 8);
+  assert.equal(rows.some((r) => r.mod_id === 300), false);
+});
+
+test('getMod returns currently-listed servers and null when unknown', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(
+    db,
+    [
+      sample('hot', { name: 'Hot Box', map: 'Extinction_WP', playersNow: 12, modIds: [50] }),
+      sample('quiet', { name: 'Quiet', map: 'TheIsland_WP', playersNow: 1, modIds: [50] }),
+    ],
+    { now: () => '2026-08-18T11:00:00.000Z' }
+  );
+  upsertMods(db, [{ id: 50, name: 'Stack', author: 'Modder', summary: 'yes' }], {
+    now: () => '2026-08-18T11:01:00.000Z',
+  });
+
+  const found = getMod(db, 50, { lastFetchAt: '2026-08-18T11:00:00.000Z', serverLimit: 200 });
+  assert.equal(found.name, 'Stack');
+  assert.equal(found.author, 'Modder');
+  assert.equal(found.servers.length, 2);
+  assert.equal(found.servers[0].server_key, 'hot');
+  assert.equal(found.servers[0].name, 'Hot Box');
+  assert.equal(found.servers[0].players_now, 12);
+  assert.equal(found.servers[1].server_key, 'quiet');
+
+  const unknown = getMod(db, 999, { lastFetchAt: '2026-08-18T11:00:00.000Z' });
+  assert.equal(unknown, null);
+
+  const unresolved = getMod(db, 50, { lastFetchAt: '2026-08-18T11:00:00.000Z', serverLimit: 1 });
+  assert.equal(unresolved.servers.length, 1);
 });

@@ -332,6 +332,9 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/maps/:slug'));
   assert.ok(body.routes.includes('/guides'));
   assert.ok(body.routes.includes('/guides/:slug'));
+  assert.ok(body.routes.includes('/news'));
+  assert.ok(body.routes.includes('/mods'));
+  assert.ok(body.routes.includes('/mods/:id'));
   assert.ok(body.routes.includes('/rankings'));
   assert.ok(body.routes.includes('/favorites'));
   assert.ok(body.routes.includes('/alerts'));
@@ -1907,6 +1910,114 @@ test('GET /news falls back when the discovery feed is unreachable (200, not a cr
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.match(html, /News data isn't available right now/);
+
+  server.close();
+});
+
+function fakeModsBrowserDeps({ summary = null, detail = null, unofficialMeta = null } = {}) {
+  return {
+    fetchJsonSafe: async (url) => {
+      const target = String(url);
+      if (target.includes('/mods/summary')) return summary;
+      if (target.includes('/unofficial/meta')) return unofficialMeta;
+      const idMatch = target.match(/\/mods\/(\d+)$/);
+      if (idMatch) {
+        if (detail && String(detail.mod_id) === idMatch[1]) return detail;
+        return null;
+      }
+      return null;
+    },
+  };
+}
+
+test('GET /mods renders adoption from the discovery feed', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeModsBrowserDeps({
+      unofficialMeta: { count: 12 },
+      summary: {
+        lastFetchAt: '2026-08-18T14:00:00.000Z',
+        mods: [
+          {
+            mod_id: 11,
+            name: 'S+',
+            author: 'Splus',
+            server_count: 2,
+            players_now: 9,
+            download_count: 1000,
+            logo_url: 'https://media.forgecdn.net/avatars/thumb.png',
+            website_url: 'https://www.curseforge.com/ark-survival-ascended/mods/splus',
+          },
+        ],
+      },
+    }),
+  });
+
+  const res = await fetch(`${base}/mods`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Mod adoption/);
+  assert.match(html, /Mod data provided by/);
+  assert.match(html, /S\+/);
+  assert.match(html, /href="\/mods\/11"/);
+  assert.match(html, /12 listed/);
+
+  server.close();
+});
+
+test('GET /mods falls back when discovery is unreachable (200, not a crash)', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: { fetchJsonSafe: async () => null },
+  });
+
+  const res = await fetch(`${base}/mods`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /discovery service may not be running/);
+
+  server.close();
+});
+
+test('GET /mods/:id renders the detail page; unknown ids 404', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeModsBrowserDeps({
+      detail: {
+        mod_id: 11,
+        name: 'S+',
+        author: 'Splus',
+        summary: 'Build.',
+        servers: [{ server_key: 'a', name: 'Alpha Box', map: 'TheIsland_WP', players_now: 6 }],
+      },
+    }),
+  });
+
+  const res = await fetch(`${base}/mods/11`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /<h1>S\+<\/h1>/);
+  assert.match(html, /Alpha Box/);
+  assert.doesNotMatch(html, /href="\/servers\/a"/);
+
+  const miss = await fetch(`${base}/mods/999`);
+  assert.equal(miss.status, 404);
+  assert.match(await miss.text(), /Mod not found/);
 
   server.close();
 });

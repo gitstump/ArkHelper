@@ -60,6 +60,7 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.match(html, /href="\/maps\/genesis"/);
   assert.match(html, /class="nav-menu nav-menu-cols"/);
   assert.match(html, /href="\/rankings"/);
+  assert.match(html, /href="\/mods"/);
   assert.match(html, /href="\/leaderboards"/);
   assert.match(html, /href="\/leaderboards\/map-uptime"/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp"/);
@@ -70,6 +71,8 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.match(html, /href="\/favorites"/);
   assert.match(html, /href="\/guides"/);
   assert.match(html, /class="active" href="\/rankings"/);
+  const navMods = html.match(/href="\/mods"/g) || [];
+  assert.equal(navMods.length, 1);
   assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
   assert.match(html, />Guides<\/a>/);
   assert.match(html, />Alerts<\/a>/);
@@ -163,6 +166,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/lists\/recently-wiped">Recently Wiped/);
   assert.match(html, /href="\/lists\/available-now">Available Now/);
   assert.match(html, /href="\/rankings">Rankings/);
+  assert.match(html, /href="\/mods">Mods/);
   assert.match(html, /href="\/leaderboards">Leaderboards/);
   assert.match(html, /href="\/leaderboards\/map-uptime">Map Uptime/);
   assert.match(html, /href="\/leaderboards\/pve-vs-pvp">PvE vs PvP/);
@@ -196,6 +200,15 @@ test('renderFooter honors an explicit year in the legal band', () => {
 test('renderFooter shows em dashes when live data is missing', () => {
   const html = renderFooter(null);
   assert.match(html, /\u2014/);
+});
+
+test('nav and footer each show Mods exactly once', () => {
+  const nav = renderNav('/mods');
+  const footer = renderFooter(null);
+  assert.equal((nav.match(/href="\/mods"/g) || []).length, 1);
+  assert.equal((footer.match(/href="\/mods"/g) || []).length, 1);
+  assert.match(nav, /<summary class="active">Stats<\/summary>/);
+  assert.match(nav, /class="active" href="\/mods"/);
 });
 
 test('renderNav puts name="mainnav" on every header-nav details dropdown', () => {

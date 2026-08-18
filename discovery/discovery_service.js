@@ -60,13 +60,20 @@ const {
   getIncidentStatus,
 } = require('./history.js');
 const { RANKING_WINDOW_DAYS } = require('./ranking.js');
-const { fetchUnofficialRoster } = require('./unofficial_api.js');
+const { fetchUnofficialRoster, realSleep } = require('./unofficial_api.js');
 const {
   openUnofficialDb,
   recordUnofficialCycle,
   recordUnofficialFetchFailure,
   getUnofficialMeta,
+  getUnknownModIds,
+  getStaleModIds,
+  upsertMods,
+  markModsFailed,
+  getModsSummary,
+  getMod,
 } = require('./unofficial_store.js');
+const { fetchModsBatch } = require('./curseforge_api.js');
 const { fetchInfoFeeds } = require('./info_feeds.js');
 const {
   openInfoDb,
@@ -80,6 +87,105 @@ const {
 
 const DEFAULT_UNOFFICIAL_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_INFO_INTERVAL_MS = 10 * 60 * 1000;
+const MODS_BATCH_SIZE = 50;
+const MODS_MAX_NEW_BATCHES = 4;
+const MODS_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+const MODS_INTER_BATCH_MS = 1000;
+
+const DISCOVERY_ROUTES = [
+  '/roster',
+  '/roster/meta',
+  '/unofficial/roster',
+  '/unofficial/meta',
+  '/history/wipes',
+  '/history/:id',
+  '/leaderboards/uptime',
+  '/rankings',
+  '/rankings/:id',
+  '/incidents/status',
+  '/rates',
+  '/news',
+  '/mods/summary',
+  '/mods/:id',
+];
+
+const modsResolutionState = { disabledLogged: false };
+
+function chunkIds(ids, size) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
+async function resolveModsPass({
+  unofficialDb,
+  apiKey = process.env.CURSEFORGE_API_KEY,
+  fetchMods = fetchModsBatch,
+  sleep = realSleep,
+  now = () => new Date().toISOString(),
+  log = (msg) => console.log(msg),
+  state = modsResolutionState,
+  batchSize = MODS_BATCH_SIZE,
+  maxNewBatches = MODS_MAX_NEW_BATCHES,
+  staleMs = MODS_STALE_MS,
+  interBatchMs = MODS_INTER_BATCH_MS,
+} = {}) {
+  if (!unofficialDb) return { newCount: 0, refreshedCount: 0, failedCount: 0, skipped: true };
+  const key = apiKey == null ? '' : String(apiKey).trim();
+  if (!key) {
+    if (!state.disabledLogged) {
+      state.disabledLogged = true;
+      log('[discovery] mods resolution disabled (CURSEFORGE_API_KEY not set)');
+    }
+    return { newCount: 0, refreshedCount: 0, failedCount: 0, disabled: true };
+  }
+
+  let newCount = 0;
+  let refreshedCount = 0;
+  let failedCount = 0;
+  let batchesRun = 0;
+  let stopped = false;
+
+  async function runBatch(ids, kind) {
+    if (stopped || !ids.length) return;
+    if (batchesRun > 0) await sleep(interBatchMs);
+    batchesRun += 1;
+    try {
+      const rows = await fetchMods({ apiKey: key, modIds: ids });
+      const returned = new Set();
+      for (const row of rows || []) {
+        if (row && Number.isInteger(row.id) && row.id > 0) returned.add(row.id);
+      }
+      upsertMods(unofficialDb, rows, { now });
+      const missing = ids.filter((id) => !returned.has(id));
+      if (missing.length) {
+        markModsFailed(unofficialDb, missing, { now });
+        failedCount += missing.length;
+      }
+      if (kind === 'new') newCount += returned.size;
+      else refreshedCount += returned.size;
+    } catch {
+      markModsFailed(unofficialDb, ids, { now });
+      failedCount += ids.length;
+      stopped = true;
+    }
+  }
+
+  const unknown = getUnknownModIds(unofficialDb, maxNewBatches * batchSize);
+  for (const batch of chunkIds(unknown, batchSize).slice(0, maxNewBatches)) {
+    await runBatch(batch, 'new');
+  }
+  if (!stopped) {
+    const nowIso = now();
+    const nowMs = Date.parse(nowIso);
+    const cutoff = Number.isFinite(nowMs) ? new Date(nowMs - staleMs).toISOString() : nowIso;
+    const stale = getStaleModIds(unofficialDb, cutoff, batchSize);
+    if (stale.length) await runBatch(stale, 'stale');
+  }
+
+  log(`[discovery] mods resolved: ${newCount} new, ${refreshedCount} refreshed, ${failedCount} failed`);
+  return { newCount, refreshedCount, failedCount };
+}
 
 // ---------------------------------------------------------------------
 // Persistence (atomic write: write to a temp file, then rename over the
@@ -223,6 +329,11 @@ async function refreshUnofficialCycle({
   fetchUnofficial = fetchUnofficialRoster,
   fetchOpts = {},
   now = () => new Date().toISOString(),
+  curseforgeApiKey,
+  fetchMods,
+  sleep,
+  log,
+  modsState,
 } = {}) {
   if (!unofficialState) throw new Error('refreshUnofficialCycle: unofficialState is required');
   const fetchedAt = now();
@@ -242,6 +353,19 @@ async function refreshUnofficialCycle({
     };
     unofficialState.lastFetchAt = fetchedAt;
     unofficialState.lastFetchStatus = 'ok';
+    try {
+      await resolveModsPass({
+        unofficialDb,
+        apiKey: curseforgeApiKey !== undefined ? curseforgeApiKey : process.env.CURSEFORGE_API_KEY,
+        fetchMods: fetchMods || fetchModsBatch,
+        sleep: sleep || realSleep,
+        now,
+        log,
+        state: modsState,
+      });
+    } catch {
+      // never throw into the unofficial cycle
+    }
     return unofficialState.roster;
   } catch (err) {
     unofficialState.lastFetchAt = fetchedAt;
@@ -344,6 +468,11 @@ function startUnofficialScheduledRefresh({
   setIntervalFn = setInterval,
   runImmediately = true,
   now = () => new Date().toISOString(),
+  curseforgeApiKey,
+  fetchMods,
+  sleep,
+  log,
+  modsState,
 }) {
   let stopped = false;
 
@@ -356,6 +485,11 @@ function startUnofficialScheduledRefresh({
         fetchUnofficial,
         fetchOpts,
         now,
+        curseforgeApiKey,
+        fetchMods,
+        sleep,
+        log,
+        modsState,
       });
       onCycle(result);
     } catch (err) {
@@ -584,8 +718,46 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, 
       return;
     }
 
+    if (parsedUrl.pathname === '/mods/summary') {
+      const rawLimit = Number(parsedUrl.searchParams.get('limit'));
+      const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 200) : 100;
+      let payload;
+      if (!unofficialDb) {
+        payload = { mods: [], lastFetchAt: null };
+      } else {
+        const dbMeta = getUnofficialMeta(unofficialDb);
+        const lastFetchAt =
+          (unofficialState && unofficialState.lastFetchAt) || (dbMeta && dbMeta.last_fetch_at) || null;
+        payload = { mods: getModsSummary(unofficialDb, { limit, lastFetchAt }), lastFetchAt };
+      }
+      const body = JSON.stringify(payload);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(body);
+      return;
+    }
+
+    const modMatch = parsedUrl.pathname.match(/^\/mods\/(\d+)$/);
+    if (modMatch) {
+      if (!unofficialDb) {
+        const body = JSON.stringify({ error: 'not found' });
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(body);
+        return;
+      }
+      const modId = Number(modMatch[1]);
+      const dbMeta = getUnofficialMeta(unofficialDb);
+      const lastFetchAt =
+        (unofficialState && unofficialState.lastFetchAt) || (dbMeta && dbMeta.last_fetch_at) || null;
+      const result = getMod(unofficialDb, modId, { lastFetchAt });
+      const body = JSON.stringify(result || { error: 'not found' });
+      res.writeHead(result ? 200 : 404, { 'Content-Type': 'application/json' });
+      res.end(body);
+      return;
+    }
+
+    const notFoundBody = JSON.stringify({ error: 'not found', routes: DISCOVERY_ROUTES });
     res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status', '/rates', '/news'] }));
+    res.end(notFoundBody);
   });
 }
 
@@ -833,6 +1005,9 @@ module.exports = {
   resolveUnofficialIntervalMs,
   resolveInfoDbPath,
   resolveInfoIntervalMs,
+  resolveModsPass,
+  modsResolutionState,
+  DISCOVERY_ROUTES,
   DEFAULT_UNOFFICIAL_INTERVAL_MS,
   DEFAULT_INFO_INTERVAL_MS,
 };

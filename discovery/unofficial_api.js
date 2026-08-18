@@ -16,9 +16,15 @@
  *
  * Field names match officialserverlist.json. Differences seen live:
  *   IsOfficial is "0"; ClusterId is an opaque hash or empty; ModIDs
- *   and ModFileIDs are common. Trimmed shape uses official-compatible
- *   names (gameMode, platformType, wildcardReportedPing) so the
- *   existing browser filter/sort/paginate pipeline can reuse them.
+ *   and ModFileIDs are common. Live ModIDs is a comma-separated string
+ *   (also accepted as an array of numbers or numeric strings). Trim
+ *   emits `modIds` as unique positive integers, capped at 50, or []
+ *   when absent/invalid — never null. Consumers of the trimmed shape:
+ *   unofficial roster JSON (/unofficial/roster), unofficial_store
+ *   (recordUnofficialCycle / server_mods), and the accounts browser
+ *   chip. Trimmed shape uses official-compatible names (gameMode,
+ *   platformType, wildcardReportedPing) so the existing browser
+ *   filter/sort/paginate pipeline can reuse them.
  */
 
 const http = require('http');
@@ -28,6 +34,40 @@ const { truthyFlag, parseVersion } = require('./ark_official_api.js');
 const UNOFFICIAL_SERVER_LIST_URL = 'https://cdn2.arkdedicated.com/servers/asa/unofficialserverlist.json';
 const DEFAULT_MAX_BYTES = 96 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 120000;
+const MAX_MOD_IDS_PER_SERVER = 50;
+
+function parseModIds(raw) {
+  let items;
+  if (Array.isArray(raw)) {
+    items = raw;
+  } else if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text) return [];
+    items = text.split(',');
+  } else {
+    return [];
+  }
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    if (out.length >= MAX_MOD_IDS_PER_SERVER) break;
+    let n;
+    if (typeof item === 'number') {
+      n = item;
+    } else if (typeof item === 'string') {
+      const trimmed = item.trim();
+      if (!trimmed || !/^\d+$/.test(trimmed)) continue;
+      n = Number(trimmed);
+    } else {
+      continue;
+    }
+    if (!Number.isInteger(n) || n <= 0) continue;
+    if (seen.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+  }
+  return out;
+}
 
 function realSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -100,6 +140,7 @@ function trimUnofficialServer(raw) {
     ping,
     wildcardReportedPing: ping,
     hasPassword: typeof r.HasPassword === 'boolean' ? r.HasPassword : null,
+    modIds: parseModIds(r.ModIDs),
   };
 }
 
@@ -155,6 +196,8 @@ async function fetchUnofficialRoster({
 module.exports = {
   UNOFFICIAL_SERVER_LIST_URL,
   DEFAULT_MAX_BYTES,
+  MAX_MOD_IDS_PER_SERVER,
+  parseModIds,
   trimUnofficialServer,
   trimUnofficialList,
   fetchUnofficialRoster,

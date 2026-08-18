@@ -447,6 +447,8 @@ function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesT
   const pct = capacityPct(s);
   const badge = platformBadge(s.platformType);
   const badgeHtml = badge ? `<span class="platform-badge">${escapeHtml(badge)}</span>` : '';
+  const modCount = unofficial && Array.isArray(s.modIds) ? s.modIds.length : 0;
+  const modsChip = modCount > 0 ? `<span class="platform-badge">${escapeHtml(String(modCount))} mods</span>` : '';
   const wipeHtml =
     showWipeDate && s.wipeDetectedAt
       ? `<div class="wipe-meta">Wiped ${escapeHtml(formatWipeDate(s.wipeDetectedAt))} \u00b7 Day ${escapeHtml(dash(s.day))}</div>`
@@ -459,7 +461,7 @@ function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesT
     : '';
   return `<tr>
       ${selectCell}<td><span class="status-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online' : 'Offline'}"></span></td>
-      <td class="name">${nameHtml}${badgeHtml}${wipeHtml}</td>
+      <td class="name">${nameHtml}${badgeHtml}${modsChip}${wipeHtml}</td>
       <td>${escapeHtml(s.map || '')}</td>
       <td>${escapeHtml(regionLabel(s.country))}</td>
       <td class="num">${escapeHtml(dash(s.day))}</td>

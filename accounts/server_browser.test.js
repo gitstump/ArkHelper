@@ -718,6 +718,39 @@ test('unofficial rows without cycles_seen render em-dash uptime and rank', () =>
   assert.equal(cells[9], '\u2014');
 });
 
+test('unofficial rows with modIds show an N mods chip; official/favorites/maps rows do not', () => {
+  const unofficial = renderServerRow(
+    { id: 'u1', name: 'Modded Box', map: 'TheIsland_WP', playersNow: 2, maxPlayers: 10, platformType: 'PC', modIds: [1, 2, 3] },
+    { source: 'unofficial' }
+  );
+  assert.match(unofficial, /3 mods/);
+  const unofficialEmpty = renderServerRow(
+    { id: 'u2', name: 'Vanilla Box', map: 'TheIsland_WP', playersNow: 1, maxPlayers: 10, modIds: [] },
+    { source: 'unofficial' }
+  );
+  assert.doesNotMatch(unofficialEmpty, /mods/);
+  const official = renderServerRow({
+    id: '1',
+    name: 'EU-PVE-TheIsland5313',
+    map: 'TheIsland_WP',
+    playersNow: 5,
+    maxPlayers: 70,
+    platformType: 'PC',
+    modIds: [1027407],
+  });
+  assert.doesNotMatch(official, /mods/);
+  const favoritesStyle = renderServerRow(
+    { id: '1', name: 'Fav', map: 'TheIsland_WP', playersNow: 1, maxPlayers: 10, modIds: [1, 2] },
+    { compareSelect: false }
+  );
+  assert.doesNotMatch(favoritesStyle, /mods/);
+  const mapsStyle = renderServerRow(
+    { id: '1', name: 'Map row', map: 'TheIsland_WP', playersNow: 1, maxPlayers: 10, modIds: [9] },
+    { compareSelect: false }
+  );
+  assert.doesNotMatch(mapsStyle, /mods/);
+});
+
 test('renderBrowserPage unofficial source uses Seen header and keeps filters working', () => {
   const servers = [
     { id: 'u1', name: 'Community Box', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 4, maxPlayers: 20, cycles_seen: 2 },

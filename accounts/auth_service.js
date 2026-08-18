@@ -21,6 +21,8 @@
  *   GET  /is-ark-down            -> public network status page (alias GET /status)
  *   GET  /rates                  -> official network rates from the CDN info feeds
  *   GET  /news                   -> launcher news (text and links only)
+ *   GET  /mods                   -> unofficial mod adoption
+ *   GET  /mods/:id               -> one mod plus currently-listed servers
  *   GET  /maps                   -> official-map index
  *   GET  /maps/:slug             -> per-map telemetry page
    *   GET  /guides                 -> guides index
@@ -117,6 +119,7 @@ const {
 const { renderStatusPage } = require('./status_page.js');
 const { renderRatesPage } = require('./rates_page.js');
 const { renderNewsPage } = require('./news_page.js');
+const { renderModsPage, renderModDetailPage, renderModNotFoundPage } = require('./mods_page.js');
 const { resolveSlug } = require('./maps.js');
 const {
   serversForMap,
@@ -299,6 +302,8 @@ function createAuthServer({
   incidentStatusUrl = 'http://localhost:8792/incidents/status',
   ratesUrl = 'http://localhost:8792/rates',
   newsUrl = 'http://localhost:8792/news',
+  modsSummaryUrl = 'http://localhost:8792/mods/summary',
+  modsUrlBase = 'http://localhost:8792/mods',
   discordDeps = { buildAuthorizeUrl, exchangeCodeForToken, fetchDiscordUser, generateState },
   homeDeps = { fetchRosterMetaSafe },
   browserDeps = { fetchJsonSafe },
@@ -622,6 +627,49 @@ function createAuthServer({
           account,
           live: liveFromMeta(rosterMeta),
         });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/mods') {
+        const [summary, unofficialMeta, rosterMeta] = await Promise.all([
+          browserDeps.fetchJsonSafe(`${modsSummaryUrl}?limit=100`),
+          browserDeps.fetchJsonSafe(unofficialMetaUrl),
+          homeDeps.fetchRosterMetaSafe(rosterMetaUrl),
+        ]);
+        const body = renderModsPage({
+          feedAvailable: Boolean(summary && Array.isArray(summary.mods)),
+          summary,
+          listedCount: unofficialMeta && typeof unofficialMeta.count === 'number' ? unofficialMeta.count : null,
+          account,
+          live: liveFromMeta(rosterMeta),
+        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
+      const modsMatch = req.method === 'GET' && url.pathname.match(/^\/mods\/([^/]+)$/);
+      if (modsMatch) {
+        const rawId = modsMatch[1];
+        const modId = Number(rawId);
+        const rosterMeta = await homeDeps.fetchRosterMetaSafe(rosterMetaUrl);
+        const live = liveFromMeta(rosterMeta);
+        if (!Number.isInteger(modId) || modId <= 0) {
+          const body = renderModNotFoundPage({ modId: rawId, account, live });
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+        const mod = await browserDeps.fetchJsonSafe(`${modsUrlBase}/${modId}`);
+        if (!mod || mod.error || mod.mod_id == null) {
+          const body = renderModNotFoundPage({ modId, account, live });
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+        const body = renderModDetailPage({ mod, account, live });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
         return;
@@ -1140,7 +1188,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));

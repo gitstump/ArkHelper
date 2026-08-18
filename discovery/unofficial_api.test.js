@@ -76,6 +76,7 @@ test('trimUnofficialServer maps live unofficial field names onto the trimmed sha
   assert.equal(trimmed.ping, 128);
   assert.equal(trimmed.wildcardReportedPing, 128);
   assert.equal(trimmed.hasPassword, false);
+  assert.deepEqual(trimmed.modIds, [928793, 947033, 927084]);
   assert.equal(trimmed.ModIDs, undefined);
   assert.equal(trimmed.SessionName, undefined);
   assert.equal(trimmed.rawDetails, undefined);
@@ -121,6 +122,7 @@ test('fetchUnofficialRoster trims an injected body and does not keep raw fields'
   assert.equal(result.servers[0].name, 'Crookz Ark  Extinction');
   assert.equal(result.servers[0].SessionID, undefined);
   assert.equal(result.servers[0].ModIDs, undefined);
+  assert.deepEqual(result.servers[0].modIds, [928793, 947033, 927084]);
 });
 
 test('fetchUnofficialRoster rejects an injected body over the byte cap', async () => {
@@ -134,6 +136,22 @@ test('fetchUnofficialRoster rejects an injected body over the byte cap', async (
       }),
     /byte cap/
   );
+});
+
+test('trimUnofficialServer normalizes ModIDs arrays, strings, dupes, junk, cap, and absent', () => {
+  assert.deepEqual(trimUnofficialServer({ ModIDs: [928793, '947033', 927084] }).modIds, [928793, 947033, 927084]);
+  assert.deepEqual(trimUnofficialServer({ ModIDs: '928793,947033,927084' }).modIds, [928793, 947033, 927084]);
+  assert.deepEqual(trimUnofficialServer({ ModIDs: [10, '10', 10, ' 10 '] }).modIds, [10]);
+  assert.deepEqual(
+    trimUnofficialServer({ ModIDs: [0, -3, 1.5, 'abc', '', null, undefined, '12.5', '1e2', Infinity, NaN, 7] }).modIds,
+    [7]
+  );
+  const overCap = Array.from({ length: 60 }, (_, i) => i + 1);
+  assert.deepEqual(trimUnofficialServer({ ModIDs: overCap }).modIds, overCap.slice(0, 50));
+  assert.deepEqual(trimUnofficialServer({}).modIds, []);
+  assert.deepEqual(trimUnofficialServer({ ModIDs: null }).modIds, []);
+  assert.deepEqual(trimUnofficialServer({ ModIDs: 'not-ids' }).modIds, []);
+  assert.deepEqual(trimUnofficialServer({ ModIDs: 928793 }).modIds, []);
 });
 
 test('realHttpGetCapped aborts a streamed body that exceeds the cap', async () => {

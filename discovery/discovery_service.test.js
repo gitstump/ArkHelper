@@ -25,10 +25,11 @@ const {
   resolveUnofficialIntervalMs,
   resolveInfoDbPath,
   resolveInfoIntervalMs,
+  resolveModsPass,
   DEFAULT_UNOFFICIAL_INTERVAL_MS,
   DEFAULT_INFO_INTERVAL_MS,
 } = require('./discovery_service.js');
-const { openUnofficialDb, getUnofficialMeta } = require('./unofficial_store.js');
+const { openUnofficialDb, getUnofficialMeta, upsertMods, getMod } = require('./unofficial_store.js');
 const { openInfoDb, getCurrentRates, getNewsEntries, getFeedsMeta } = require('./info_store.js');
 const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun } = require('./history.js');
 
@@ -231,7 +232,7 @@ test('roster HTTP server 404s on unknown routes with a helpful body', async () =
   const res = await fetch(`http://127.0.0.1:${port}/nonsense`);
   const body = await res.json();
   assert.equal(res.status, 404);
-  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status', '/rates', '/news']);
+  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status', '/rates', '/news', '/mods/summary', '/mods/:id']);
 
   server.close();
 });
@@ -880,4 +881,214 @@ test('resolveInfoDbPath defaults to feeds.sqlite', () => {
   assert.equal(resolveInfoDbPath(parseArgs(['run']), {}), 'feeds.sqlite');
   assert.equal(resolveInfoDbPath(parseArgs(['run', '--info-db', '/from/flag.db']), { INFO_DB_PATH: '/from/env.db' }), '/from/flag.db');
   assert.equal(resolveInfoDbPath(parseArgs(['run']), { INFO_DB_PATH: '/from/env.db' }), '/from/env.db');
+});
+
+function modsServers(count, playersByIndex) {
+  const servers = [];
+  for (let i = 0; i < count; i += 1) {
+    const id = i + 1;
+    servers.push({
+      id: `s${id}`,
+      name: `Server ${id}`,
+      map: 'TheIsland_WP',
+      gameMode: 'pve',
+      playersNow: playersByIndex ? playersByIndex(i) : 1,
+      maxPlayers: 20,
+      modIds: [id],
+    });
+  }
+  return servers;
+}
+
+test('mods resolution is skipped without a key and logs once per process', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const logs = [];
+  const state = { disabledLogged: false };
+  await refreshUnofficialCycle({
+    unofficialState,
+    unofficialDb,
+    fetchUnofficial: async () => ({ servers: modsServers(1), count: 1 }),
+    now: () => '2026-08-18T12:00:00.000Z',
+    curseforgeApiKey: '',
+    fetchMods: async () => {
+      throw new Error('should not fetch');
+    },
+    log: (msg) => logs.push(msg),
+    modsState: state,
+  });
+  await refreshUnofficialCycle({
+    unofficialState,
+    unofficialDb,
+    fetchUnofficial: async () => ({ servers: modsServers(1), count: 1 }),
+    now: () => '2026-08-18T12:15:00.000Z',
+    curseforgeApiKey: '',
+    fetchMods: async () => {
+      throw new Error('should not fetch');
+    },
+    log: (msg) => logs.push(msg),
+    modsState: state,
+  });
+  assert.equal(unofficialState.lastFetchStatus, 'ok');
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0], '[discovery] mods resolution disabled (CURSEFORGE_API_KEY not set)');
+});
+
+test('mods resolution batches unknown ids (cap 4) then one stale batch and stops on failure', async () => {
+  const unofficialDb = openUnofficialDb(':memory:');
+  const servers = [];
+  for (let i = 1; i <= 220; i += 1) {
+    servers.push({
+      id: `u${i}`,
+      name: `U${i}`,
+      map: 'TheIsland_WP',
+      playersNow: 1,
+      maxPlayers: 10,
+      modIds: [i],
+    });
+  }
+  await refreshUnofficialCycle({
+    unofficialState: createUnofficialState(),
+    unofficialDb,
+    fetchUnofficial: async () => ({ servers, count: servers.length }),
+    now: () => '2026-08-18T13:00:00.000Z',
+    curseforgeApiKey: '',
+    fetchMods: async () => [],
+    log: () => {},
+    modsState: { disabledLogged: true },
+  });
+  upsertMods(unofficialDb, [{ id: 300, name: 'stale-one' }], { now: () => '2026-08-01T00:00:00.000Z' });
+
+  const calls = [];
+  const sleeps = [];
+  const logs = [];
+  const result = await resolveModsPass({
+    unofficialDb,
+    apiKey: 'fake-key',
+    fetchMods: async ({ modIds }) => {
+      calls.push(modIds.slice());
+      return modIds.map((id) => ({ id, name: `Mod ${id}` }));
+    },
+    sleep: async (ms) => {
+      sleeps.push(ms);
+    },
+    now: () => '2026-08-18T13:00:00.000Z',
+    log: (msg) => logs.push(msg),
+    state: { disabledLogged: true },
+  });
+  assert.equal(calls.length, 5);
+  assert.equal(calls[0].length, 50);
+  assert.equal(calls[3].length, 50);
+  assert.deepEqual(calls[4], [300]);
+  assert.equal(sleeps.length, 4);
+  assert.ok(sleeps.every((ms) => ms === 1000));
+  assert.equal(result.newCount, 200);
+  assert.equal(result.refreshedCount, 1);
+  assert.equal(result.failedCount, 0);
+  assert.match(logs[0], /mods resolved: 200 new, 1 refreshed, 0 failed/);
+  assert.doesNotMatch(logs.join('\n'), /fake-key/);
+
+  const failDb = openUnofficialDb(':memory:');
+  const failServers = [];
+  for (let i = 1; i <= 60; i += 1) {
+    failServers.push({
+      id: `f${i}`,
+      name: `F${i}`,
+      map: 'TheIsland_WP',
+      playersNow: 1,
+      maxPlayers: 10,
+      modIds: [i],
+    });
+  }
+  await refreshUnofficialCycle({
+    unofficialState: createUnofficialState(),
+    unofficialDb: failDb,
+    fetchUnofficial: async () => ({ servers: failServers, count: failServers.length }),
+    now: () => '2026-08-18T13:00:00.000Z',
+    curseforgeApiKey: '',
+    fetchMods: async () => [],
+    log: () => {},
+    modsState: { disabledLogged: true },
+  });
+  const failCalls = [];
+  const failResult = await resolveModsPass({
+    unofficialDb: failDb,
+    apiKey: 'fake-key',
+    fetchMods: async ({ modIds }) => {
+      failCalls.push(modIds.slice());
+      throw new Error('cf down');
+    },
+    sleep: async () => {},
+    now: () => '2026-08-18T13:00:00.000Z',
+    log: () => {},
+    state: { disabledLogged: true },
+  });
+  assert.equal(failCalls.length, 1);
+  assert.equal(failCalls[0].length, 50);
+  assert.equal(failResult.failedCount, 50);
+  assert.equal(failResult.newCount, 0);
+  assert.equal(getMod(failDb, failCalls[0][0]).status, 'error');
+});
+
+test('GET /mods/summary and /mods/:id serve adoption data; empty-db and 404 cases', async () => {
+  const file = tmpFile('roster.json');
+  const emptyServer = createRosterServer({ outPath: file });
+  await new Promise((resolve) => emptyServer.listen(0, resolve));
+  const emptyPort = emptyServer.address().port;
+  const emptyRes = await fetch(`http://127.0.0.1:${emptyPort}/mods/summary`);
+  const emptyBody = await emptyRes.json();
+  assert.equal(emptyRes.status, 200);
+  assert.deepEqual(emptyBody, { mods: [], lastFetchAt: null });
+  emptyServer.close();
+
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  await refreshUnofficialCycle({
+    unofficialState,
+    unofficialDb,
+    fetchUnofficial: async () => ({
+      servers: [
+        { id: 'a', name: 'Alpha', map: 'TheIsland_WP', playersNow: 6, maxPlayers: 20, modIds: [11, 12] },
+        { id: 'b', name: 'Beta', map: 'Extinction_WP', playersNow: 3, maxPlayers: 20, modIds: [11] },
+      ],
+      count: 2,
+    }),
+    now: () => '2026-08-18T14:00:00.000Z',
+    curseforgeApiKey: 'fake-key',
+    fetchMods: async ({ modIds }) =>
+      modIds.map((id) => ({
+        id,
+        name: id === 11 ? 'S+' : 'Other',
+        author: 'CF',
+        downloadCount: 10,
+      })),
+    sleep: async () => {},
+    log: () => {},
+    modsState: { disabledLogged: true },
+  });
+
+  const server = createRosterServer({ outPath: file, unofficialState, unofficialDb });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const summaryRes = await fetch(`http://127.0.0.1:${port}/mods/summary?limit=10`);
+  const summary = await summaryRes.json();
+  assert.equal(summaryRes.status, 200);
+  assert.equal(summary.lastFetchAt, '2026-08-18T14:00:00.000Z');
+  assert.equal(summary.mods[0].mod_id, 11);
+  assert.equal(summary.mods[0].server_count, 2);
+  assert.equal(summary.mods[0].players_now, 9);
+  assert.equal(summary.mods[0].name, 'S+');
+
+  const detailRes = await fetch(`http://127.0.0.1:${port}/mods/11`);
+  const detail = await detailRes.json();
+  assert.equal(detailRes.status, 200);
+  assert.equal(detail.name, 'S+');
+  assert.equal(detail.servers.length, 2);
+  assert.equal(detail.servers[0].name, 'Alpha');
+
+  const missRes = await fetch(`http://127.0.0.1:${port}/mods/999`);
+  assert.equal(missRes.status, 404);
+
+  server.close();
 });
