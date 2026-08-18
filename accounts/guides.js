@@ -832,7 +832,161 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'aberration-progression',
+    title: 'Aberration Progression Guide — ARK: Survival Ascended',
+    shortTitle: 'Aberration Progression',
+    description:
+      'The underground ARK from first Bulbdog to Rockwell: charge light, verticality, radiation, Rock Drakes, and the order that makes the map survivable.',
+    lastVerified: '2026-08-17',
+    related: ['scorched-earth-progression', 'boss-strategies', 'taming', 'extinction-progression'],
+    sections: [
+      {
+        heading: 'What Aberration asks of you',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Aberration is a broken ARK. The station malfunctioned, the surface burned, and the world that survived moved underground — which means everything you know about reading a map gets rotated ninety degrees. There are no flyers here; the map forbids them outright. The surface is lethal for most of the day. Progress does not live north or inland the way it did on earlier maps. It lives down, and the map\'s real antagonist is gravity.',
+          },
+          {
+            type: 'p',
+            text: 'As with Scorched Earth, you can arrive by transferring an established survivor through an obelisk or supply drop, or start fresh in the dirt. A transfer keeps your levels and engrams and softens the opening considerably. A fresh start is harder and slower, but Aberration is arguably the best map in the game at teaching its own grammar — every system it introduces gets a gentle version near spawn and a lethal version below. Either way, resist the urge to descend early. The map will let you walk into places it has no intention of letting you leave.',
+          },
+          {
+            type: 'callout',
+            text: 'The difficulty gradient runs downward: the green upper zone is the easy ring, the blue glowing middle is the test, and the red depths are the endgame. Progression on Aberration is the story of earning your way down.',
+          },
+        ],
+      },
+      {
+        heading: 'The green zone is your whole early game',
+        blocks: [
+          {
+            type: 'p',
+            text: 'You spawn in the fertile upper zone — green, wet, and deceptively familiar. Trees, berries, and open water make it feel like The Island with mood lighting, and by Aberration\'s standards it is genuinely safe. Treat it the way the beginner path treats an easy beach: base here, level here, and learn the map\'s verticality while the stakes are low. Ledges that look like scenery are roads, and the sooner you start seeing routes in three dimensions, the sooner the map stops killing you.',
+          },
+          {
+            type: 'p',
+            text: 'Build early and build modestly, close to water and away from ledge edges. The fertile zone supplies everything your first weeks need: wood, stone, crystal in the walls, and farmable plots that grow the mushrooms this map substitutes for familiar crops. There is no rush to leave. A survivor who over-stays the green zone loses nothing; a survivor who under-stays it becomes a loot bag somewhere dark.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/maps/aberration', label: 'Live Aberration servers', note: 'population, uptime, and versions right now' },
+              { href: '/lists/official-pve', label: 'Official PvE servers', note: 'the recommended pool for a first Aberration run' },
+              { href: '/guides/beginners', label: "Beginner's Guide", note: 'the habits this map assumes you already have' },
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Charge light and the things that hate it',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Charge light is Aberration\'s signature mechanic, and it is not cosmetic. In the deeper zones, darkness is inhabited: the Nameless rise out of the ground around survivors who travel without light, and enough of them will summon something far worse. Charge — the blue-white glow carried by this map\'s light pets and a few crafted lanterns — suppresses them. On Scorched Earth the resource that ruled your planning was water. Here it is light.',
+          },
+          {
+            type: 'p',
+            text: 'The fix is one of the friendliest tames in the game. Small glowing shoulder pets wander the green and blue zones and tame passively — walk up with the right food and a little patience. A Bulbdog is the classic first pick, and one on your shoulder with its light up is the difference between the deep zones being a place you work and a place you die. Keep its charge topped up, and never descend without it.',
+          },
+          {
+            type: 'callout',
+            text: 'A shoulder light pet is not decoration. It is this map\'s canteen — the one piece of preparation that everything below the green zone silently assumes.',
+          },
+        ],
+      },
+      {
+        heading: 'First tames of the underground',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The map\'s workhorse is the Ravager — a pack-hunting wolf that climbs ziplines, carries absurd loads, and gets weight-reduction on the ores and materials you will be hauling constantly. Taming one converts Aberration from a hiking trip into a logistics operation, and taming several gives you a pack that can fight its way through most of what the middle zones offer. If you tame one thing on purpose in your first week, make it a Ravager.',
+          },
+          {
+            type: 'p',
+            text: 'Around it, build the same modest bench of workers the beginner path recommends anywhere: something that gathers, something that fights, and your light pet. The fertile zone stocks gentle herbivores for berry and thatch work, and the Roll Rat digs up wood and fungal materials while doubling as transport. Knockout taming works exactly as it does everywhere else — torpor, the right food, and a safe perimeter — so the taming guide applies unchanged here.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/taming', label: 'Taming Guide', note: 'knockout and passive methods, torpor, and traps' },
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Moving without wings',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Aberration deletes flyers and then hands you a stranger, better toolkit. Climbing picks turn sheer walls into paths. Ziplines turn chasms into commutes — anchor them between ledges, and a Ravager can run them with you mounted. The glider suit turns every high ledge into a launch point, and half of the map\'s traversal skill is learning which drops are a glide and which are an obituary. Together they make movement on this map a learned craft rather than a stat check.',
+          },
+          {
+            type: 'p',
+            text: 'Fall damage is Aberration\'s leading cause of death, and it is not close. Plan routes down, not across: a good descent is a chain of ledges, each one survivable, scouted from above before you commit. Mark your route home. The map\'s layered geometry means the way back is rarely the reverse of the way in, and a survivor who descends without an exit plan has not actually descended — they have moved into the hole they will die in.',
+          },
+          {
+            type: 'callout',
+            text: 'Before any serious descent, ask one question: if this goes wrong halfway down, where do I land, and does anything live there?',
+          },
+        ],
+      },
+      {
+        heading: 'Radiation and the hazard suit',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Below the blue bioluminescent zone, the map stops negotiating. The red element depths are irradiated, and radiation ignores armor, ignores hit points, and kills unprotected survivors with total indifference. The answer is the hazard suit — a full-body crafted set that makes the deep zones workable. It degrades with use, so carry spares; a suit that fails at the bottom of the map is the same as never having worn one.',
+          },
+          {
+            type: 'p',
+            text: 'What the depths offer is the reason this map exists: dense metal and crystal, the charged materials that power this map\'s technology, and the nesting trenches where Rock Drake eggs wait. Work the red zones in deliberate, planned trips — descend with a purpose, fill your Ravager, and leave. The deep is a place you raid, not a place you live, and every system on the map is tuned to punish anyone who forgets which.',
+          },
+        ],
+      },
+      {
+        heading: 'Rock Drakes and the grave of the lost',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The Rock Drake is Aberration\'s signature mount, and you do not tame one — you steal one. Adults cannot be tamed at all. Eggs nest in the irradiated trenches near the bottom of the map, guarded by adult drakes that turn hostile the moment you touch a nest, and the theft run is this map\'s wyvern moment: hazard suit on, light pet up, escape route memorized, and a plan for being chased by things that climb every surface you can.',
+          },
+          {
+            type: 'p',
+            text: 'A raised drake rewrites the map. It climbs any wall, glides any gap, and cloaks itself and its rider — which matters, because the deep zones are also where the Nameless and worse hunt in earnest. The egg run is the hardest thing the map has asked of you so far, and it is deliberately positioned that way: everything before it — the light pets, the Ravagers, the movement tech, the hazard suit — was the preparation, whether you knew it or not.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/scorched-earth-progression', label: 'Scorched Earth Progression', note: 'the wyvern-scar run this one rhymes with' },
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Rockwell, and where the story goes next',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The depths hold one more predator worth naming. Reaper Queens hunt the red zones, and the map\'s strangest mechanic runs through them: a survivor who plays that encounter exactly right — and it is an encounter you study for, not stumble into — can end up raising a rideable Reaper of their own, one of the strongest creatures on the ARK. It is optional, late-game, and pure Aberration: the map\'s worst monster is also its best reward.',
+          },
+          {
+            type: 'p',
+            text: 'The map ends at a terminal in the deepest place it has, where Sir Edmund Rockwell — the expansion\'s ruined antagonist — waits as its boss. The fight favors everything this map taught you: charge light to strip his defenses, mobile mounts, and the discipline to prepare rather than improvise. Beating him ascends your survivor and points the story at its next stop — Extinction, and the ruined Earth the ARKs have been circling all along.',
+          },
+          {
+            type: 'callout',
+            text: 'Boss preparation on this map follows the same law as everywhere else: the fight is won in the weeks before the terminal, not the minutes after it. The Boss Strategies guide covers the shape of that preparation.',
+          },
+        ],
+      },
+    ],
+  },
 ];
+
+// planned future guides that `related` arrays may reference before they exist.
+const PLANNED_SLUGS = ['extinction-progression'];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));
 
@@ -843,5 +997,6 @@ function resolveGuide(slug) {
 
 module.exports = {
   GUIDE_REGISTRY,
+  PLANNED_SLUGS,
   resolveGuide,
 };

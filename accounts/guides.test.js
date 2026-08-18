@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { GUIDE_REGISTRY, resolveGuide } = require('./guides.js');
+const { GUIDE_REGISTRY, PLANNED_SLUGS, resolveGuide } = require('./guides.js');
 const { getListDef } = require('./server_lists.js');
 const { MAP_REGISTRY } = require('./maps.js');
 
@@ -43,7 +43,7 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 7);
+  assert.equal(GUIDE_REGISTRY.length, 8);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
@@ -51,6 +51,7 @@ test('registry slugs are unique and every entry has the required fields', () => 
   assert.ok(slugs.includes('breeding-mutations'));
   assert.ok(slugs.includes('boss-strategies'));
   assert.ok(slugs.includes('scorched-earth-progression'));
+  assert.ok(slugs.includes('aberration-progression'));
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
       assert.ok(g[field] != null, `missing ${field} on ${g.slug}`);
@@ -112,6 +113,10 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(scorched);
   assert.equal(scorched.slug, 'scorched-earth-progression');
   assert.equal(scorched.shortTitle, 'Scorched Earth Progression');
+  const aberration = resolveGuide('aberration-progression');
+  assert.ok(aberration);
+  assert.equal(aberration.slug, 'aberration-progression');
+  assert.equal(aberration.shortTitle, 'Aberration Progression');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -339,12 +344,18 @@ test('coming-soon notes are allowed iff they point at an unpublished /guides slu
   assert.deepEqual(comingSoonViolations, [], 'coming-soon is allowed only on unpublished /guides/<slug>');
 });
 
-test('every related slug across the registry resolves or is skipped silently', () => {
+test('every related slug resolves or is an explicitly planned slug', () => {
   for (const g of GUIDE_REGISTRY) {
     assert.ok(Array.isArray(g.related));
     for (const slug of g.related) {
-      assert.doesNotThrow(() => resolveGuide(slug));
+      assert.ok(resolveGuide(slug) !== null || PLANNED_SLUGS.includes(slug));
     }
+  }
+});
+
+test('planned slugs are only for unpublished guides', () => {
+  for (const slug of PLANNED_SLUGS) {
+    assert.equal(resolveGuide(slug), null);
   }
 });
 
@@ -408,8 +419,7 @@ test('scorched-earth-progression guide ships the brief prose verbatim', () => {
   assert.ok(resolveGuide('boss-strategies'));
   assert.ok(resolveGuide('resource-locations'));
   assert.ok(resolveGuide('beginners'));
-  assert.equal(resolveGuide('aberration-progression'), null);
-  assert.doesNotThrow(() => resolveGuide('aberration-progression'));
+  assert.ok(resolveGuide('aberration-progression'));
   assert.equal(
     g.sections[0].blocks[0].text,
     'Scorched Earth is the first story expansion, and it teaches by subtraction. There are no forgiving coastlines, no easy freshwater, and no gentle starter biome — the whole map is desert, and the desert is the antagonist. Everything you learned on The Island still applies; the map just adds a second clock. On The Island you managed food and safety. Here you also manage water and temperature, all the time, everywhere.'
@@ -450,4 +460,30 @@ test('scorched-earth-progression guide ships the brief prose verbatim', () => {
   assert.equal(endLinks[1].note, 'the fundamentals the desert assumes you know');
   assert.doesNotMatch(endLinks[0].note, /coming soon/);
   assert.doesNotMatch(endLinks[1].note, /coming soon/);
+});
+
+test('aberration-progression guide ships the brief prose verbatim', () => {
+  const g = resolveGuide('aberration-progression');
+  assert.ok(g);
+  assert.equal(g.title, 'Aberration Progression Guide — ARK: Survival Ascended');
+  assert.equal(g.shortTitle, 'Aberration Progression');
+  assert.equal(g.lastVerified, '2026-08-17');
+  assert.equal(g.sections.length, 8);
+  assert.equal(g.related.join(','), 'scorched-earth-progression,boss-strategies,taming,extinction-progression');
+  assert.equal(
+    g.description,
+    'The underground ARK from first Bulbdog to Rockwell: charge light, verticality, radiation, Rock Drakes, and the order that makes the map survivable.'
+  );
+  assert.equal(
+    g.sections[0].blocks[0].text,
+    'Aberration is a broken ARK. The station malfunctioned, the surface burned, and the world that survived moved underground — which means everything you know about reading a map gets rotated ninety degrees. There are no flyers here; the map forbids them outright. The surface is lethal for most of the day. Progress does not live north or inland the way it did on earlier maps. It lives down, and the map\'s real antagonist is gravity.'
+  );
+  assert.equal(g.sections[0].heading, 'What Aberration asks of you');
+  assert.equal(g.sections[1].heading, 'The green zone is your whole early game');
+  assert.equal(g.sections[2].heading, 'Charge light and the things that hate it');
+  assert.equal(g.sections[3].heading, 'First tames of the underground');
+  assert.equal(g.sections[4].heading, 'Moving without wings');
+  assert.equal(g.sections[5].heading, 'Radiation and the hazard suit');
+  assert.equal(g.sections[6].heading, 'Rock Drakes and the grave of the lost');
+  assert.equal(g.sections[7].heading, 'Rockwell, and where the story goes next');
 });

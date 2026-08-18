@@ -113,7 +113,10 @@ test('renderGuidesIndexPage lists the beginners card with a link and last-verifi
   assert.match(html, /href="\/guides\/scorched-earth-progression"/);
   assert.match(html, /Scorched Earth Progression/);
   assert.match(html, /Surviving the desert from first canteen to the Manticore/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 7);
+  assert.match(html, /href="\/guides\/aberration-progression"/);
+  assert.match(html, /Aberration Progression/);
+  assert.match(html, /The underground ARK from first Bulbdog to Rockwell/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 8);
 });
 
 test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped content', () => {
@@ -260,7 +263,7 @@ test('renderGuidePage renders the scorched-earth-progression guide h1, 8 heading
   assert.match(html, /href="\/guides\/resource-locations"/);
   assert.match(html, /href="\/guides\/boss-strategies"/);
   assert.match(html, /href="\/guides\/beginners"/);
-  assert.doesNotMatch(html, /aberration-progression/);
+  assert.match(html, /href="\/guides\/aberration-progression"/);
   assert.doesNotMatch(html, /\(coming soon\)/);
 });
 
@@ -298,7 +301,7 @@ test('renderGuidePage table cells and caption are escaped; first column is th sc
 });
 
 test('every related list across the registry fully resolves in the footer', () => {
-  assert.equal(GUIDE_REGISTRY.length, 7);
+  assert.equal(GUIDE_REGISTRY.length, 8);
   for (const g of GUIDE_REGISTRY) {
     const html = renderGuidePage({ guide: g });
     const related = html.match(/class="guide-related"[\s\S]*?<\/nav>/);
@@ -371,8 +374,8 @@ test('related footer with unknown slugs renders without error and omits missing 
   assert.match(scorchedRelated[0], /href="\/guides\/boss-strategies"/);
   assert.match(scorchedRelated[0], /href="\/guides\/resource-locations"/);
   assert.match(scorchedRelated[0], /href="\/guides\/beginners"/);
-  assert.doesNotMatch(scorchedRelated[0], /aberration-progression/);
-  assert.equal((scorchedRelated[0].match(/href="\/guides\//g) || []).length, 3);
+  assert.match(scorchedRelated[0], /href="\/guides\/aberration-progression"/);
+  assert.equal((scorchedRelated[0].match(/href="\/guides\//g) || []).length, 4);
 
   const withKnown = renderGuidePage({
     guide: {
