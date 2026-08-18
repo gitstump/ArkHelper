@@ -118,24 +118,34 @@ function formatLiveUpdated(live) {
   return '\u2014';
 }
 
-function renderFooter(live) {
+function renderFooter(live, year = new Date().getFullYear()) {
   const listItems = LIST_NAV.map((item) => `<li><a href="${item.href}">${escapeHtml(item.label)}</a></li>`).join('');
   const statsItems = STATS_NAV.map((item) => `<li><a href="${item.href}">${escapeHtml(item.label)}</a></li>`).join('');
   return `<footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-cols">
       <div>
-        <h2>Server Tools</h2>
+        <h2>Servers</h2>
         <ul>
           <li><a href="/servers">Browser</a></li>
           <li><a href="/compare">Compare</a></li>
           <li><a href="/maps">Maps</a></li>
           <li><a href="/guides">Guides</a></li>
-          ${listItems}
-          ${statsItems}
           <li><a href="/favorites">Favorites</a></li>
           <li><a href="/alerts">Alerts</a></li>
           <li><a href="/servers">Presets</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Lists</h2>
+        <ul>
+          ${listItems}
+        </ul>
+      </div>
+      <div>
+        <h2>Stats</h2>
+        <ul>
+          ${statsItems}
         </ul>
       </div>
       <div>
@@ -143,23 +153,21 @@ function renderFooter(live) {
         <ul>
           <li><a href="/">About</a></li>
           <li><a href="${GITHUB_REPO}">GitHub</a></li>
-        </ul>
-        <p class="footer-attrib">Includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">https://www.maxmind.com</a></p>
-      </div>
-      <div>
-        <h2>Live</h2>
-        <ul>
           <li>Tracking <span class="num">${formatLiveCount(live)}</span> official servers</li>
           <li>Last updated <span class="num">${formatLiveUpdated(live)}</span></li>
         </ul>
+        <p class="footer-attrib">Includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">https://www.maxmind.com</a></p>
       </div>
     </div>
-    <p class="footer-disclaimer">Independent service, not affiliated with Studio Wildcard.</p>
+    <div class="footer-disclaimer">
+      <p>\u00A9 ${year} ArkHelper. All trademarks are property of their respective owners.</p>
+      <p>ArkHelper is an independent, unofficial fan service and is not affiliated with, endorsed by, or sponsored by Studio Wildcard, Snail Games, or any related entities.</p>
+    </div>
   </div>
 </footer>`;
 }
 
-function renderPage({ title, description, currentPath, account, live, extraCss = '', body }) {
+function renderPage({ title, description, currentPath, account, live, extraCss = '', body, year }) {
   const metaDescription = description
     ? `<meta name="description" content="${escapeHtml(description)}">\n`
     : '';
@@ -189,7 +197,7 @@ ${extraCss}
   <main class="site-main">
     ${body}
   </main>
-  ${renderFooter(live)}
+  ${renderFooter(live, year)}
 </div>
 <script>
 document.addEventListener('click', function (e) {

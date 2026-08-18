@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { renderPage, renderNav, renderAuth, renderFooter, pathMatches, GITHUB_REPO } = require('./layout.js');
+const { renderPage, renderNav, renderAuth, renderFooter, pathMatches, GITHUB_REPO, LIST_NAV, STATS_NAV } = require('./layout.js');
 
 test('renderPage includes a meta description when one is provided', () => {
   const html = renderPage({ title: 'Low ping', description: 'Find ARK low ping servers.', currentPath: '/', body: '<p>x</p>' });
@@ -22,7 +22,8 @@ test('renderPage wraps body in the shared shell with theme CSS', () => {
   assert.match(html, /class="wordmark"/);
   assert.match(html, /Live tracking for the ARK: Survival Ascended network/);
   assert.match(html, /<p>hello<\/p>/);
-  assert.match(html, /Independent service, not affiliated with Studio Wildcard/);
+  assert.match(html, /\u00A9 \d{4} ArkHelper\. All trademarks are property of their respective owners\./);
+  assert.match(html, /ArkHelper is an independent, unofficial fan service and is not affiliated with, endorsed by, or sponsored by Studio Wildcard, Snail Games, or any related entities\./);
   assert.match(html, /<\/html>$/);
 });
 
@@ -133,7 +134,10 @@ test('renderAuth escapes a hostile username', () => {
 
 test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () => {
   const html = renderFooter({ totalOfficial: 3179, generatedAt: '2026-08-15T16:52:24.124Z' });
-  assert.match(html, /Server Tools/);
+  assert.match(html, /<h2>Servers<\/h2>/);
+  assert.match(html, /<h2>Lists<\/h2>/);
+  assert.match(html, /<h2>Stats<\/h2>/);
+  assert.match(html, /<h2>Project<\/h2>/);
   assert.match(html, /href="\/servers">Browser/);
   assert.match(html, /href="\/compare">Compare/);
   assert.match(html, /href="\/maps">Maps/);
@@ -158,13 +162,21 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   const favLi = html.indexOf('href="/favorites">Favorites');
   const alertsLi = html.indexOf('href="/alerts">Alerts');
   assert.ok(favLi !== -1 && alertsLi !== -1 && favLi < alertsLi);
-  assert.match(html, /Project/);
   assert.match(html, /href="\/">About/);
   assert.match(html, /Includes GeoLite2 data created by MaxMind, available from/);
   assert.match(html, /href="https:\/\/www\.maxmind\.com"/);
   assert.match(html, new RegExp(GITHUB_REPO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.match(html, /3179/);
+  assert.match(html, /Tracking <span class="num">3179<\/span> official servers/);
   assert.match(html, /2026-08-15T16:52:24\.124Z/);
+  for (const item of [...LIST_NAV, ...STATS_NAV]) {
+    const matches = html.match(new RegExp(`href="${item.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g')) || [];
+    assert.equal(matches.length, 1, `${item.href} should appear exactly once in the footer`);
+  }
+});
+
+test('renderFooter honors an explicit year in the legal band', () => {
+  const html = renderFooter(null, 2031);
+  assert.match(html, /\u00A9 2031 ArkHelper\. All trademarks are property of their respective owners\./);
 });
 
 test('renderFooter shows em dashes when live data is missing', () => {
