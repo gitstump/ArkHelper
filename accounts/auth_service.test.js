@@ -514,6 +514,63 @@ test('GET /servers?country=DE filters by country and shows a flag in the Region 
   server.close();
 });
 
+test('GET /servers ping/uptime form inputs filter and echo their values', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: '1', name: 'EU-PVE-TheIsland5313', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 5, maxPlayers: 70, day: 100, clusterId: 'PVECrossplay', hasPassword: false, wildcardReportedPing: 180, uptimePercent: 99 },
+      { id: '2', name: 'Asia-PVP-LostColony2859', map: 'LostColony_WP', gameMode: 'pvp', playersNow: 20, maxPlayers: 70, day: 50, clusterId: 'PVPCrossplay', hasPassword: false, wildcardReportedPing: 252, uptimePercent: 50 },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(roster),
+  });
+
+  const formRes = await fetch(`${base}/servers`);
+  const formHtml = await formRes.text();
+  assert.match(formHtml, /name="minPing"/);
+  assert.match(formHtml, /name="maxPing"/);
+  assert.match(formHtml, /name="minUptime"/);
+  assert.match(formHtml, /name="clusterId"/);
+
+  const res = await fetch(`${base}/servers?minPing=100&maxPing=200&minUptime=90`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /Asia-PVP-LostColony2859/);
+  assert.match(html, /name="minPing"[^>]*value="100"/);
+  assert.match(html, /name="maxPing"[^>]*value="200"/);
+  assert.match(html, /name="minUptime"[^>]*value="90"/);
+
+  server.close();
+});
+
+test('GET /servers?clusterId= filters the official roster from the form', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+
+  const res = await fetch(`${base}/servers?clusterId=PVECrossplay`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /Asia-PVP-LostColony2859/);
+  assert.match(html, /name="clusterId"[^>]*value="PVECrossplay"/);
+
+  server.close();
+});
+
 test('GET /servers shows the fallback (200, not a crash) when the discovery feed is unreachable', async () => {
   const db = openDb(':memory:');
   const { server, base } = await startServer({
@@ -2432,6 +2489,37 @@ test('GET /servers?source=unofficial lists unofficial servers without rank/uptim
   assert.doesNotMatch(html, /href="\/servers\/u1"/);
   assert.match(html, />Seen</);
   assert.match(html, /75%/);
+
+  server.close();
+});
+
+test('GET /servers?source=unofficial form has ping inputs but strips minUptime', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeSplitBrowserDeps({ official: { servers: makeTestServers() }, unofficial: unofficialTestRoster() }),
+    homeDeps: fakeSplitHomeDeps({
+      official: { totalOfficial: 2, pveCount: 1, pvpCount: 1, generatedAt: 'T' },
+      unofficial: { count: 1, cycles_total: 4, lastFetchStatus: 'ok' },
+    }),
+  });
+
+  const res = await fetch(`${base}/servers?source=unofficial`);
+  const html = await res.text();
+  assert.match(html, /name="minPing"/);
+  assert.match(html, /name="maxPing"/);
+  assert.doesNotMatch(html, /name="minUptime"/);
+  assert.doesNotMatch(html, /name="clusterId"/);
+
+  const withBound = await fetch(`${base}/servers?source=unofficial&minUptime=99`);
+  const withHtml = await withBound.text();
+  assert.equal(withBound.status, 200);
+  assert.match(withHtml, /Community Box/);
+  assert.doesNotMatch(withHtml, /No servers match these filters/);
 
   server.close();
 });

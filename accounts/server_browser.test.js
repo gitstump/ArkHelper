@@ -70,6 +70,46 @@ test('filterServers filters by clusterId', () => {
   assert.equal(filterServers(makeServers(), { clusterId: 'PVPCrossplay' }).length, 2);
 });
 
+test('filterServers minPing/maxPing use wildcardReportedPing, else ping fallback', () => {
+  const servers = [
+    { id: 'wc', wildcardReportedPing: 50, ping: 999 },
+    { id: 'fb', ping: 80 },
+    { id: 'hi', wildcardReportedPing: 200 },
+  ];
+  assert.deepEqual(filterServers(servers, { minPing: '40', maxPing: '100' }).map((s) => s.id), ['wc', 'fb']);
+  assert.deepEqual(filterServers(servers, { minPing: '60' }).map((s) => s.id), ['fb', 'hi']);
+  assert.deepEqual(filterServers(servers, { maxPing: '50' }).map((s) => s.id), ['wc']);
+});
+
+test('filterServers excludes null effective ping when a ping bound is set', () => {
+  const servers = [
+    { id: 'has', wildcardReportedPing: 50 },
+    { id: 'none' },
+    { id: 'nullPing', wildcardReportedPing: null, ping: null },
+  ];
+  assert.deepEqual(filterServers(servers, { minPing: '0' }).map((s) => s.id), ['has']);
+  assert.deepEqual(filterServers(servers, { maxPing: '1000' }).map((s) => s.id), ['has']);
+  assert.deepEqual(filterServers(servers, {}).map((s) => s.id), ['has', 'none', 'nullPing']);
+});
+
+test('filterServers minUptime excludes missing or below-bound uptime', () => {
+  const servers = [
+    { id: 'ok', uptimePercent: 99 },
+    { id: 'low', uptimePercent: 50 },
+    { id: 'none' },
+  ];
+  assert.deepEqual(filterServers(servers, { minUptime: '90' }).map((s) => s.id), ['ok']);
+});
+
+test('filterServers treats non-numeric and negative ping/uptime bounds as unset', () => {
+  const servers = [
+    { id: 'a', wildcardReportedPing: 10, uptimePercent: 10 },
+    { id: 'b' },
+  ];
+  assert.equal(filterServers(servers, { minPing: 'nope', maxPing: '-1', minUptime: 'abc' }).length, 2);
+  assert.equal(filterServers(servers, { minPing: '-5', maxPing: 'NaN', minUptime: '-1' }).length, 2);
+});
+
 test('filterServers combines multiple filters with AND logic', () => {
   const result = filterServers(makeServers(), { gameMode: 'pvp', minPlayers: '30' });
   assert.equal(result.length, 1);
@@ -808,6 +848,17 @@ test('filtersFromSearchParams normalizes country to uppercase ISO', () => {
   const filters = filtersFromSearchParams(params);
   assert.equal(filters.country, 'DE');
   assert.equal(filtersFromSearchParams(new URLSearchParams('country=')).country, '');
+});
+
+test('filtersFromSearchParams round-trips minPing, maxPing, and minUptime', () => {
+  const filters = filtersFromSearchParams(new URLSearchParams('minPing=20&maxPing=80&minUptime=95'));
+  assert.equal(filters.minPing, '20');
+  assert.equal(filters.maxPing, '80');
+  assert.equal(filters.minUptime, '95');
+  const empty = filtersFromSearchParams(new URLSearchParams());
+  assert.equal(empty.minPing, '');
+  assert.equal(empty.maxPing, '');
+  assert.equal(empty.minUptime, '');
 });
 
 test('getDistinctCountries is alphabetical by name and skips missing country', () => {

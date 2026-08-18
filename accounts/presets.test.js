@@ -104,6 +104,23 @@ test('sanitizeQueryString keeps source=unofficial', () => {
   assert.equal(sanitizeQueryString('source=unofficial&gameMode=pve'), 'gameMode=pve&source=unofficial');
 });
 
+test('minPing, maxPing, and minUptime round-trip through save, recall, and share redirect', () => {
+  const query = 'minPing=20&maxPing=80&minUptime=95&evil=1';
+  const saved = addCookiePreset([], { name: 'Ping band', query });
+  assert.equal(saved.ok, true);
+  const stored = new URLSearchParams(saved.presets[0].query);
+  assert.equal(stored.get('minPing'), '20');
+  assert.equal(stored.get('maxPing'), '80');
+  assert.equal(stored.get('minUptime'), '95');
+  assert.equal(stored.get('evil'), null);
+
+  const recalled = parsePresetCookie(saved.serialized);
+  assert.deepEqual(recalled, saved.presets);
+
+  // GET /p/:token redirects via serversLocation(preset.queryString)
+  assert.equal(serversLocation(recalled[0].query), '/servers?minPing=20&maxPing=80&minUptime=95');
+});
+
 // ---------------------------------------------------------------------
 // Cookie parse/serialize
 // ---------------------------------------------------------------------

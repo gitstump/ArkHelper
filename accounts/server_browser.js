@@ -88,6 +88,9 @@ function filtersFromSearchParams(params) {
     hasPassword: params.get('hasPassword') || '',
     minPlayers: params.get('minPlayers') || '',
     maxPlayers: params.get('maxPlayers') || '',
+    minPing: params.get('minPing') || '',
+    maxPing: params.get('maxPing') || '',
+    minUptime: params.get('minUptime') || '',
     clusterId: params.get('clusterId') || '',
     online: params.get('online') || '',
     hasPing: params.get('hasPing') || '',
@@ -101,9 +104,25 @@ function filtersFromSearchParams(params) {
 // ---------------------------------------------------------------------
 // Filtering
 // ---------------------------------------------------------------------
+function numericBound(value) {
+  if (value === undefined || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+function effectivePing(s) {
+  if (typeof s.wildcardReportedPing === 'number') return s.wildcardReportedPing;
+  if (typeof s.ping === 'number') return s.ping;
+  return null;
+}
+
 function filterServers(servers, filters = {}, { now = Date.now } = {}) {
-  const { search, map, gameMode, platform, hasPassword, minPlayers, maxPlayers, clusterId, online, hasPing, minFreeSlots, notFull, wipedWithinDays, country } = filters;
+  const { search, map, gameMode, platform, hasPassword, minPlayers, maxPlayers, minPing, maxPing, minUptime, clusterId, online, hasPing, minFreeSlots, notFull, wipedWithinDays, country } = filters;
   const countryFilter = normalizeCountryCode(country);
+  const minPingBound = numericBound(minPing);
+  const maxPingBound = numericBound(maxPing);
+  const minUptimeBound = numericBound(minUptime);
 
   let wipeCutoff = null;
   if (wipedWithinDays !== undefined && wipedWithinDays !== '') {
@@ -122,6 +141,13 @@ function filterServers(servers, filters = {}, { now = Date.now } = {}) {
     if (hasPassword === 'false' && s.hasPassword !== false) return false;
     if (minPlayers !== undefined && minPlayers !== '' && (s.playersNow ?? -Infinity) < Number(minPlayers)) return false;
     if (maxPlayers !== undefined && maxPlayers !== '' && (s.playersNow ?? Infinity) > Number(maxPlayers)) return false;
+    if (minPingBound !== null || maxPingBound !== null) {
+      const ping = effectivePing(s);
+      if (ping === null) return false;
+      if (minPingBound !== null && ping < minPingBound) return false;
+      if (maxPingBound !== null && ping > maxPingBound) return false;
+    }
+    if (minUptimeBound !== null && (typeof s.uptimePercent !== 'number' || s.uptimePercent < minUptimeBound)) return false;
     if (clusterId && s.clusterId !== clusterId) return false;
     if (online === 'true' && !isOnline(s)) return false;
     if (hasPing === 'true' && typeof s.wildcardReportedPing !== 'number') return false;
@@ -602,6 +628,10 @@ function renderBrowserBody({
   </select>
   <input class="narrow" type="number" name="minPlayers" placeholder="Min players" value="${escapeHtml(f.minPlayers || '')}">
   <input class="narrow" type="number" name="maxPlayers" placeholder="Max players" value="${escapeHtml(f.maxPlayers || '')}">
+  <input class="narrow" type="number" name="minPing" placeholder="Min ping" value="${escapeHtml(f.minPing || '')}">
+  <input class="narrow" type="number" name="maxPing" placeholder="Max ping" value="${escapeHtml(f.maxPing || '')}">
+  ${sourceKind === 'unofficial' ? '' : `<input class="narrow" type="number" name="minUptime" placeholder="Min uptime %" min="0" max="100" value="${escapeHtml(f.minUptime || '')}">
+  <input class="narrow" type="text" name="clusterId" placeholder="Cluster ID" value="${escapeHtml(f.clusterId || '')}">`}
   <button type="submit">Filter</button>
 </form>`;
 

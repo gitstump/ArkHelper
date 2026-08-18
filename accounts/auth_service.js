@@ -852,6 +852,7 @@ function createAuthServer({
         }
 
         const filters = filtersFromSearchParams(url.searchParams);
+        if (source === 'unofficial') filters.minUptime = '';
         const sort = url.searchParams.get('sort') || 'players';
         const dir = url.searchParams.get('dir') || 'desc';
         const pageNum = url.searchParams.get('page') || '1';
