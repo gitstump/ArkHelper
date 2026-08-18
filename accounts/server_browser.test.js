@@ -525,11 +525,11 @@ test('renderServerRow with history does not render an em-dash uptime', () => {
     rank: 4,
   });
   const cells = [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
-  const uptimeCell = cells[8];
+  const uptimeCell = cells[9];
   assert.equal(uptimeCell, '97.5%');
   assert.doesNotMatch(uptimeCell, /\u2014/);
-  assert.match(cells[7], /45/);
-  assert.match(cells[9], /4/);
+  assert.match(cells[8], /45/);
+  assert.match(cells[10], /4/);
 });
 
 test('renderBrowserPage shows a friendly message for a known presetError code', () => {
@@ -742,6 +742,9 @@ test('renderBrowserPage unofficial source uses Seen header and keeps filters wor
   assert.match(html, /<p class="counters">Showing 1 unofficial servers/);
   assert.match(html, /4 players on them/);
   assert.doesNotMatch(html, /matching servers\./);
+  assert.doesNotMatch(html, /name="s"/);
+  assert.doesNotMatch(html, /action="\/compare"/);
+  assert.doesNotMatch(html, /Compare selected/);
 });
 
 test('renderHeroBand includes unofficial count when unofficial meta is present', () => {
@@ -884,7 +887,7 @@ test('renderServerRow shows flag plus ISO code, or an em-dash when country is ab
     maxPlayers: 70,
   });
   const withCells = [...withCountry.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
-  assert.equal(withCells[3], '\u{1F1E9}\u{1F1EA} DE');
+  assert.equal(withCells[4], '\u{1F1E9}\u{1F1EA} DE');
 
   const missing = renderServerRow({
     id: '2',
@@ -894,7 +897,7 @@ test('renderServerRow shows flag plus ISO code, or an em-dash when country is ab
     maxPlayers: 70,
   });
   const missingCells = [...missing.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
-  assert.equal(missingCells[3], '\u2014');
+  assert.equal(missingCells[4], '\u2014');
 });
 
 test('renderBrowserPage country dropdown is populated from roster countries and keeps the query param', () => {
@@ -917,5 +920,44 @@ test('renderBrowserPage country dropdown is populated from roster countries and 
   assert.match(html, />Region</);
   assert.match(html, /\u{1F1E9}\u{1F1EA} DE/u);
   assert.doesNotMatch(html, /NA-PVP-Astraeos2573/);
+});
+
+test('renderBrowserPage official source wraps the table in a compare form with checkbox column', () => {
+  const servers = makeServers();
+  const html = renderBrowserPage({
+    page: paginateServers(servers, 1, 25),
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters(servers),
+    mapOptions: getDistinctMaps(servers),
+    rosterAvailable: true,
+    currentPath: '/servers',
+  });
+  assert.match(html, /<form method="GET" action="\/compare">/);
+  assert.match(html, /name="s" value="1"/);
+  assert.match(html, /aria-label="Select for comparison"/);
+  assert.match(html, />Compare selected</);
+  const formStart = html.indexOf('action="/compare"');
+  const formEnd = html.indexOf('</form>', formStart);
+  const paginationAt = html.indexOf('class="pagination"');
+  assert.ok(formStart !== -1 && formEnd !== -1 && paginationAt !== -1);
+  assert.ok(formEnd < paginationAt);
+});
+
+test('renderBrowserPage zero-results branch has no compare form', () => {
+  const html = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    currentPath: '/servers',
+  });
+  assert.match(html, /No servers match these filters/);
+  assert.doesNotMatch(html, /action="\/compare"/);
+  assert.doesNotMatch(html, /Compare selected/);
 });
 

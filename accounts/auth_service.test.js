@@ -308,6 +308,7 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/auth/me'));
   assert.ok(body.routes.includes('/'));
   assert.ok(body.routes.includes('/servers'));
+  assert.ok(body.routes.includes('/compare'));
   assert.ok(body.routes.includes('/servers/:id'));
   assert.ok(body.routes.includes('/servers/:id/badge.svg'));
   assert.ok(body.routes.includes('/lists/:slug'));
@@ -1686,8 +1687,8 @@ test('GET /servers shows stamped uptime on a roster row with history', async () 
   const row = html.match(/<tr>[\s\S]*?EU-PVE-TheIsland5313[\s\S]*?<\/tr>/);
   assert.ok(row);
   const cells = [...row[0].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
-  assert.equal(cells[8], '97.5%');
-  assert.doesNotMatch(cells[8], /\u2014/);
+  assert.equal(cells[9], '97.5%');
+  assert.doesNotMatch(cells[9], /\u2014/);
 
   server.close();
 });
@@ -3166,6 +3167,117 @@ test('GET /guides/nope returns 404 HTML', async () => {
   assert.match(html, /Guide not found/);
   assert.match(html, /nope/);
   assert.match(html, /href="\/guides"/);
+
+  server.close();
+});
+
+test('GET /compare with two known ids renders both names and attribute rows', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+
+  const res = await fetch(`${base}/compare?s=1&s=2`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.match(html, /Asia-PVP-LostColony2859/);
+  assert.match(html, /<th scope="row">Status<\/th>/);
+  assert.match(html, /<th scope="row">Ping<\/th>/);
+  assert.match(html, /<th scope="row">Rank<\/th>/);
+  assert.match(html, /href="\/compare"/);
+
+  server.close();
+});
+
+test('GET /compare with an unknown id still renders the not-listed column', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+
+  const res = await fetch(`${base}/compare?s=missing-id`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /missing-id/);
+  assert.match(html, /Not currently listed/);
+  assert.match(html, /href="\/servers\/missing-id"/);
+
+  server.close();
+});
+
+test('GET /servers official source includes compare checkboxes and submit', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps({ servers: makeTestServers() }),
+  });
+
+  const res = await fetch(`${base}/servers`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /name="s"/);
+  assert.match(html, /action="\/compare"/);
+  assert.match(html, /Compare selected/);
+
+  server.close();
+});
+
+test('GET /servers?source=unofficial has no compare checkboxes or form', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeSplitBrowserDeps({ official: { servers: makeTestServers() }, unofficial: unofficialTestRoster() }),
+    homeDeps: fakeSplitHomeDeps({
+      official: { totalOfficial: 2, pveCount: 1, pvpCount: 1, generatedAt: 'T' },
+      unofficial: { count: 1, cycles_total: 4, lastFetchStatus: 'ok' },
+    }),
+  });
+
+  const res = await fetch(`${base}/servers?source=unofficial`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.doesNotMatch(html, /name="s"/);
+  assert.doesNotMatch(html, /action="\/compare"/);
+  assert.doesNotMatch(html, /Compare selected/);
+
+  server.close();
+});
+
+test('GET /servers/:id renders a Compare this server link', async () => {
+  const db = openDb(':memory:');
+  const roster = { servers: [{ id: 'abc', name: 'A Server', map: 'M', gameMode: 'pve', modIds: [] }] };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    detailDeps: fakeDetailDeps({ roster, historyData: null }),
+  });
+
+  const res = await fetch(`${base}/servers/abc`);
+  const html = await res.text();
+  assert.match(html, /href="\/compare\?s=abc">Compare this server</);
 
   server.close();
 });

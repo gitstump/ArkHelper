@@ -254,6 +254,7 @@ const PAGE_CSS = `
 .cap { display: flex; align-items: center; gap: var(--space-2); }
 .cap-bar { width: 48px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
 .cap-fill { display: block; height: 100%; background: var(--accent); }
+.compare-submit { margin-top: var(--space-3); }
 .server-lists { margin: var(--space-4) 0 var(--space-2); }
 .server-lists h2 { margin: 0 0 var(--space-2); }
 .server-lists ul { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); list-style: none; padding: 0; margin: 0; }
@@ -415,8 +416,9 @@ function formatWipeDate(iso) {
   return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : iso;
 }
 
-function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesTotal } = {}) {
+function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesTotal, compareSelect } = {}) {
   const unofficial = source === 'unofficial';
+  const showCompare = !unofficial && compareSelect !== false;
   const online = isOnline(s);
   const rankDisplay = unofficial
     ? '\u2014'
@@ -444,8 +446,11 @@ function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesT
   const nameHtml = unofficial
     ? escapeHtml(s.name || '(unnamed)')
     : `<a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a>`;
+  const selectCell = showCompare
+    ? `<td><input type="checkbox" name="s" value="${escapeHtml(String(s.id || ''))}" aria-label="Select for comparison"></td>`
+    : '';
   return `<tr>
-      <td><span class="status-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online' : 'Offline'}"></span></td>
+      ${selectCell}<td><span class="status-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online' : 'Offline'}"></span></td>
       <td class="name">${nameHtml}${badgeHtml}${wipeHtml}</td>
       <td>${escapeHtml(s.map || '')}</td>
       <td>${escapeHtml(regionLabel(s.country))}</td>
@@ -635,14 +640,18 @@ function renderBrowserBody({
   <button type="submit">Filter</button>
 </form>`;
 
-  const rows = page.items.map((s) => renderServerRow(s, { showWipeDate, source: sourceKind, cyclesTotal })).join('');
+  const compareEnabled = sourceKind !== 'unofficial';
+  const rows = page.items
+    .map((s) => renderServerRow(s, { showWipeDate, source: sourceKind, cyclesTotal, compareSelect: compareEnabled }))
+    .join('');
   const linkOpts = { currentSort: sort, currentDir: dir, filters: f, basePath, source: sourceKind };
   const uptimeHeader = sourceKind === 'unofficial' ? 'Seen' : 'Uptime';
+  const selectHeader = compareEnabled ? '<th></th>' : '';
 
   const resultsTable = page.items.length
     ? `<table class="browser-table">
       <thead><tr>
-        <th></th>
+        ${selectHeader}<th></th>
         <th>${sortLink({ ...linkOpts, key: 'name', label: 'Name' })}</th>
         <th>${sortLink({ ...linkOpts, key: 'map', label: 'Map' })}</th>
         <th>Region</th>
@@ -656,6 +665,12 @@ function renderBrowserBody({
       <tbody>${rows}</tbody>
     </table>`
     : `<p>No servers match these filters.</p>`;
+  const resultsBlock = page.items.length && compareEnabled
+    ? `<form method="GET" action="/compare">
+  ${resultsTable}
+  <p class="compare-submit"><button type="submit">Compare selected</button></p>
+</form>`
+    : resultsTable;
 
   const pageFilters = withSource(f, sourceKind);
   const prevParams = new URLSearchParams({ ...pageFilters, sort, dir, page: String(page.page - 1) });
@@ -679,7 +694,7 @@ function renderBrowserBody({
   ${saveForm}
   ${toggle}
   ${filterForm}
-  ${resultsTable}
+  ${resultsBlock}
   ${pagination}`;
 }
 

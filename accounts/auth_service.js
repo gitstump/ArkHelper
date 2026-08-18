@@ -23,9 +23,10 @@
  *   GET  /news                   -> launcher news (text and links only)
  *   GET  /maps                   -> official-map index
  *   GET  /maps/:slug             -> per-map telemetry page
- *   GET  /guides                 -> guides index
- *   GET  /guides/:slug           -> a single guide
- *   GET  /alerts                 -> in-page alert feed (login required)
+   *   GET  /guides                 -> guides index
+   *   GET  /guides/:slug           -> a single guide
+   *   GET  /compare                -> side-by-side official server comparison
+   *   GET  /alerts                 -> in-page alert feed (login required)
  *   POST /alerts/webhook         -> save Discord webhook URL
  *   POST /alerts/webhook/delete  -> remove Discord webhook
  *   POST /alerts/webhook/test    -> send a test message to the webhook
@@ -90,6 +91,7 @@ const { renderFavoritesPage } = require('./favorites_page.js');
 const { renderAlertsPage } = require('./alerts_page.js');
 const { validateWebhookUrl, deliverContent, defaultPostFn, TEST_WEBHOOK_MESSAGE } = require('./alert_dispatch.js');
 const { rankingFromRoster, renderRankingsPage } = require('./rankings_page.js');
+const { parseCompareIds, renderComparePage } = require('./compare_page.js');
 const {
   computeMapUptime,
   computePveVsPvp,
@@ -615,6 +617,25 @@ function createAuthServer({
         return;
       }
 
+      if (req.method === 'GET' && url.pathname === '/compare') {
+        const parsed = parseCompareIds(url.searchParams);
+        const q = (url.searchParams.get('q') || '').trim();
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const rosterAvailable = Boolean(roster && Array.isArray(roster.servers));
+        const body = renderComparePage({
+          ids: parsed.ids,
+          truncated: parsed.truncated,
+          roster: rosterAvailable ? roster.servers : [],
+          q,
+          account,
+          rosterAvailable,
+          live: liveFromRoster(roster),
+        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
       if (req.method === 'GET' && (url.pathname === '/leaderboards' || url.pathname.startsWith('/leaderboards/'))) {
         const slug = url.pathname === '/leaderboards' ? '' : url.pathname.slice('/leaderboards/'.length);
         const known = new Set(['', 'map-uptime', 'pve-vs-pvp', 'regions', 'top-100', 'bottom-100']);
@@ -1074,7 +1095,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));

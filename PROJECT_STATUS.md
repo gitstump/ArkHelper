@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-17 — 786 tests passing — In flight: none
+Last updated: 2026-08-17 — 817 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -25,6 +25,7 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 - **Guides** (`/guides`, `/guides/:slug`) — original-prose content track, server-rendered from a static registry. Index is a card grid; the six core guides match arkstatus's index: Beginner's Guide (server choice, spawn, first hour, bed, stats, first tame), Taming Guide (knockout and passive methods, torpor, feeding, traps), Resource Locations (terrain-first farming, tools, hauling — no map coordinates), Settings & Performance (presets, upscaling, diagnosing frames vs lag), Breeding & Mutations (the breeding loop, imprinting, inheritance, and mutations — no calculators or odds tables), and Boss Strategies (summoning, army composition, arena roles, and why preparation is the fight — no health/damage numbers, tribute lists, or loot tables). Scorched Earth Progression (desert water and heat, sandstorms, first tames, wyverns, deathworms, and the Manticore — no coordinates or stat tables). Aberration Progression (charge light, verticality, radiation, Rock Drakes, and Rockwell — no coordinates or stat tables). Related slugs for unpublished guides are skipped silently. Unknown slugs return a 404 HTML page listing available guides.
 - **Filter presets** — named snapshots of the current browser query string. Logged-out: up to 3 in an HttpOnly cookie (~2KB guard). Logged-in: up to 15 in SQLite, cookie presets migrate on login (name collisions skipped), shareable via public `/p/<token>` → `/servers?...` redirects.
 - **Server detail pages** (`/servers/:id`) — full facts (including country name + flag when GeoIP resolved), uptime %, history table, rank neighborhood (percentile line plus nearby-ranked servers, current row highlighted), activity log (wipe/version changes), peak-time & downtime heatmaps (inline SVG), embeddable live-status badge (`/servers/:id/badge.svg`) with markdown/HTML snippets.
+- **Compare** (`/compare`) — side-by-side official servers, selection entirely in the URL (`?s=<id>&s=<id>`, cap 4, bookmarkable). Add via the server browser's checkbox column (`Compare selected`, official source including homepage and `/lists/*`) or an on-page name search. Ping / uptime / rank cells highlight the best value when two or more columns have a number.
 - **Favorites** — add/remove per account, `/favorites` page. This is the actual point of having accounts at all — confirmed working end to end.
 - **Alerts** — per-server settings (down / back-online / capacity / min free slots) plus an in-page `/alerts` feed and optional Discord webhook delivery (one webhook per account). A 75s evaluation engine (hysteresis, threshold latches, 10-minute cooldown) writes events; visiting the feed marks them read. Email/SMS dropped by decision.
 - **Stats** (`/stats`) — network breakdowns (mode/map/platform/cluster) and a most-populated snapshot. Ranked-list previews link into the leaderboard suite instead of duplicating tables.
@@ -46,7 +47,6 @@ Live wild/tamed dino counts on official servers are **not** a parity item — ar
 
 ## Known real gaps vs. arkstatus.com (confirmed via a live re-scan, not guessed)
 
-- Compare tool (multi-select servers side by side)
 - Mod-adoption aggregation — confirmed to be data-engineering, not writing, when researched; still unbuilt
 - Public API docs, theme toggle (dark-only currently), i18n (English-only)
 - Unofficial server tracking — Phase A (aggregate + browser filter) is built; per-cycle history, rankings/leaderboards/incidents/maps inclusion, favoriting, detail pages, GeoIP, and alerting are still out

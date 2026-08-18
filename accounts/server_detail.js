@@ -245,6 +245,8 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
 
   ${rankNeighborhoodSection}
 
+  <p><a href="/compare?s=${encodeURIComponent(server.id || '')}">Compare this server</a></p>
+
   <h2>Embed this server's status</h2>
   ${embedSection}
 

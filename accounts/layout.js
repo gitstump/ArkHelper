@@ -45,8 +45,12 @@ const MAPS_NAV = [...MAP_REGISTRY]
 const NAV = [
   {
     label: 'Servers',
-    match: ['/', '/servers', '/lists'],
-    children: [{ href: '/servers', label: 'Server Browser', match: ['/', '/servers'] }, ...LIST_NAV],
+    match: ['/', '/servers', '/lists', '/compare'],
+    children: [
+      { href: '/servers', label: 'Server Browser', match: ['/', '/servers'] },
+      { href: '/compare', label: 'Compare' },
+      ...LIST_NAV,
+    ],
   },
   {
     label: 'Maps',
@@ -124,6 +128,7 @@ function renderFooter(live) {
         <h2>Server Tools</h2>
         <ul>
           <li><a href="/servers">Browser</a></li>
+          <li><a href="/compare">Compare</a></li>
           <li><a href="/maps">Maps</a></li>
           <li><a href="/guides">Guides</a></li>
           ${listItems}

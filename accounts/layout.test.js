@@ -36,6 +36,7 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.match(html, /<details class="nav-drop" name="mainnav">/);
   assert.match(html, /<summary class="active">Stats<\/summary>/);
   assert.match(html, /href="\/servers"/);
+  assert.match(html, /href="\/compare"/);
   assert.match(html, /href="\/lists\/official-pve"/);
   assert.match(html, /href="\/lists\/low-ping"/);
   assert.match(html, /href="\/lists\/available-now"/);
@@ -76,10 +77,10 @@ test('renderNav marks the Maps group active on per-map pages', () => {
   assert.match(html, /class="active" href="\/maps\/the-island"/);
 });
 
-test('renderNav marks the Servers group active on derived list pages', () => {
-  const html = renderNav('/lists/low-ping');
+test('renderNav marks the Servers group active on the compare page', () => {
+  const html = renderNav('/compare');
   assert.match(html, /<summary class="active">Servers<\/summary>/);
-  assert.match(html, /class="active" href="\/lists\/low-ping"/);
+  assert.match(html, /class="active" href="\/compare"/);
 });
 
 test('renderNav marks Guides active on the index and a guide page', () => {
@@ -134,6 +135,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   const html = renderFooter({ totalOfficial: 3179, generatedAt: '2026-08-15T16:52:24.124Z' });
   assert.match(html, /Server Tools/);
   assert.match(html, /href="\/servers">Browser/);
+  assert.match(html, /href="\/compare">Compare/);
   assert.match(html, /href="\/maps">Maps/);
   assert.match(html, /href="\/guides">Guides/);
   assert.match(html, /href="\/lists\/official-pve">Official PvE/);

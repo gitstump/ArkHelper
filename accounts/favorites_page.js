@@ -32,7 +32,7 @@ function renderFavoritesPage({ loggedIn, servers, rosterAvailable, staleFavorite
       servers.length > 0
         ? `<table class="browser-table">
       <thead><tr><th></th><th>Name</th><th>Map</th><th>Region</th><th>Day</th><th>Version</th><th>Players</th><th>Ping</th><th>Uptime</th><th>Rank</th></tr></thead>
-      <tbody>${servers.map(renderServerRow).join('')}</tbody>
+      <tbody>${servers.map((s) => renderServerRow(s, { compareSelect: false })).join('')}</tbody>
     </table>`
         : `<p>You haven't favorited any servers yet. Find one on the <a href="/servers">server browser</a> and favorite it from its detail page.</p>`;
     inner = `<h1>Favorites</h1>${staleNote}${table}`;

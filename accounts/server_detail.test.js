@@ -59,6 +59,7 @@ test('renderServerDetailPage shows the core facts', () => {
   assert.match(html, /7779/);
   assert.match(html, /platform-badge/);
   assert.match(html, /PC\+Console/);
+  assert.match(html, /href="\/compare\?s=abc123">Compare this server</);
 });
 
 test('renderServerDetailPage shows "None (vanilla server)" when there are no mods', () => {
