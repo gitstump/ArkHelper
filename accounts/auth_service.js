@@ -66,7 +66,15 @@ const {
   deleteAccountWebhook,
 } = require('./db.js');
 const { renderHomepage, fetchRosterMetaSafe } = require('./home_page.js');
-const { fetchJsonSafe, createTtlCache } = require('./local_fetch.js');
+const {
+  fetchJsonSafe,
+  createTtlCache,
+  LOCAL_FETCH_TIMEOUT_HEAVY_MS,
+  LOCAL_FETCH_TIMEOUT_BACKGROUND_MS,
+} = require('./local_fetch.js');
+
+const LOCAL_FETCH_HEAVY = { timeoutMs: LOCAL_FETCH_TIMEOUT_HEAVY_MS };
+const LOCAL_FETCH_BACKGROUND = { timeoutMs: LOCAL_FETCH_TIMEOUT_BACKGROUND_MS };
 const {
   filterServers,
   sortServers,
@@ -277,6 +285,7 @@ function renderLoggedInAlertsHtml(db, accountRow, account, extras = {}) {
       webhook,
       webhookError: extras.webhookError || null,
       testResult: extras.testResult || null,
+      alertsHealth: extras.alertsHealth || null,
     }),
   };
 }
@@ -314,6 +323,7 @@ function createAuthServer({
   randomToken = () => crypto.randomBytes(32).toString('hex'),
   webhookPostFn = defaultPostFn,
   assetsDir,
+  getAlertsHealth = null,
 }) {
   if (!db) throw new Error('createAuthServer: db is required');
   if (!clientId || !clientSecret) throw new Error('createAuthServer: clientId and clientSecret are required');
@@ -321,6 +331,16 @@ function createAuthServer({
 
   const rosterCache = unofficialRosterCache || createTtlCache();
   const brandAssets = loadBrandAssets(assetsDir);
+
+  function readAlertsHealth() {
+    if (typeof getAlertsHealth !== 'function') return null;
+    try {
+      const health = getAlertsHealth();
+      return health && typeof health === 'object' ? health : null;
+    } catch {
+      return null;
+    }
+  }
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://internal'); // base is irrelevant, we only use path+query
@@ -366,7 +386,7 @@ function createAuthServer({
       const badgeMatch = req.method === 'GET' && url.pathname.match(/^\/servers\/([^/]+)\/badge\.svg$/);
       if (badgeMatch) {
         const serverId = decodeURIComponent(badgeMatch[1]);
-        const roster = await detailDeps.fetchJsonSafe(rosterUrl);
+        const roster = await detailDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         const server = roster && Array.isArray(roster.servers) ? roster.servers.find((s) => s.id === serverId) : null;
 
         const svg = server
@@ -380,7 +400,7 @@ function createAuthServer({
 
       if (req.method === 'GET' && /^\/servers\/[^/]+$/.test(url.pathname)) {
         const serverId = decodeURIComponent(url.pathname.slice('/servers/'.length));
-        const roster = await detailDeps.fetchJsonSafe(rosterUrl);
+        const roster = await detailDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         if (!roster || !Array.isArray(roster.servers)) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(renderRosterUnavailablePage({ account }));
@@ -438,7 +458,7 @@ function createAuthServer({
           return;
         }
 
-        const roster = await detailDeps.fetchJsonSafe(rosterUrl);
+        const roster = await detailDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         if (!roster || !Array.isArray(roster.servers)) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(renderFavoritesPage({ loggedIn: true, servers: [], rosterAvailable: false, account }));
@@ -493,7 +513,10 @@ function createAuthServer({
 
         const testParam = url.searchParams.get('test');
         const testResult = testParam === 'ok' || testParam === 'fail' ? testParam : null;
-        const { events, html } = renderLoggedInAlertsHtml(db, accountRow, account, { testResult });
+        const { events, html } = renderLoggedInAlertsHtml(db, accountRow, account, {
+          testResult,
+          alertsHealth: readAlertsHealth(),
+        });
         markAlertEventsRead(
           db,
           accountRow.id,
@@ -515,6 +538,7 @@ function createAuthServer({
         if (!valid) {
           const { html } = renderLoggedInAlertsHtml(db, accountRow, account, {
             webhookError: INVALID_WEBHOOK_ERROR,
+            alertsHealth: readAlertsHealth(),
           });
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(html);
@@ -577,7 +601,7 @@ function createAuthServer({
       }
 
       if (req.method === 'GET' && url.pathname === '/stats') {
-        const roster = await statsDeps.fetchJsonSafe(rosterUrl);
+        const roster = await statsDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         if (!roster || !Array.isArray(roster.servers)) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(renderStatsPage({ rosterAvailable: false, account }));
@@ -634,7 +658,7 @@ function createAuthServer({
 
       if (req.method === 'GET' && url.pathname === '/mods') {
         const [summary, unofficialMeta, rosterMeta] = await Promise.all([
-          browserDeps.fetchJsonSafe(`${modsSummaryUrl}?limit=100`),
+          browserDeps.fetchJsonSafe(`${modsSummaryUrl}?limit=100`, LOCAL_FETCH_HEAVY),
           browserDeps.fetchJsonSafe(unofficialMetaUrl),
           homeDeps.fetchRosterMetaSafe(rosterMetaUrl),
         ]);
@@ -662,7 +686,7 @@ function createAuthServer({
           res.end(body);
           return;
         }
-        const mod = await browserDeps.fetchJsonSafe(`${modsUrlBase}/${modId}`);
+        const mod = await browserDeps.fetchJsonSafe(`${modsUrlBase}/${modId}`, LOCAL_FETCH_HEAVY);
         if (!mod || mod.error || mod.mod_id == null) {
           const body = renderModNotFoundPage({ modId, account, live });
           res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -695,7 +719,7 @@ function createAuthServer({
       }
 
       if (req.method === 'GET' && url.pathname === '/rankings') {
-        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         if (!roster || !Array.isArray(roster.servers)) {
           const body = renderRankingsPage({ rosterAvailable: false, account });
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -713,7 +737,7 @@ function createAuthServer({
       if (req.method === 'GET' && url.pathname === '/compare') {
         const parsed = parseCompareIds(url.searchParams);
         const q = (url.searchParams.get('q') || '').trim();
-        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         const rosterAvailable = Boolean(roster && Array.isArray(roster.servers));
         const body = renderComparePage({
           ids: parsed.ids,
@@ -738,7 +762,7 @@ function createAuthServer({
           return;
         }
 
-        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         const live = liveFromRoster(roster);
         const rosterAvailable = Boolean(roster && Array.isArray(roster.servers));
         const servers = rosterAvailable ? roster.servers : [];
@@ -802,7 +826,7 @@ function createAuthServer({
           return;
         }
 
-        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         const live = liveFromRoster(roster);
         const rosterAvailable = Boolean(roster && Array.isArray(roster.servers));
         const servers = rosterAvailable ? roster.servers : [];
@@ -860,7 +884,7 @@ function createAuthServer({
           return;
         }
 
-        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         const live = liveFromRoster(roster);
 
         if (slug === '') {
@@ -893,7 +917,7 @@ function createAuthServer({
           return;
         }
 
-        const roster = await browserDeps.fetchJsonSafe(rosterUrl);
+        const roster = await browserDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         const live = liveFromRoster(roster);
         if (!roster || !Array.isArray(roster.servers)) {
           const body = renderListPage({
@@ -952,9 +976,9 @@ function createAuthServer({
       if (req.method === 'GET' && (url.pathname === '/servers' || url.pathname === '/')) {
         const isHome = url.pathname === '/';
         const source = url.searchParams.get('source') === 'unofficial' ? 'unofficial' : 'official';
-        const officialRosterPromise = browserDeps.fetchJsonSafe(rosterUrl);
+        const officialRosterPromise = browserDeps.fetchJsonSafe(rosterUrl, LOCAL_FETCH_HEAVY);
         const rosterPromise = source === 'unofficial'
-          ? rosterCache.get(unofficialRosterUrl, (target) => browserDeps.fetchJsonSafe(target, { timeoutMs: 15000 }))
+          ? rosterCache.get(unofficialRosterUrl, (target) => browserDeps.fetchJsonSafe(target, LOCAL_FETCH_BACKGROUND))
           : officialRosterPromise;
         const [roster, officialRoster, rosterMeta, status, unofficialMeta] = await Promise.all([
           rosterPromise,
@@ -1196,12 +1220,15 @@ function createAuthServer({
   });
 }
 
+function fetchAlertsRoster(fetchFn = fetchJsonSafe, url = 'http://localhost:8792/roster') {
+  return fetchFn(url, LOCAL_FETCH_BACKGROUND);
+}
+
 // ---------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------
 async function main() {
   const { openDb } = require('./db.js');
-  const { fetchJsonSafe } = require('./local_fetch.js');
   const { startAlertEngine, isAlertsEngineEnabled } = require('./alert_engine.js');
   const { siteOrigin } = require('./origin.js');
   const clientId = process.env.DISCORD_CLIENT_ID;
@@ -1217,12 +1244,18 @@ async function main() {
   }
 
   const db = openDb(dbPath);
-  const server = createAuthServer({ db, clientId, clientSecret, redirectUri });
   let alertEngine = null;
+  const server = createAuthServer({
+    db,
+    clientId,
+    clientSecret,
+    redirectUri,
+    getAlertsHealth: () => (alertEngine ? alertEngine.getHealth() : null),
+  });
   if (isAlertsEngineEnabled()) {
     alertEngine = startAlertEngine({
       db,
-      fetchRoster: () => fetchJsonSafe('http://localhost:8792/roster'),
+      fetchRoster: () => fetchAlertsRoster(),
       origin: siteOrigin(),
     });
   }
@@ -1252,6 +1285,7 @@ module.exports = {
   parseCookies,
   buildSetCookie,
   createAuthServer,
+  fetchAlertsRoster,
   SESSION_COOKIE,
   STATE_COOKIE,
   PRESET_COOKIE,

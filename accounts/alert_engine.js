@@ -259,6 +259,39 @@ function rosterLooksUsable(roster) {
   return Boolean(roster) && Array.isArray(roster.servers);
 }
 
+function createAlertHealth() {
+  return {
+    consecutiveSkips: 0,
+    lastSuccessAt: null,
+    lastSkipReason: null,
+  };
+}
+
+function snapshotHealth(health) {
+  return {
+    consecutiveSkips: health.consecutiveSkips,
+    lastSuccessAt: health.lastSuccessAt,
+    lastSkipReason: health.lastSkipReason,
+  };
+}
+
+function noteSkip(health, reason, log) {
+  if (!health) return;
+  health.consecutiveSkips += 1;
+  health.lastSkipReason = reason;
+  const n = health.consecutiveSkips;
+  if (n >= 3 && (n - 3) % 10 === 0) {
+    log.error(`[alerts] WARNING: ${n} consecutive cycles skipped, no alerts dispatched`);
+  }
+}
+
+function noteSuccess(health, nowIso) {
+  if (!health) return;
+  health.consecutiveSkips = 0;
+  health.lastSuccessAt = nowIso;
+  health.lastSkipReason = null;
+}
+
 async function runAlertCycle({
   db,
   fetchRoster,
@@ -267,17 +300,25 @@ async function runAlertCycle({
   log = console,
   postFn,
   origin = siteOrigin(),
+  health,
 } = {}) {
   let roster;
   try {
     roster = await fetchRoster();
   } catch (err) {
     log.error(`[alerts] roster fetch failed, skipping cycle: ${err && err.message ? err.message : err}`);
+    noteSkip(health, 'fetch_error', log);
     return { skipped: true, reason: 'fetch_error' };
   }
   if (!rosterLooksUsable(roster)) {
-    log.error('[alerts] roster unavailable, skipping cycle');
-    return { skipped: true, reason: 'missing_roster' };
+    const reason = 'missing_roster';
+    if (roster == null) {
+      log.error('[alerts] roster fetch returned no data, skipping cycle');
+    } else {
+      log.error('[alerts] roster unavailable, skipping cycle');
+    }
+    noteSkip(health, reason, log);
+    return { skipped: true, reason };
   }
 
   for (const server of roster.servers) {
@@ -293,6 +334,7 @@ async function runAlertCycle({
   const result = evaluateAll({ roster, subscriptions, states, now: nowValue });
   persistAlertCycle(db, result);
   await dispatchPending({ db, postFn, origin, now: nowValue });
+  noteSuccess(health, toIso(nowValue));
   return { skipped: false, ...result };
 }
 
@@ -311,14 +353,16 @@ function startAlertEngine({
   if (typeof fetchRoster !== 'function') throw new Error('startAlertEngine: fetchRoster is required');
 
   const nameCache = new Map();
+  const health = createAlertHealth();
   let stopped = false;
 
   const tick = async () => {
     if (stopped) return;
     try {
-      await runAlertCycle({ db, fetchRoster, now, nameCache, log, postFn, origin });
+      await runAlertCycle({ db, fetchRoster, now, nameCache, log, postFn, origin, health });
     } catch (err) {
       log.error(`[alerts] cycle failed: ${err && err.message ? err.message : err}`);
+      noteSkip(health, 'cycle_error', log);
     }
   };
 
@@ -330,6 +374,9 @@ function startAlertEngine({
     stop() {
       stopped = true;
       clearInterval(timer);
+    },
+    getHealth() {
+      return snapshotHealth(health);
     },
   };
 }

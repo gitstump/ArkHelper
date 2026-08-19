@@ -4,8 +4,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { openDb, getAlertSettings } = require('./db.js');
-const { parseCookies, buildSetCookie, createAuthServer, SESSION_COOKIE, STATE_COOKIE, PRESET_COOKIE } = require('./auth_service.js');
+const { parseCookies, buildSetCookie, createAuthServer, fetchAlertsRoster, SESSION_COOKIE, STATE_COOKIE, PRESET_COOKIE } = require('./auth_service.js');
 const { siteOrigin } = require('./origin.js');
+const {
+  LOCAL_FETCH_TIMEOUT_HEAVY_MS,
+  LOCAL_FETCH_TIMEOUT_BACKGROUND_MS,
+} = require('./local_fetch.js');
 
 // ---------------------------------------------------------------------
 // Cookie helpers
@@ -1123,6 +1127,46 @@ test('GET /alerts logged in with no events shows the empty state', async () => {
   server.close();
 });
 
+test('GET /alerts renders the health note at 3+ consecutive skips and omits it below 3', async () => {
+  const db = openDb(':memory:');
+  let skips = 2;
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps({ userId: '42' }),
+    getAlertsHealth: () => ({
+      consecutiveSkips: skips,
+      lastSuccessAt: null,
+      lastSkipReason: 'missing_roster',
+    }),
+  });
+  const sessionCookie = await loginAndGetSessionCookie(base, fakeDiscordDeps());
+
+  const below = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
+  const belowHtml = await below.text();
+  assert.equal(below.status, 200);
+  assert.doesNotMatch(belowHtml, /unable to run/);
+  assert.doesNotMatch(belowHtml, /Alerts may be delayed/);
+
+  skips = 3;
+  const at = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
+  const atHtml = await at.text();
+  assert.equal(at.status, 200);
+  assert.match(atHtml, /Alert checks have been unable to run for the last 3 cycles\. Alerts may be delayed\./);
+  assert.match(atHtml, /class="note"/);
+
+  skips = 13;
+  const later = await fetch(`${base}/alerts`, { headers: { Cookie: sessionCookie } });
+  assert.match(await later.text(), /last 13 cycles/);
+
+  const loggedOut = await fetch(`${base}/alerts`);
+  assert.doesNotMatch(await loggedOut.text(), /unable to run/);
+
+  server.close();
+});
+
 test('POST /alerts/:id is unchanged by GET /alerts — still saves settings', async () => {
   const db = openDb(':memory:');
   const roster = { servers: [{ id: 'abc', name: 'A Server', map: 'M', gameMode: 'pve', modIds: [] }] };
@@ -2020,6 +2064,51 @@ test('GET /mods/:id renders the detail page; unknown ids 404', async () => {
   assert.match(await miss.text(), /Mod not found/);
 
   server.close();
+});
+
+test('GET /mods summary and detail request the HEAVY timeout budget', async () => {
+  const db = openDb(':memory:');
+  const seen = [];
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: {
+      fetchJsonSafe: async (url, opts = {}) => {
+        seen.push({ url: String(url), timeoutMs: opts.timeoutMs });
+        const target = String(url);
+        if (target.includes('/mods/summary')) return { mods: [], lastFetchAt: null };
+        if (target.includes('/unofficial/meta')) return { count: 0 };
+        if (/\/mods\/11$/.test(target)) return { mod_id: 11, name: 'S+' };
+        return null;
+      },
+    },
+  });
+
+  await fetch(`${base}/mods`);
+  await fetch(`${base}/mods/11`);
+
+  const summary = seen.find((call) => call.url.includes('/mods/summary'));
+  const detail = seen.find((call) => /\/mods\/11$/.test(call.url));
+  assert.ok(summary);
+  assert.ok(detail);
+  assert.equal(summary.timeoutMs, LOCAL_FETCH_TIMEOUT_HEAVY_MS);
+  assert.equal(detail.timeoutMs, LOCAL_FETCH_TIMEOUT_HEAVY_MS);
+
+  server.close();
+});
+
+test('alerts roster wiring uses the BACKGROUND timeout budget', async () => {
+  let seen;
+  const fakeFetch = async (url, opts = {}) => {
+    seen = { url, timeoutMs: opts.timeoutMs };
+    return { servers: [] };
+  };
+  await fetchAlertsRoster(fakeFetch);
+  assert.equal(seen.url, 'http://localhost:8792/roster');
+  assert.equal(seen.timeoutMs, LOCAL_FETCH_TIMEOUT_BACKGROUND_MS);
 });
 
 test('GET /is-ark-down falls back when discovery status is unreachable (200, not a crash)', async () => {

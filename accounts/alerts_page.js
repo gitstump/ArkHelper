@@ -132,6 +132,7 @@ function renderAlertsPage({
   webhook = null,
   webhookError = null,
   testResult = null,
+  alertsHealth = null,
 } = {}) {
   const nowMs = typeof now === 'function' ? now() : typeof now === 'number' ? now : Date.parse(now);
   let inner;
@@ -143,7 +144,14 @@ function renderAlertsPage({
     const feedHtml = !events.length
       ? `<p>Nothing in your feed yet. Turn on down, online, capacity, or free-slot alerts from a <a href="/servers">server detail page</a> or from a server on your <a href="/favorites">favorites</a> list \u2014 they show up here when they fire.</p>`
       : `<ul class="alert-feed">${events.map((event) => renderAlertRow(event, nowMs)).join('')}</ul>`;
-    inner = `<h1>Alerts</h1>
+    // Today's outage was invisible for a day because everything degraded politely.
+    const skipCount = alertsHealth && typeof alertsHealth.consecutiveSkips === 'number'
+      ? alertsHealth.consecutiveSkips
+      : 0;
+    const healthNote = skipCount >= 3
+      ? `\n  <p class="note">Alert checks have been unable to run for the last ${escapeHtml(String(skipCount))} cycles. Alerts may be delayed.</p>`
+      : '';
+    inner = `<h1>Alerts</h1>${healthNote}
   ${webhookHtml}
   ${feedHtml}`;
   }

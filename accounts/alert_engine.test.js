@@ -452,3 +452,89 @@ test('runAlertCycle posts batched events through postFn after persist when a web
   assert.equal(events.length, 1);
   assert.ok(events[0].dispatchedAt);
 });
+
+test('null roster and a roster without servers log distinct skip lines', async () => {
+  const db = openDb(':memory:');
+  const silentNow = () => T0;
+
+  const nullLogs = [];
+  const nullResult = await runAlertCycle({
+    db,
+    fetchRoster: async () => null,
+    now: silentNow,
+    log: { error: (msg) => nullLogs.push(msg), log() {} },
+  });
+  assert.equal(nullResult.skipped, true);
+  assert.equal(nullResult.reason, 'missing_roster');
+  assert.equal(nullLogs.length, 1);
+  assert.equal(nullLogs[0], '[alerts] roster fetch returned no data, skipping cycle');
+
+  const objectLogs = [];
+  const objectResult = await runAlertCycle({
+    db,
+    fetchRoster: async () => ({ count: 0 }),
+    now: silentNow,
+    log: { error: (msg) => objectLogs.push(msg), log() {} },
+  });
+  assert.equal(objectResult.skipped, true);
+  assert.equal(objectResult.reason, 'missing_roster');
+  assert.equal(objectLogs.length, 1);
+  assert.equal(objectLogs[0], '[alerts] roster unavailable, skipping cycle');
+});
+
+test('consecutive skipped cycles warn at 3 and 13 and reset after a successful cycle', async () => {
+  const db = openDb(':memory:');
+  const logs = [];
+  let tick;
+  let rosterValue = null;
+  const engine = startAlertEngine({
+    db,
+    fetchRoster: async () => rosterValue,
+    now: () => T0,
+    intervalMs: 999999,
+    runImmediately: false,
+    setIntervalFn: (fn) => {
+      tick = fn;
+      return 1;
+    },
+    log: { error: (msg) => logs.push(msg), log() {} },
+  });
+
+  for (let i = 0; i < 13; i++) {
+    await tick();
+  }
+  const warnings = logs.filter((msg) => String(msg).includes('WARNING:'));
+  assert.equal(warnings.length, 2);
+  assert.equal(warnings[0], '[alerts] WARNING: 3 consecutive cycles skipped, no alerts dispatched');
+  assert.equal(warnings[1], '[alerts] WARNING: 13 consecutive cycles skipped, no alerts dispatched');
+  assert.equal(engine.getHealth().consecutiveSkips, 13);
+  assert.equal(engine.getHealth().lastSkipReason, 'missing_roster');
+
+  rosterValue = roster([live()]);
+  await tick();
+  assert.equal(engine.getHealth().consecutiveSkips, 0);
+  assert.equal(engine.getHealth().lastSkipReason, null);
+  assert.equal(engine.getHealth().lastSuccessAt, T0);
+  engine.stop();
+});
+
+test('getHealth returns consecutiveSkips, lastSuccessAt, and lastSkipReason', () => {
+  const db = openDb(':memory:');
+  const engine = startAlertEngine({
+    db,
+    fetchRoster: async () => null,
+    intervalMs: 999999,
+    runImmediately: false,
+    setIntervalFn: () => 1,
+    log: { error() {}, log() {} },
+  });
+  const health = engine.getHealth();
+  assert.deepEqual(health, {
+    consecutiveSkips: 0,
+    lastSuccessAt: null,
+    lastSkipReason: null,
+  });
+  health.consecutiveSkips = 99;
+  assert.equal(engine.getHealth().consecutiveSkips, 0);
+  engine.stop();
+});

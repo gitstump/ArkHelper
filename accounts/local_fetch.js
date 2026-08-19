@@ -9,11 +9,22 @@
  * a slow/down service degrades whatever's asking to "no data", not a
  * crash. Extracted out of home_page.js once the server browser page
  * needed the same behavior for a different endpoint.
+ *
+ * Timeouts are ceilings, not delays: a healthy response is never
+ * slowed by a higher budget. Failures and slow successes log a
+ * rate-limited reason line so a silent timeout cannot hide for a day.
  */
 
 const http = require('http');
 
-function realHttpGetLocal(url, { timeoutMs = 2000 } = {}) {
+const LOCAL_FETCH_TIMEOUT_FAST_MS = 3000;
+const LOCAL_FETCH_TIMEOUT_HEAVY_MS = 8000;
+const LOCAL_FETCH_TIMEOUT_BACKGROUND_MS = 15000;
+const LOCAL_FETCH_LOG_INTERVAL_MS = 60 * 1000;
+
+const lastLoggedAt = new Map();
+
+function realHttpGetLocal(url, { timeoutMs = LOCAL_FETCH_TIMEOUT_FAST_MS } = {}) {
   return new Promise((resolve, reject) => {
     const req = http.get(url, (res) => {
       let body = '';
@@ -25,14 +36,75 @@ function realHttpGetLocal(url, { timeoutMs = 2000 } = {}) {
   });
 }
 
-async function fetchJsonSafe(url, { httpGet = realHttpGetLocal, timeoutMs } = {}) {
-  try {
-    const res = await httpGet(url, timeoutMs != null ? { timeoutMs } : {});
-    if (res.status !== 200) return null;
-    return JSON.parse(res.body);
-  } catch {
-    return null;
+function classifyFetchError(err) {
+  const msg = err && err.message != null ? String(err.message) : String(err || '');
+  const code = err && err.code;
+  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT' || /timeout/i.test(msg)) {
+    return 'timeout';
   }
+  if (code) return `network_${code}`;
+  return 'network_error';
+}
+
+function emitLog(log, message) {
+  if (log && typeof log.warn === 'function') log.warn(message);
+  else if (log && typeof log.error === 'function') log.error(message);
+  else if (log && typeof log.log === 'function') log.log(message);
+}
+
+function logOnce(log, now, key, message) {
+  const t = now();
+  const prev = lastLoggedAt.get(key);
+  if (prev != null && t - prev < LOCAL_FETCH_LOG_INTERVAL_MS) return;
+  lastLoggedAt.set(key, t);
+  emitLog(log, message);
+}
+
+async function fetchJsonWithReason(url, {
+  httpGet = realHttpGetLocal,
+  timeoutMs,
+  log = console,
+  now = Date.now,
+} = {}) {
+  const budget = timeoutMs != null ? timeoutMs : LOCAL_FETCH_TIMEOUT_FAST_MS;
+  const started = now();
+  try {
+    const res = await httpGet(url, { timeoutMs: budget });
+    const ms = Math.max(0, now() - started);
+    if (!res || res.status !== 200) {
+      const status = res && res.status;
+      const reason = `http_${status}`;
+      logOnce(log, now, `${reason}\0${url}`, `[local-fetch] ${reason} ${url} after ${ms}ms`);
+      return { data: null, reason };
+    }
+    let data;
+    try {
+      data = JSON.parse(res.body);
+    } catch {
+      const reason = 'parse_error';
+      logOnce(log, now, `${reason}\0${url}`, `[local-fetch] ${reason} ${url} after ${ms}ms`);
+      return { data: null, reason };
+    }
+    if (ms > budget / 2) {
+      logOnce(
+        log,
+        now,
+        `slow\0${url}`,
+        `[local-fetch] slow ${url} ${ms}ms (budget ${budget}ms)`
+      );
+    }
+    return { data, reason: null };
+  } catch (err) {
+    const ms = Math.max(0, now() - started);
+    const reason = classifyFetchError(err);
+    logOnce(log, now, `${reason}\0${url}`, `[local-fetch] ${reason} ${url} after ${ms}ms`);
+    return { data: null, reason };
+  }
+}
+
+async function fetchJsonSafe(url, opts) {
+  const { data } = await fetchJsonWithReason(url, opts);
+  return data;
 }
 
 const UNOFFICIAL_ROSTER_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -53,4 +125,13 @@ function createTtlCache({ ttlMs = UNOFFICIAL_ROSTER_CACHE_TTL_MS, now = Date.now
   };
 }
 
-module.exports = { realHttpGetLocal, fetchJsonSafe, createTtlCache, UNOFFICIAL_ROSTER_CACHE_TTL_MS };
+module.exports = {
+  realHttpGetLocal,
+  fetchJsonSafe,
+  fetchJsonWithReason,
+  createTtlCache,
+  UNOFFICIAL_ROSTER_CACHE_TTL_MS,
+  LOCAL_FETCH_TIMEOUT_FAST_MS,
+  LOCAL_FETCH_TIMEOUT_HEAVY_MS,
+  LOCAL_FETCH_TIMEOUT_BACKGROUND_MS,
+};
