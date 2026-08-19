@@ -15,14 +15,15 @@
  * untouched. first_seen is never overwritten, so a server that
  * disappears and comes back keeps its original first_seen.
  *
- * Per-cycle, server_mods is replaced from the trimmed `modIds` array
- * (consumers of trimUnofficialServer). mods holds CurseForge metadata
- * resolved out-of-band; adoption counts only currently-listed servers
- * (last_seen == unofficial_meta.last_fetch_at).
+ * Per-cycle, server_mods is rewritten only when a server's normalized
+ * mod-id list changes (hash compared against unofficial_servers.mods_hash).
+ * mods holds CurseForge metadata resolved out-of-band; adoption counts
+ * only currently-listed servers (last_seen == unofficial_meta.last_fetch_at).
  *
  * Phase A does not record per-cycle history rows.
  */
 
+const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 
 const SCHEMA = `
@@ -39,8 +40,11 @@ CREATE TABLE IF NOT EXISTS unofficial_servers (
   has_password INTEGER,
   first_seen TEXT NOT NULL,
   last_seen TEXT NOT NULL,
-  cycles_seen INTEGER NOT NULL DEFAULT 0
+  cycles_seen INTEGER NOT NULL DEFAULT 0,
+  mods_hash TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_unofficial_servers_last_seen ON unofficial_servers(last_seen);
 
 CREATE TABLE IF NOT EXISTS unofficial_meta (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -54,6 +58,8 @@ CREATE TABLE IF NOT EXISTS server_mods (
   mod_id INTEGER NOT NULL,
   PRIMARY KEY (server_key, mod_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_server_mods_mod_id ON server_mods(mod_id);
 
 CREATE TABLE IF NOT EXISTS mods (
   mod_id INTEGER PRIMARY KEY,
@@ -69,10 +75,23 @@ CREATE TABLE IF NOT EXISTS mods (
 );
 `;
 
+function tableHasColumn(db, tableName, columnName) {
+  return db.prepare(`PRAGMA table_info(${tableName})`).all().some((col) => col.name === columnName);
+}
+
+function migrateUnofficialSchema(db) {
+  if (!tableHasColumn(db, 'unofficial_servers', 'mods_hash')) {
+    db.exec('ALTER TABLE unofficial_servers ADD COLUMN mods_hash TEXT');
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_server_mods_mod_id ON server_mods(mod_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_unofficial_servers_last_seen ON unofficial_servers(last_seen)');
+}
+
 function openUnofficialDb(dbPath) {
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec(SCHEMA);
+  migrateUnofficialSchema(db);
   db.prepare(
     'INSERT OR IGNORE INTO unofficial_meta (id, cycles_total, last_fetch_at, last_fetch_status) VALUES (1, 0, NULL, NULL)'
   ).run();
@@ -90,13 +109,44 @@ function positiveInt(value) {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+function normalizeModIds(raw) {
+  const seen = new Set();
+  const ids = [];
+  for (const rawId of Array.isArray(raw) ? raw : []) {
+    const modId = positiveInt(rawId);
+    if (modId == null || seen.has(modId)) continue;
+    seen.add(modId);
+    ids.push(modId);
+  }
+  ids.sort((a, b) => a - b);
+  return ids;
+}
+
+function hashModIds(ids) {
+  return crypto.createHash('sha1').update(ids.join(',')).digest('hex');
+}
+
+const EMPTY_MODS_HASH = hashModIds([]);
+
+function loadServerCycleState(db) {
+  const prevByKey = new Map();
+  const rows = db.prepare('SELECT server_key, cycles_seen, mods_hash FROM unofficial_servers').all();
+  for (const row of rows) {
+    prevByKey.set(row.server_key, {
+      cycles_seen: row.cycles_seen,
+      mods_hash: row.mods_hash,
+    });
+  }
+  return prevByKey;
+}
+
 function recordUnofficialCycle(db, servers, { now = () => new Date().toISOString() } = {}) {
   const nowIso = now();
   const upsert = db.prepare(`
     INSERT INTO unofficial_servers (
       server_key, name, map, game_mode, players_now, max_players,
-      version, platform, ping, has_password, first_seen, last_seen, cycles_seen
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      version, platform, ping, has_password, first_seen, last_seen, cycles_seen, mods_hash
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
     ON CONFLICT(server_key) DO UPDATE SET
       name = excluded.name,
       map = excluded.map,
@@ -108,9 +158,9 @@ function recordUnofficialCycle(db, servers, { now = () => new Date().toISOString
       ping = excluded.ping,
       has_password = excluded.has_password,
       last_seen = excluded.last_seen,
-      cycles_seen = unofficial_servers.cycles_seen + 1
+      cycles_seen = unofficial_servers.cycles_seen + 1,
+      mods_hash = excluded.mods_hash
   `);
-  const getRow = db.prepare('SELECT cycles_seen FROM unofficial_servers WHERE server_key = ?');
   const bumpMeta = db.prepare(
     `UPDATE unofficial_meta SET cycles_total = cycles_total + 1, last_fetch_at = ?, last_fetch_status = 'ok' WHERE id = 1`
   );
@@ -119,8 +169,14 @@ function recordUnofficialCycle(db, servers, { now = () => new Date().toISOString
 
   db.exec('BEGIN');
   try {
+    const prevByKey = loadServerCycleState(db);
     for (const s of servers || []) {
       if (!s || !s.id) continue;
+      const ids = normalizeModIds(s.modIds);
+      const hash = hashModIds(ids);
+      const prev = prevByKey.get(s.id);
+      const prevCycles = prev && typeof prev.cycles_seen === 'number' ? prev.cycles_seen : 0;
+      const prevHash = prev ? prev.mods_hash : null;
       upsert.run(
         s.id,
         s.name ?? null,
@@ -133,16 +189,16 @@ function recordUnofficialCycle(db, servers, { now = () => new Date().toISOString
         typeof s.ping === 'number' ? s.ping : typeof s.wildcardReportedPing === 'number' ? s.wildcardReportedPing : null,
         passwordFlag(s.hasPassword),
         nowIso,
-        nowIso
+        nowIso,
+        hash
       );
-      const row = getRow.get(s.id);
-      if (row) s.cycles_seen = row.cycles_seen;
-      deleteMods.run(s.id);
-      const ids = Array.isArray(s.modIds) ? s.modIds : [];
-      for (const rawId of ids) {
-        const modId = positiveInt(rawId);
-        if (modId == null) continue;
-        insertMod.run(s.id, modId);
+      s.cycles_seen = prevCycles + 1;
+      if (hash !== prevHash) {
+        const hadMods = prevHash != null && prevHash !== EMPTY_MODS_HASH;
+        if (ids.length > 0 || hadMods) {
+          deleteMods.run(s.id);
+          for (const modId of ids) insertMod.run(s.id, modId);
+        }
       }
     }
     bumpMeta.run(nowIso);

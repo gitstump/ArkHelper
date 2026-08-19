@@ -87,6 +87,7 @@ const {
 
 const DEFAULT_UNOFFICIAL_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_INFO_INTERVAL_MS = 10 * 60 * 1000;
+const MODS_SUMMARY_CACHE_MAX = 8;
 const MODS_BATCH_SIZE = 50;
 const MODS_MAX_NEW_BATCHES = 4;
 const MODS_STALE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -511,7 +512,51 @@ function startUnofficialScheduledRefresh({
 // ---------------------------------------------------------------------
 // Tiny HTTP feed
 // ---------------------------------------------------------------------
-function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, unofficialDb, infoDb }) {
+function createModsSummaryCache({ max = MODS_SUMMARY_CACHE_MAX } = {}) {
+  const cap = Number.isInteger(max) && max > 0 ? max : MODS_SUMMARY_CACHE_MAX;
+  let fetchAt = null;
+  const byLimit = new Map();
+
+  function invalidateIfStale(lastFetchAt) {
+    if (lastFetchAt === fetchAt) return;
+    byLimit.clear();
+    fetchAt = lastFetchAt;
+  }
+
+  return {
+    get(limit, lastFetchAt) {
+      invalidateIfStale(lastFetchAt);
+      if (!byLimit.has(limit)) return undefined;
+      const value = byLimit.get(limit);
+      byLimit.delete(limit);
+      byLimit.set(limit, value);
+      return value;
+    },
+    set(limit, lastFetchAt, mods) {
+      invalidateIfStale(lastFetchAt);
+      if (byLimit.has(limit)) byLimit.delete(limit);
+      else if (byLimit.size >= cap) {
+        const oldest = byLimit.keys().next().value;
+        byLimit.delete(oldest);
+      }
+      byLimit.set(limit, mods);
+    },
+    get size() {
+      return byLimit.size;
+    },
+  };
+}
+
+function createRosterServer({
+  outPath,
+  fsDeps = {},
+  historyDb,
+  unofficialState,
+  unofficialDb,
+  infoDb,
+  getModsSummaryFn = getModsSummary,
+} = {}) {
+  const modsSummaryCache = createModsSummaryCache();
   return http.createServer((req, res) => {
     const parsedUrl = new URL(req.url, 'http://internal');
 
@@ -728,7 +773,12 @@ function createRosterServer({ outPath, fsDeps = {}, historyDb, unofficialState, 
         const dbMeta = getUnofficialMeta(unofficialDb);
         const lastFetchAt =
           (unofficialState && unofficialState.lastFetchAt) || (dbMeta && dbMeta.last_fetch_at) || null;
-        payload = { mods: getModsSummary(unofficialDb, { limit, lastFetchAt }), lastFetchAt };
+        let mods = modsSummaryCache.get(limit, lastFetchAt);
+        if (mods === undefined) {
+          mods = getModsSummaryFn(unofficialDb, { limit, lastFetchAt });
+          modsSummaryCache.set(limit, lastFetchAt, mods);
+        }
+        payload = { mods, lastFetchAt };
       }
       const body = JSON.stringify(payload);
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -998,6 +1048,8 @@ module.exports = {
   refreshInfoCycle,
   startInfoScheduledRefresh,
   createRosterServer,
+  createModsSummaryCache,
+  MODS_SUMMARY_CACHE_MAX,
   parseArgs,
   resolveGeoDbPath,
   resolveHistoryDbPath,

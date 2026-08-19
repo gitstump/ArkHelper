@@ -2,6 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { DatabaseSync } = require('node:sqlite');
 const {
   openUnofficialDb,
   recordUnofficialCycle,
@@ -15,6 +19,54 @@ const {
   getModsSummary,
   getMod,
 } = require('./unofficial_store.js');
+
+function tmpDbFile() {
+  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ark-unofficial-')), 'unofficial.sqlite');
+}
+
+function indexNames(db) {
+  return db
+    .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%'`)
+    .all()
+    .map((r) => r.name)
+    .sort();
+}
+
+function instrumentDb(db) {
+  const stats = { deleteKeys: [], insertCount: 0, perServerSelect: 0 };
+  const origPrepare = db.prepare.bind(db);
+  const origExec = db.exec.bind(db);
+  return {
+    stats,
+    db: {
+      prepare(sql) {
+        const stmt = origPrepare(sql);
+        const text = String(sql);
+        if (/DELETE\s+FROM\s+server_mods/i.test(text)) {
+          return {
+            run(...args) {
+              stats.deleteKeys.push(args[0]);
+              return stmt.run(...args);
+            },
+          };
+        }
+        if (/INSERT\s+OR\s+IGNORE\s+INTO\s+server_mods/i.test(text)) {
+          return {
+            run(...args) {
+              stats.insertCount += 1;
+              return stmt.run(...args);
+            },
+          };
+        }
+        if (/SELECT\s+cycles_seen\s+FROM\s+unofficial_servers\s+WHERE\s+server_key/i.test(text)) {
+          stats.perServerSelect += 1;
+        }
+        return stmt;
+      },
+      exec: origExec,
+    },
+  };
+}
 
 function sample(id, extra = {}) {
   return {
@@ -235,4 +287,165 @@ test('getMod returns currently-listed servers and null when unknown', () => {
 
   const unresolved = getMod(db, 50, { lastFetchAt: '2026-08-18T11:00:00.000Z', serverLimit: 1 });
   assert.equal(unresolved.servers.length, 1);
+});
+
+test('opening a DB created without mods_hash migrates in place and is idempotent', () => {
+  const file = tmpDbFile();
+  const raw = new DatabaseSync(file);
+  raw.exec(`
+    CREATE TABLE unofficial_servers (
+      server_key TEXT PRIMARY KEY,
+      name TEXT,
+      map TEXT,
+      game_mode TEXT,
+      players_now INTEGER,
+      max_players INTEGER,
+      version TEXT,
+      platform TEXT,
+      ping INTEGER,
+      has_password INTEGER,
+      first_seen TEXT NOT NULL,
+      last_seen TEXT NOT NULL,
+      cycles_seen INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE unofficial_meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      cycles_total INTEGER NOT NULL DEFAULT 0,
+      last_fetch_at TEXT,
+      last_fetch_status TEXT
+    );
+    CREATE TABLE server_mods (
+      server_key TEXT NOT NULL,
+      mod_id INTEGER NOT NULL,
+      PRIMARY KEY (server_key, mod_id)
+    );
+  `);
+  raw.prepare(
+    `INSERT INTO unofficial_servers (
+      server_key, name, map, game_mode, players_now, max_players,
+      version, platform, ping, has_password, first_seen, last_seen, cycles_seen
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    'legacy',
+    'Legacy Box',
+    'TheIsland_WP',
+    'pve',
+    4,
+    20,
+    '92.41',
+    'PC',
+    40,
+    0,
+    '2026-08-01T00:00:00.000Z',
+    '2026-08-18T00:00:00.000Z',
+    7
+  );
+  raw.close();
+
+  const db = openUnofficialDb(file);
+  const cols = db.prepare('PRAGMA table_info(unofficial_servers)').all().map((c) => c.name);
+  assert.ok(cols.includes('mods_hash'));
+  const row = getUnofficialServer(db, 'legacy');
+  assert.equal(row.name, 'Legacy Box');
+  assert.equal(row.cycles_seen, 7);
+  assert.equal(row.first_seen, '2026-08-01T00:00:00.000Z');
+  const names = indexNames(db);
+  assert.ok(names.includes('idx_server_mods_mod_id'));
+  assert.ok(names.includes('idx_unofficial_servers_last_seen'));
+  db.close();
+
+  const again = openUnofficialDb(file);
+  const colsAgain = again.prepare('PRAGMA table_info(unofficial_servers)').all().map((c) => c.name);
+  assert.ok(colsAgain.includes('mods_hash'));
+  assert.equal(getUnofficialServer(again, 'legacy').name, 'Legacy Box');
+  const namesAgain = indexNames(again);
+  assert.ok(namesAgain.includes('idx_server_mods_mod_id'));
+  assert.ok(namesAgain.includes('idx_unofficial_servers_last_seen'));
+  again.close();
+});
+
+test('fresh open creates mods_hash and adoption indexes', () => {
+  const db = openUnofficialDb(':memory:');
+  const cols = db.prepare('PRAGMA table_info(unofficial_servers)').all().map((c) => c.name);
+  assert.ok(cols.includes('mods_hash'));
+  const names = indexNames(db);
+  assert.ok(names.includes('idx_server_mods_mod_id'));
+  assert.ok(names.includes('idx_unofficial_servers_last_seen'));
+});
+
+test('unchanged mod list skips DELETE/INSERT; rowids stay stable; no per-server SELECT', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(
+    db,
+    [sample('a', { modIds: [20, 10] }), sample('b', { modIds: [30] })],
+    { now: () => '2026-08-19T00:00:00.000Z' }
+  );
+  const before = db.prepare('SELECT rowid, server_key, mod_id FROM server_mods ORDER BY rowid').all();
+  assert.equal(before.length, 3);
+
+  const { db: tracked, stats } = instrumentDb(db);
+  const listed = [sample('a', { modIds: [10, 20] }), sample('b', { modIds: [30] })];
+  recordUnofficialCycle(tracked, listed, { now: () => '2026-08-19T00:15:00.000Z' });
+
+  assert.deepEqual(stats.deleteKeys, []);
+  assert.equal(stats.insertCount, 0);
+  assert.equal(stats.perServerSelect, 0);
+  const after = db.prepare('SELECT rowid, server_key, mod_id FROM server_mods ORDER BY rowid').all();
+  assert.deepEqual(after, before);
+  assert.equal(listed[0].cycles_seen, 2);
+  assert.equal(listed[1].cycles_seen, 2);
+});
+
+test('changed mod list rewrites added and removed ids', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(
+    db,
+    [sample('a', { modIds: [10, 20] })],
+    { now: () => '2026-08-19T01:00:00.000Z' }
+  );
+  const { db: tracked, stats } = instrumentDb(db);
+  recordUnofficialCycle(
+    tracked,
+    [sample('a', { modIds: [20, 40] })],
+    { now: () => '2026-08-19T01:15:00.000Z' }
+  );
+  assert.deepEqual(stats.deleteKeys, ['a']);
+  assert.equal(stats.insertCount, 2);
+  const rows = db
+    .prepare('SELECT mod_id FROM server_mods WHERE server_key = ? ORDER BY mod_id')
+    .all('a')
+    .map((r) => r.mod_id);
+  assert.deepEqual(rows, [20, 40]);
+});
+
+test('server with no mods never triggers a DELETE', () => {
+  const db = openUnofficialDb(':memory:');
+  const { db: tracked, stats } = instrumentDb(db);
+  recordUnofficialCycle(tracked, [sample('empty'), sample('also-empty')], {
+    now: () => '2026-08-19T02:00:00.000Z',
+  });
+  recordUnofficialCycle(tracked, [sample('empty'), sample('also-empty')], {
+    now: () => '2026-08-19T02:15:00.000Z',
+  });
+  assert.deepEqual(stats.deleteKeys, []);
+  assert.equal(stats.insertCount, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM server_mods').get().n, 0);
+});
+
+test('in-memory cycles_seen matches post-upsert count without a per-server SELECT', () => {
+  const db = openUnofficialDb(':memory:');
+  const { db: tracked, stats } = instrumentDb(db);
+  const first = sample('a', { modIds: [1] });
+  recordUnofficialCycle(tracked, [first], { now: () => '2026-08-19T03:00:00.000Z' });
+  assert.equal(first.cycles_seen, 1);
+  assert.equal(getUnofficialServer(db, 'a').cycles_seen, 1);
+
+  const second = sample('a', { modIds: [1] });
+  const newbie = sample('b', { modIds: [1] });
+  recordUnofficialCycle(tracked, [second, newbie], { now: () => '2026-08-19T03:15:00.000Z' });
+  assert.equal(second.cycles_seen, 2);
+  assert.equal(newbie.cycles_seen, 1);
+  assert.equal(getUnofficialServer(db, 'a').cycles_seen, 2);
+  assert.equal(getUnofficialServer(db, 'b').cycles_seen, 1);
+  assert.equal(stats.perServerSelect, 0);
 });

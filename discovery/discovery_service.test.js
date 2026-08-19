@@ -18,6 +18,8 @@ const {
   refreshInfoCycle,
   startInfoScheduledRefresh,
   createRosterServer,
+  createModsSummaryCache,
+  MODS_SUMMARY_CACHE_MAX,
   parseArgs,
   resolveGeoDbPath,
   resolveHistoryDbPath,
@@ -29,7 +31,7 @@ const {
   DEFAULT_UNOFFICIAL_INTERVAL_MS,
   DEFAULT_INFO_INTERVAL_MS,
 } = require('./discovery_service.js');
-const { openUnofficialDb, getUnofficialMeta, upsertMods, getMod } = require('./unofficial_store.js');
+const { openUnofficialDb, getUnofficialMeta, upsertMods, getMod, getModsSummary } = require('./unofficial_store.js');
 const { openInfoDb, getCurrentRates, getNewsEntries, getFeedsMeta } = require('./info_store.js');
 const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun } = require('./history.js');
 
@@ -1089,6 +1091,102 @@ test('GET /mods/summary and /mods/:id serve adoption data; empty-db and 404 case
 
   const missRes = await fetch(`http://127.0.0.1:${port}/mods/999`);
   assert.equal(missRes.status, 404);
+
+  server.close();
+});
+
+test('createModsSummaryCache invalidates on last_fetch_at change and bounds distinct limits', () => {
+  const cache = createModsSummaryCache({ max: MODS_SUMMARY_CACHE_MAX });
+  cache.set(1, 't1', ['a']);
+  assert.deepEqual(cache.get(1, 't1'), ['a']);
+  assert.equal(cache.size, 1);
+
+  cache.set(1, 't2', ['b']);
+  assert.deepEqual(cache.get(1, 't2'), ['b']);
+  assert.equal(cache.size, 1);
+
+  for (let i = 1; i <= MODS_SUMMARY_CACHE_MAX; i += 1) cache.set(i, 't2', [i]);
+  assert.equal(cache.size, MODS_SUMMARY_CACHE_MAX);
+  cache.set(MODS_SUMMARY_CACHE_MAX + 1, 't2', ['overflow']);
+  assert.equal(cache.size, MODS_SUMMARY_CACHE_MAX);
+  assert.equal(cache.get(1, 't2'), undefined);
+  assert.deepEqual(cache.get(MODS_SUMMARY_CACHE_MAX + 1, 't2'), ['overflow']);
+});
+
+test('GET /mods/summary cache hits skip recompute until last_fetch_at changes; limit map is bounded', async () => {
+  const file = tmpFile('roster.json');
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  await refreshUnofficialCycle({
+    unofficialState,
+    unofficialDb,
+    fetchUnofficial: async () => ({
+      servers: [
+        { id: 'a', name: 'Alpha', map: 'TheIsland_WP', playersNow: 6, maxPlayers: 20, modIds: [11, 12] },
+        { id: 'b', name: 'Beta', map: 'Extinction_WP', playersNow: 3, maxPlayers: 20, modIds: [11] },
+      ],
+      count: 2,
+    }),
+    now: () => '2026-08-19T14:00:00.000Z',
+    curseforgeApiKey: '',
+    sleep: async () => {},
+    log: () => {},
+    modsState: { disabledLogged: true },
+  });
+
+  let computes = 0;
+  function countingSummary(db, opts) {
+    computes += 1;
+    return getModsSummary(db, opts);
+  }
+
+  const server = createRosterServer({
+    outPath: file,
+    unofficialState,
+    unofficialDb,
+    getModsSummaryFn: countingSummary,
+  });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+  const summaryUrl = `http://127.0.0.1:${port}/mods/summary`;
+
+  const first = await fetch(`${summaryUrl}?limit=10`);
+  const firstBody = await first.json();
+  assert.equal(first.status, 200);
+  assert.equal(firstBody.lastFetchAt, '2026-08-19T14:00:00.000Z');
+  assert.equal(firstBody.mods[0].mod_id, 11);
+  assert.equal(computes, 1);
+
+  const second = await fetch(`${summaryUrl}?limit=10`);
+  const secondBody = await second.json();
+  assert.equal(second.status, 200);
+  assert.deepEqual(secondBody, firstBody);
+  assert.equal(computes, 1);
+
+  unofficialState.lastFetchAt = '2026-08-19T14:15:00.000Z';
+  unofficialDb.prepare(`UPDATE unofficial_meta SET last_fetch_at = ? WHERE id = 1`).run(
+    '2026-08-19T14:15:00.000Z'
+  );
+  const afterRotate = await fetch(`${summaryUrl}?limit=10`);
+  assert.equal(afterRotate.status, 200);
+  assert.equal((await afterRotate.json()).lastFetchAt, '2026-08-19T14:15:00.000Z');
+  assert.equal(computes, 2);
+
+  for (let i = 1; i <= MODS_SUMMARY_CACHE_MAX + 1; i += 1) {
+    const res = await fetch(`${summaryUrl}?limit=${i}`);
+    assert.equal(res.status, 200);
+    await res.json();
+  }
+  const afterFill = computes;
+  const evicted = await fetch(`${summaryUrl}?limit=1`);
+  assert.equal(evicted.status, 200);
+  await evicted.json();
+  assert.equal(computes, afterFill + 1);
+
+  const newest = await fetch(`${summaryUrl}?limit=${MODS_SUMMARY_CACHE_MAX + 1}`);
+  assert.equal(newest.status, 200);
+  await newest.json();
+  assert.equal(computes, afterFill + 1);
 
   server.close();
 });
