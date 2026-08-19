@@ -9,6 +9,8 @@ const { siteOrigin } = require('./origin.js');
 const {
   LOCAL_FETCH_TIMEOUT_HEAVY_MS,
   LOCAL_FETCH_TIMEOUT_BACKGROUND_MS,
+  OFFICIAL_ROSTER_CACHE_TTL_MS,
+  createTtlCache,
 } = require('./local_fetch.js');
 
 // ---------------------------------------------------------------------
@@ -346,6 +348,7 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/alerts/webhook'));
   assert.ok(body.routes.includes('/alerts/webhook/delete'));
   assert.ok(body.routes.includes('/alerts/webhook/test'));
+  assert.ok(body.routes.includes('/robots.txt'));
 
   server.close();
 });
@@ -2923,7 +2926,6 @@ test('GET /servers hero band stays official-only when unofficial meta is unavail
 test('unofficial roster cache avoids a second fetch within the TTL', async () => {
   const db = openDb(':memory:');
   let unofficialCalls = 0;
-  const { createTtlCache } = require('./local_fetch.js');
   const { server, base } = await startServer({
     db,
     clientId: 'CID',
@@ -2945,6 +2947,139 @@ test('unofficial roster cache avoids a second fetch within the TTL', async () =>
   await fetch(`${base}/servers?source=unofficial`);
   await fetch(`${base}/servers?source=unofficial`);
   assert.equal(unofficialCalls, 1);
+
+  server.close();
+});
+
+function countingOfficialRosterDeps({ now, ttlMs } = {}) {
+  let officialFetches = 0;
+  const fetchJsonSafe = async (url) => {
+    if (String(url) === 'http://localhost:8792/roster') {
+      officialFetches += 1;
+      return { servers: makeTestServers(), generatedAt: 'T' };
+    }
+    return null;
+  };
+  const officialRosterCache = createTtlCache({
+    ttlMs: ttlMs != null ? ttlMs : OFFICIAL_ROSTER_CACHE_TTL_MS,
+    now,
+  });
+  return {
+    officialFetches: () => officialFetches,
+    officialRosterCache,
+    browserDeps: { fetchJsonSafe },
+    detailDeps: { fetchJsonSafe },
+    statsDeps: { fetchJsonSafe },
+  };
+}
+
+test('two official page renders within the roster TTL share one underlying fetch', async () => {
+  const db = openDb(':memory:');
+  const deps = countingOfficialRosterDeps({ now: () => 1_000 });
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    ...deps,
+  });
+
+  const stats = await fetch(`${base}/stats`);
+  const rankings = await fetch(`${base}/rankings`);
+  assert.equal(stats.status, 200);
+  assert.equal(rankings.status, 200);
+  assert.equal(deps.officialFetches(), 1);
+
+  server.close();
+});
+
+test('official roster cache refetches after the TTL expires', async () => {
+  const db = openDb(':memory:');
+  let now = 1_000;
+  const deps = countingOfficialRosterDeps({ now: () => now });
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    ...deps,
+  });
+
+  await fetch(`${base}/stats`);
+  await fetch(`${base}/rankings`);
+  assert.equal(deps.officialFetches(), 1);
+  now = 1_000 + OFFICIAL_ROSTER_CACHE_TTL_MS;
+  await fetch(`${base}/maps`);
+  assert.equal(deps.officialFetches(), 2);
+
+  server.close();
+});
+
+test('alerts engine roster comes from the shared official cache after a page render', async () => {
+  const db = openDb(':memory:');
+  const deps = countingOfficialRosterDeps({ now: () => 1_000 });
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    ...deps,
+  });
+
+  await fetch(`${base}/stats`);
+  assert.equal(deps.officialFetches(), 1);
+  const roster = await fetchAlertsRoster(deps.browserDeps.fetchJsonSafe, 'http://localhost:8792/roster', deps.officialRosterCache);
+  assert.ok(roster && Array.isArray(roster.servers));
+  assert.equal(deps.officialFetches(), 1);
+
+  server.close();
+});
+
+test('official roster cache does not cache a null miss', async () => {
+  const db = openDb(':memory:');
+  let officialFetches = 0;
+  const fetchJsonSafe = async (url) => {
+    if (String(url) === 'http://localhost:8792/roster') {
+      officialFetches += 1;
+      return null;
+    }
+    return null;
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    officialRosterCache: createTtlCache({ ttlMs: OFFICIAL_ROSTER_CACHE_TTL_MS, now: () => 1_000 }),
+    browserDeps: { fetchJsonSafe },
+    statsDeps: { fetchJsonSafe },
+  });
+
+  await fetch(`${base}/stats`);
+  await fetch(`${base}/rankings`);
+  assert.equal(officialFetches, 2);
+
+  server.close();
+});
+
+test('GET /robots.txt is allow-all with Crawl-delay 10', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const res = await fetch(`${base}/robots.txt`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /^text\/plain;\s*charset=utf-8$/i);
+  assert.equal(await res.text(), 'User-agent: *\nCrawl-delay: 10\n');
 
   server.close();
 });

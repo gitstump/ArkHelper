@@ -555,20 +555,43 @@ function createRosterServer({
   unofficialDb,
   infoDb,
   getModsSummaryFn = getModsSummary,
+  jsonStringify = JSON.stringify,
 } = {}) {
   const modsSummaryCache = createModsSummaryCache();
+  let officialRosterBytesCache = null; // { mtimeMs, buffer }
+  let unofficialRosterBodyCache = null; // { lastFetchAt, body }
   return http.createServer((req, res) => {
     const parsedUrl = new URL(req.url, 'http://internal');
 
     if (parsedUrl.pathname === '/roster') {
-      const roster = readRosterIfExists(outPath, fsDeps);
-      if (!roster) {
+      const statSync = fsDeps.statSync || fs.statSync;
+      const readFileSync = fsDeps.readFileSync || fs.readFileSync;
+      let st;
+      try {
+        st = statSync(outPath);
+      } catch {
+        st = null;
+      }
+      if (!st) {
+        const body = JSON.stringify({ error: 'roster not generated yet' });
         res.writeHead(503, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'roster not generated yet' }));
+        res.end(body);
         return;
       }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(roster));
+      const mtimeMs = st.mtimeMs != null ? st.mtimeMs : +st.mtime;
+      if (!officialRosterBytesCache || officialRosterBytesCache.mtimeMs !== mtimeMs) {
+        const raw = readFileSync(outPath);
+        officialRosterBytesCache = {
+          mtimeMs,
+          buffer: Buffer.isBuffer(raw) ? raw : Buffer.from(raw),
+        };
+      }
+      const buffer = officialRosterBytesCache.buffer;
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Length': buffer.length,
+      });
+      res.end(buffer);
       return;
     }
 
@@ -690,8 +713,15 @@ function createRosterServer({
         res.end(body);
         return;
       }
-      const body = JSON.stringify(roster);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      const lastFetchAt = unofficialState.lastFetchAt;
+      if (!unofficialRosterBodyCache || unofficialRosterBodyCache.lastFetchAt !== lastFetchAt) {
+        unofficialRosterBodyCache = { lastFetchAt, body: jsonStringify(roster) };
+      }
+      const body = unofficialRosterBodyCache.body;
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      });
       res.end(body);
       return;
     }

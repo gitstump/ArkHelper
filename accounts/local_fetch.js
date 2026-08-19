@@ -108,6 +108,7 @@ async function fetchJsonSafe(url, opts) {
 }
 
 const UNOFFICIAL_ROSTER_CACHE_TTL_MS = 5 * 60 * 1000;
+const OFFICIAL_ROSTER_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function createTtlCache({ ttlMs = UNOFFICIAL_ROSTER_CACHE_TTL_MS, now = Date.now } = {}) {
   let cached = null;
@@ -131,6 +132,7 @@ module.exports = {
   fetchJsonWithReason,
   createTtlCache,
   UNOFFICIAL_ROSTER_CACHE_TTL_MS,
+  OFFICIAL_ROSTER_CACHE_TTL_MS,
   LOCAL_FETCH_TIMEOUT_FAST_MS,
   LOCAL_FETCH_TIMEOUT_HEAVY_MS,
   LOCAL_FETCH_TIMEOUT_BACKGROUND_MS,

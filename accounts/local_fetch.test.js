@@ -8,6 +8,8 @@ const {
   LOCAL_FETCH_TIMEOUT_FAST_MS,
   LOCAL_FETCH_TIMEOUT_HEAVY_MS,
   LOCAL_FETCH_TIMEOUT_BACKGROUND_MS,
+  UNOFFICIAL_ROSTER_CACHE_TTL_MS,
+  OFFICIAL_ROSTER_CACHE_TTL_MS,
 } = require('./local_fetch.js');
 
 test('createTtlCache reuses the first successful value within the TTL', async () => {
@@ -49,6 +51,23 @@ test('createTtlCache does not cache a null miss', async () => {
   };
   await cache.get('http://x/unofficial/roster', fetchFn);
   await cache.get('http://x/unofficial/roster', fetchFn);
+  assert.equal(calls, 2);
+});
+
+test('OFFICIAL_ROSTER_CACHE_TTL_MS is five minutes', () => {
+  assert.equal(OFFICIAL_ROSTER_CACHE_TTL_MS, 5 * 60 * 1000);
+  assert.equal(UNOFFICIAL_ROSTER_CACHE_TTL_MS, 5 * 60 * 1000);
+});
+
+test('createTtlCache on the official roster URL does not cache a null miss', async () => {
+  let calls = 0;
+  const cache = createTtlCache({ ttlMs: OFFICIAL_ROSTER_CACHE_TTL_MS, now: () => 1_000 });
+  const fetchFn = async () => {
+    calls += 1;
+    return null;
+  };
+  await cache.get('http://localhost:8792/roster', fetchFn);
+  await cache.get('http://localhost:8792/roster', fetchFn);
   assert.equal(calls, 2);
 });
 

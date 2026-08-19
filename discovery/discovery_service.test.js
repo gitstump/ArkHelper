@@ -1190,3 +1190,87 @@ test('GET /mods/summary cache hits skip recompute until last_fetch_at changes; l
 
   server.close();
 });
+
+test('GET /roster serves cached file bytes keyed by mtime', async () => {
+  const payload = Buffer.from(JSON.stringify({ generatedAt: 'T', servers: [{ id: '1' }] }));
+  let reads = 0;
+  let mtimeMs = 1_000;
+  const fsDeps = {
+    statSync: () => ({ mtimeMs }),
+    readFileSync: () => {
+      reads += 1;
+      return payload;
+    },
+  };
+  const server = createRosterServer({ outPath: 'roster.json', fsDeps });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+  const url = `http://127.0.0.1:${port}/roster`;
+
+  const first = await fetch(url);
+  const firstBody = Buffer.from(await first.arrayBuffer());
+  assert.equal(first.status, 200);
+  assert.equal(Number(first.headers.get('content-length')), payload.length);
+  assert.equal(Buffer.compare(firstBody, payload), 0);
+  assert.equal(reads, 1);
+
+  const second = await fetch(url);
+  const secondBody = Buffer.from(await second.arrayBuffer());
+  assert.equal(second.status, 200);
+  assert.equal(Number(second.headers.get('content-length')), payload.length);
+  assert.equal(Buffer.compare(secondBody, firstBody), 0);
+  assert.equal(reads, 1);
+
+  mtimeMs = 2_000;
+  const third = await fetch(url);
+  assert.equal(third.status, 200);
+  assert.equal(reads, 2);
+  assert.equal(Number(third.headers.get('content-length')), payload.length);
+
+  server.close();
+});
+
+test('GET /unofficial/roster restringifies only when lastFetchAt changes', async () => {
+  let stringifies = 0;
+  const roster = { count: 1, servers: [{ id: 'u1', name: 'Community' }] };
+  const unofficialState = {
+    roster,
+    lastFetchAt: '2026-08-19T14:00:00.000Z',
+    lastFetchStatus: 'ok',
+  };
+  const jsonStringify = (value) => {
+    stringifies += 1;
+    return JSON.stringify(value);
+  };
+  const file = tmpFile('roster.json');
+  const server = createRosterServer({ outPath: file, unofficialState, jsonStringify });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+  const url = `http://127.0.0.1:${port}/unofficial/roster`;
+  const expected = JSON.stringify(roster);
+
+  const first = await fetch(url);
+  const firstText = await first.text();
+  assert.equal(first.status, 200);
+  assert.equal(firstText, expected);
+  assert.equal(Number(first.headers.get('content-length')), Buffer.byteLength(expected));
+  assert.equal(stringifies, 1);
+
+  unofficialState.roster = { count: 9, servers: [{ id: 'mutated' }] };
+  const second = await fetch(url);
+  const secondText = await second.text();
+  assert.equal(second.status, 200);
+  assert.equal(secondText, expected);
+  assert.equal(Number(second.headers.get('content-length')), Buffer.byteLength(expected));
+  assert.equal(stringifies, 1);
+
+  unofficialState.lastFetchAt = '2026-08-19T14:15:00.000Z';
+  const third = await fetch(url);
+  const thirdText = await third.text();
+  assert.equal(third.status, 200);
+  assert.equal(thirdText, JSON.stringify(unofficialState.roster));
+  assert.equal(Number(third.headers.get('content-length')), Buffer.byteLength(thirdText));
+  assert.equal(stringifies, 2);
+
+  server.close();
+});
