@@ -9,7 +9,8 @@ accounts/     — port 8793. Everything a browser actually loads: login, homepag
                  browser, detail pages, favorites, alerts (settings, in-page feed, Discord
                  webhook), stats, rankings, status ("Is ARK down?"), derived server lists,
                  leaderboard suite, maps index and per-map pages, guides index and per-guide
-                 pages, official rates, launcher news, unofficial mod adoption.
+                 pages, official rates, launcher news, unofficial mod adoption,
+                 demolish-refund calculator.
 ```
 
 They're separate Node processes, talking over plain local HTTP — `accounts/` fetches from
@@ -67,6 +68,8 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `maps_page.js` | `/maps` index and `/maps/:slug` per-map telemetry pages |
 | `guides.js` | Static guide registry (slug → title / sections / related); unknown slugs return null |
 | `guides_page.js` | `/guides` index and `/guides/:slug` article pages |
+| `demolish_refund.js` | Pure demolish-refund filter, math, and dataset builder |
+| `demolish_refund_page.js` | `/tools/demolish-refund` calculator shell (vanilla JS + static JSON) |
 | `heatmap_svg.js` | Renders peak-time/downtime grids as inline SVG |
 | `badge.js` | The embeddable live-status SVG badge |
 | `local_fetch.js` | Shared "fetch JSON from discovery, never throw" helper |

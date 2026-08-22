@@ -28,6 +28,8 @@
  *   GET  /maps/:slug             -> per-map telemetry page
    *   GET  /guides                 -> guides index
    *   GET  /guides/:slug           -> a single guide
+   *   GET  /tools/demolish-refund  -> demolish refund calculator
+   *   GET  /data/demolish-refunds.json -> static precomputed refunds
    *   GET  /compare                -> side-by-side official server comparison
    *   GET  /alerts                 -> in-page alert feed (login required)
  *   POST /alerts/webhook         -> save Discord webhook URL
@@ -145,6 +147,9 @@ const {
 } = require('./maps_page.js');
 const { resolveGuide } = require('./guides.js');
 const { renderGuidesIndexPage, renderGuidePage, renderGuideNotFoundPage } = require('./guides_page.js');
+const { renderDemolishRefundPage } = require('./demolish_refund_page.js');
+
+const DEMOLISH_REFUNDS_BODY = Buffer.from(JSON.stringify(require('./data/demolish_refunds.json')));
 
 const SESSION_COOKIE = 'ark_session';
 const STATE_COOKIE = 'ark_oauth_state';
@@ -369,6 +374,17 @@ function createAuthServer({
           res.end(asset.body);
           return;
         }
+      }
+
+      if (req.method === 'GET' && url.pathname === '/data/demolish-refunds.json') {
+        const headers = {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'public, max-age=86400',
+          'Content-Length': DEMOLISH_REFUNDS_BODY.length,
+        };
+        res.writeHead(200, headers);
+        res.end(DEMOLISH_REFUNDS_BODY);
+        return;
       }
 
       if (req.method === 'GET' && url.pathname === '/robots.txt') {
@@ -923,6 +939,15 @@ function createAuthServer({
         return;
       }
 
+      if (req.method === 'GET' && url.pathname === '/tools/demolish-refund') {
+        const roster = await fetchOfficialRosterCached(browserDeps.fetchJsonSafe);
+        const live = liveFromRoster(roster);
+        const body = renderDemolishRefundPage({ account, live });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
       const listMatch = req.method === 'GET' && url.pathname.match(/^\/lists\/([^/]+)$/);
       if (listMatch) {
         const def = getListDef(listMatch[1]);
@@ -1227,7 +1252,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/robots.txt', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/tools/demolish-refund', '/data/demolish-refunds.json', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/robots.txt', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));

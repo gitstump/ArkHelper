@@ -338,6 +338,8 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/maps/:slug'));
   assert.ok(body.routes.includes('/guides'));
   assert.ok(body.routes.includes('/guides/:slug'));
+  assert.ok(body.routes.includes('/tools/demolish-refund'));
+  assert.ok(body.routes.includes('/data/demolish-refunds.json'));
   assert.ok(body.routes.includes('/news'));
   assert.ok(body.routes.includes('/mods'));
   assert.ok(body.routes.includes('/mods/:id'));
@@ -3577,6 +3579,51 @@ test('GET /guides/nope returns 404 HTML', async () => {
   assert.match(html, /Guide not found/);
   assert.match(html, /nope/);
   assert.match(html, /href="\/guides"/);
+
+  server.close();
+});
+
+test('GET /tools/demolish-refund renders the calculator shell', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/tools/demolish-refund`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Demolish Refund Calculator<\/h1>/);
+  assert.match(html, /These numbers are for official servers/);
+  assert.match(html, /href="\/tools\/demolish-refund"/);
+  assert.match(html, /\/data\/demolish-refunds\.json/);
+
+  server.close();
+});
+
+test('GET /data/demolish-refunds.json serves the preloaded asset with a long cache header', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const res = await fetch(`${base}/data/demolish-refunds.json`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /application\/json/);
+  assert.match(res.headers.get('cache-control'), /public,\s*max-age=86400/);
+  const body = await res.json();
+  assert.ok(Array.isArray(body.structures));
+  assert.ok(body.structures.length > 0);
+  assert.ok(body.nodemo.includes('PrimalItemResource_Element'));
 
   server.close();
 });

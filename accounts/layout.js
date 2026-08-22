@@ -8,8 +8,9 @@
  * wrapper. Pages pass inner HTML + a currentPath so the active nav
  * link can be marked. Badge/heatmap SVG endpoints do not use this.
  *
- * The only client-side JS in the project lives here: a small inline
- * script that closes header-nav <details> on outside click / Escape.
+ * Shared client-side JS lives here: a small inline script that closes
+ * header-nav <details> on outside click / Escape. Pages may pass extraJs
+ * for their own vanilla behaviour (the demolish-refund calculator).
  * Nav stays fully usable with JS disabled (native <details> + name=).
  */
 
@@ -26,6 +27,10 @@ const LIST_NAV = [
   { href: '/lists/most-populated', label: 'Most Populated' },
   { href: '/lists/recently-wiped', label: 'Recently Wiped' },
   { href: '/lists/available-now', label: 'Available Now' },
+];
+
+const TOOLS_NAV = [
+  { href: '/tools/demolish-refund', label: 'Demolish Refund', match: ['/tools/demolish-refund'] },
 ];
 
 const STATS_NAV = [
@@ -66,6 +71,11 @@ const NAV = [
     children: STATS_NAV,
   },
   { href: '/guides', label: 'Guides', match: ['/guides'] },
+  {
+    label: 'Tools',
+    match: ['/tools'],
+    children: TOOLS_NAV,
+  },
   { href: '/alerts', label: 'Alerts', match: ['/alerts'] },
   { href: '/favorites', label: 'Favorites', match: ['/favorites'] },
 ];
@@ -133,6 +143,7 @@ function renderFooter(live, year = new Date().getFullYear()) {
           <li><a href="/compare">Compare</a></li>
           <li><a href="/maps">Maps</a></li>
           <li><a href="/guides">Guides</a></li>
+          <li><a href="/tools/demolish-refund">Demolish Refund</a></li>
           <li><a href="/favorites">Favorites</a></li>
           <li><a href="/alerts">Alerts</a></li>
           <li><a href="/servers">Presets</a></li>
@@ -169,7 +180,7 @@ function renderFooter(live, year = new Date().getFullYear()) {
 </footer>`;
 }
 
-function renderPage({ title, description, currentPath, account, live, extraCss = '', body, year, origin }) {
+function renderPage({ title, description, currentPath, account, live, extraCss = '', extraJs = '', body, year, origin }) {
   const pageTitle = title || 'ArkHelper';
   const escapedTitle = escapeHtml(pageTitle);
   const metaDescription = description
@@ -228,6 +239,7 @@ document.addEventListener('keydown', function (e) {
   }
 });
 </script>
+${extraJs ? `<script>\n${extraJs}\n</script>` : ''}
 </body>
 </html>`;
 }
@@ -237,6 +249,7 @@ module.exports = {
   NAV,
   LIST_NAV,
   STATS_NAV,
+  TOOLS_NAV,
   MAPS_NAV,
   pathMatches,
   renderNav,

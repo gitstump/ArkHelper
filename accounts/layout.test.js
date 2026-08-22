@@ -75,6 +75,8 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.equal(navMods.length, 1);
   assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
   assert.match(html, />Guides<\/a>/);
+  assert.match(html, /<summary class="">Tools<\/summary>/);
+  assert.match(html, /href="\/tools\/demolish-refund"/);
   assert.match(html, />Alerts<\/a>/);
   assert.match(html, />Favorites<\/a>/);
   assert.match(html, /href="\/alerts"/);
@@ -82,11 +84,12 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   const mapsAt = html.indexOf('>Maps</summary>');
   const statsAt = html.indexOf('>Stats</summary>');
   const guidesAt = html.indexOf('>Guides</a>');
+  const toolsAt = html.indexOf('>Tools</summary>');
   const alertsAt = html.indexOf('>Alerts</a>');
   const favAt = html.indexOf('>Favorites</a>');
   assert.ok(serversAt !== -1 && mapsAt !== -1 && statsAt !== -1);
   assert.ok(serversAt < mapsAt && mapsAt < statsAt);
-  assert.ok(statsAt < guidesAt && guidesAt < alertsAt && alertsAt < favAt);
+  assert.ok(statsAt < guidesAt && guidesAt < toolsAt && toolsAt < alertsAt && alertsAt < favAt);
 });
 
 test('renderNav marks the Maps group active on per-map pages', () => {
@@ -107,6 +110,12 @@ test('renderNav marks Guides active on the index and a guide page', () => {
   const page = renderNav('/guides/beginners');
   assert.match(page, /class="active" href="\/guides"/);
   assert.doesNotMatch(page, /<summary class="active">Guides<\/summary>/);
+});
+
+test('renderNav marks the Tools group active on the demolish-refund page', () => {
+  const html = renderNav('/tools/demolish-refund');
+  assert.match(html, /<summary class="active">Tools<\/summary>/);
+  assert.match(html, /class="active" href="\/tools\/demolish-refund"/);
 });
 
 test('renderNav marks Alerts active on the feed and keeps it a plain link', () => {
@@ -159,6 +168,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/compare">Compare/);
   assert.match(html, /href="\/maps">Maps/);
   assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /href="\/tools\/demolish-refund">Demolish Refund/);
   assert.match(html, /href="\/lists\/official-pve">Official PvE/);
   assert.match(html, /href="\/lists\/official-pvp">Official PvP/);
   assert.match(html, /href="\/lists\/low-ping">Low Ping/);
@@ -214,7 +224,7 @@ test('nav and footer each show Mods exactly once', () => {
 test('renderNav puts name="mainnav" on every header-nav details dropdown', () => {
   const html = renderNav('/');
   const tags = html.match(/<details\b[^>]*>/g) || [];
-  assert.equal(tags.length, 3);
+  assert.equal(tags.length, 4);
   for (const tag of tags) {
     assert.match(tag, /class="nav-drop"/);
     assert.match(tag, /name="mainnav"/);
@@ -245,6 +255,6 @@ test('renderPage does not wrap body-level details with name="mainnav"', () => {
     body: '<details class="faq"><summary>Q</summary><p>A</p></details>',
   });
   const named = html.match(/<details\b[^>]*name="mainnav"[^>]*>/g) || [];
-  assert.equal(named.length, 3);
+  assert.equal(named.length, 4);
   assert.match(html, /<details class="faq">/);
 });
