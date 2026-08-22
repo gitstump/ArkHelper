@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-19 — 883 tests passing — In flight: none
+Last updated: 2026-08-22 — 883 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -8,7 +8,7 @@ Last updated: 2026-08-19 — 883 tests passing — In flight: none
 
 Full public-feature parity with arkstatus.com is the neutral baseline — falling short is failure, matching is neutral. Success additionally means: parity with BattleMetrics' PUBLIC pages (server stats/graphs; their RCON/admin suite is explicitly OUT of scope), and parity with the ARK wiki's TOOLS (calculators, reference data, maps) built clean-room from game facts and original assets — the wiki's CC BY-NC-SA license means we never copy its text or images. The wiki-tools reference implementation is [wikily.gg/ark-survival-ascended](https://wikily.gg/ark-survival-ascended) — still clean-room: game-file facts and original prose/assets only. Exceeding all of this without degrading anything is the actual goal.
 Imagery policy: official promotional/announcement assets and Owner's own gameplay screenshots only, per Wildcard Fan Content Guidelines (individual, non-commercial); hotlinked from official CDN, never re-served; no game-file extractions, wiki, or competitor images; site remains non-commercial while any Wildcard imagery is live; logo and brand assets original.
-Coordinate-data policy (fan-out research verdict, 2026-08-17): no third-party dataset exists that is clean-room-compatible for ASA per-map resource coordinates — arkutils Obelisk is ASE-only for maps, lacks resource nodes, and carries no data license; Beacon is GPL-3.0 with no separate data license, no resource coordinates, and would be a runtime dependency; the wiki is license-tainted (and self-reports its ASA extraction as incomplete); wikily.gg is a competitor reference and off-limits. Comprehensive resource maps are therefore only reachable via our own extraction (CUE4Parse, MIT, against the free anonymous-SteamCMD ASA dedicated-server paks) — legitimate but heavy (UE5 World Partition scatters resource instances across streaming-cell packages as HISM foliage) and parked, not scheduled. Manual in-game collection is explicitly NOT a coverage strategy (no competitor built coverage by hand; all use extraction); Owner-collected GPS waypoints are reserved for curated route content only — a handful of verified waypoints per map wrapped in original prose. Standing sub-rule unchanged: no coordinates may ever be transcribed from wiki or competitor sites.
+Coordinate-data policy (fan-out research verdict, 2026-08-17; extraction route revised 2026-08-22): no third-party dataset exists that is clean-room-compatible for ASA per-map resource coordinates — arkutils Obelisk is ASE-only for maps, lacks resource nodes, and carries no data license; Beacon is GPL-3.0 with no separate data license, no resource coordinates, and would be a runtime dependency; the wiki is license-tainted (and self-reports its ASA extraction as incomplete); wikily.gg is a competitor reference and off-limits. Comprehensive resource maps are therefore reachable only via our own extraction — which is now executed, not parked. The route is the official ARK DevKit (UE5), not CUE4Parse against SteamCMD paks. Nine maps have banked actor descriptors (45,893 gameplay actors) with a verified GPS transform, and Aberration has a complete InstancedFoliageActor census: 3,710,555 instances across 669 World Partition cells, 251 distinct meshes. Resource instances are NOT unreachable HISM foliage as previously recorded — instance transforms read world-space through the foliage components, and each FoliageType asset carries both a mesh reference and an attached harvest component, so mesh-to-resource attribution resolves from the asset registry with no asset loading. Manual in-game collection is explicitly NOT a coverage strategy (no competitor built coverage by hand; all use extraction); Owner-collected GPS waypoints are reserved for curated route content only — a handful of verified waypoints per map wrapped in original prose. Standing sub-rule unchanged: no coordinates may ever be transcribed from wiki or competitor sites.
 
 Live wild/tamed dino counts on official servers are **not** a parity item — arkstatus.com does not show them (they need RCON/admin access, which neither they nor we have on official). Their taming/breeding calculators are static creature-stat tools, not live in-server counts. Those calculators belong under the wiki-tools success bar above, built clean-room.
 
@@ -49,13 +49,23 @@ existing history).
 - **Official rates** (`/rates`) — current multipliers for official / arkpocalypse / smalltribes / conquest from Wildcard's CDN `dynamicconfig.ini` files, a "Bonus rates active" banner when any official multiplier is not 1.0, and a recent change-log table.
 - **Launcher news** (`/news`) — titles, outbound links, and hotlinked official announcement thumbnails from Wildcard's CDN (fan-content policy, 2026-08-17 — see Imagery policy). Titles come from EntryData, else a humanized survivetheark article slug, else a humanized DLC name. Entries with no resolvable ImagePath stay text-only.
 
+## DevKit extraction pipeline (Owner's machine, not in this repo)
+
+Game data is extracted from the official ARK DevKit (UE5, ~700 GB, installed locally) to static JSON at `C:\arkhelper_extract`. Nothing in this repo reads the DevKit; the pipeline's output is the deliverable and is served as static JSON behind long cache headers. Assets never leave the Owner's machine — extracted facts only, never textures, meshes, or wiki-derived text.
+
+Banked: nine maps of actor descriptors (45,893 gameplay actors) with a verified GPS lat/lon transform, and 21 asset families including DinoEntries, CharacterBP, Spawners, PrimalItems, Engrams, Resources, HarvestComponents, LootTables, and Missions.
+
+Foliage: Aberration has a complete InstancedFoliageActor census — 3,710,555 instances across 669 World Partition cells, 251 distinct meshes, counts and mesh names only, no transforms yet. Mesh-to-resource attribution resolves through FoliageType assets, each of which references a static mesh and an attached harvest component; these are read from the asset registry's dependency graph without loading assets, which avoids triggering multi-gigabyte Nanite mesh builds. 2,404 FoliageType assets are mapped.
+
+Not yet done: transform extraction for a defended resource allowlist, and censuses for the other eight maps. Both are gated on the manifest feature review deciding whether interactive maps ship.
+
 ## Future / deferred work
 
 - Guides fan-outs, re-scoped after the 2026-08-17 coordinate-data research (see Coordinate-data policy above). Queue order:
   1. Per-DLC progression guides — DONE (Scorched Earth, Aberration, Extinction, Genesis). Pure prose in the G-track mold, no external dataset needed.
   2. Per-map resource guides — terrain/biome-first prose like the Resource Locations guide, no coordinates, unblocked now.
   3. Owner-waypoint enrichment — curated farming routes with Owner's own in-game GPS readings; staged behind the screenshot safari, judgment content not coverage.
-  4. Interactive coverage maps — reachable only via self-extraction (parked; revisit only if the site commits to interactive maps as a feature).
+  4. Interactive coverage maps — extraction is no longer the blocker (see coordinate-data policy above). Gated now on the manifest feature review: whether the site commits to interactive maps as a feature. 20,000+ resource nodes is a map overlay, not a list anyone reads, so the feature decision precedes any further transform extraction.
 
 - Cluster pages — /clusters/:id from the existing clusterId field:
   members, maps represented, combined capacity, cluster-wide uptime.
