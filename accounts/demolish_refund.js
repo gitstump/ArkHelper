@@ -24,6 +24,7 @@ function isInScope(item) {
   if (item.result !== 'OK') return false;
   if (item.struct == null || item.struct === '') return false;
   if (!Array.isArray(item.reqs) || item.reqs.length === 0) return false;
+  if (item.reqs.some((req) => !req || typeof req.res !== 'string' || !req.res)) return false;
   if (item.justdestroy === true) return false;
   if (!(Number(item.demo_pct) > 0)) return false;
   const name = String(item.name || '');

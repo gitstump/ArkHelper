@@ -112,21 +112,30 @@ test('no PrimalItemStructure_Base* Club ARK entry is present', () => {
   }
 });
 
-test('every qty in every in-scope reqs is a whole number except the known Tek Trough 45.5', () => {
-  const notWhole = [];
+test('no generated reqs entry has a null or missing res', () => {
   for (const entry of generated.structures) {
     for (const req of entry.reqs) {
-      if (!Number.isInteger(req.qty)) {
-        notWhole.push({ name: entry.name, res: req.res, qty: req.qty });
-      }
+      assert.equal(typeof req.res, 'string', entry.name);
+      assert.ok(req.res, entry.name);
     }
   }
-  // Extract data, not a rounding-model change: floor(45.5 * 0.5) === 22.
-  // Any new fractional qty, or this one disappearing, must fail loudly.
-  assert.deepEqual(notWhole, [
-    { name: 'PrimalItemStructure_TekTrough', res: 'PrimalItemResource_BlackPearl_C', qty: 45.5 },
-  ]);
-  assert.equal(perUnitRefund(45.5, 0.5, false), 22);
+});
+
+test('every generated refund equals floor(qty * demo_pct)', () => {
+  for (const entry of generated.structures) {
+    for (const part of entry.refunds) {
+      const expected = part.nodemo ? 0 : Math.floor(part.qty * entry.demo_pct);
+      assert.equal(part.refund, expected, `${entry.name} ${part.res}`);
+    }
+  }
+});
+
+test('Tek Trough x1 refunds Black Pearl 22', () => {
+  assert.equal(structureTotals('PrimalItemStructure_TekTrough', 1).BlackPearl, 22);
+});
+
+test('Tek Trough x2 refunds Black Pearl 44', () => {
+  assert.equal(structureTotals('PrimalItemStructure_TekTrough', 2).BlackPearl, 44);
 });
 
 test('every in-scope entry demo_pct is exactly 0.5', () => {

@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-22 — 912 tests passing — In flight: none
+Last updated: 2026-08-22 — 915 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -52,7 +52,9 @@ existing history).
 
 ## DevKit extraction pipeline (Owner's machine, not in this repo)
 
-Game data is extracted from the official ARK DevKit (UE5, ~700 GB, installed locally) to static JSON at `C:\arkhelper_extract`. Nothing in this repo reads the DevKit; the pipeline's output is the deliverable and is served as static JSON behind long cache headers. Assets never leave the Owner's machine — extracted facts only, never textures, meshes, or wiki-derived text.
+Game data is extracted from the official ARK DevKit (UE5, ~700 GB, installed locally) to static JSON at `C:\arkhelper_extract`. Nothing in this repo reads the DevKit; the pipeline's output is the deliverable. Assets never leave the Owner's machine — extracted facts only, never textures, meshes, or wiki-derived text.
+
+Extraction output is served as static JSON with long cache headers. Assets under 5 MB on disk may be loaded once at process start and served from memory — this is the more efficient path for small files, and the boot-time load fails loudly if the asset is missing or malformed. Assets of 5 MB or larger must be served directly by Caddy and must never be held in the Node process, because parsing large JSON inflates it several times over in memory and the droplet has 2 GB total. The demolish refund asset is compliant under this rule.
 
 Banked: nine maps of actor descriptors (45,893 gameplay actors) with a verified GPS lat/lon transform, and 21 asset families including DinoEntries, CharacterBP, Spawners, PrimalItems, Engrams, Resources, HarvestComponents, LootTables, and Missions.
 
