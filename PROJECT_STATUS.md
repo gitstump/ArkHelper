@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-23 — 993 tests passing — In flight: none
+Last updated: 2026-08-23 — 994 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -99,3 +99,8 @@ LIVE at https://arkhelper.info since 2026-08-16. DigitalOcean droplet (2GB, NYC,
 - Production outage (2026-08-19): `realHttpGetLocal` defaulted to 2s and `fetchJsonSafe` swallowed every failure. `GET /mods/summary` took 2.58s so `/mods` showed empty while discovery was healthy; the alerts engine logged `roster unavailable, skipping cycle` on every cycle and dispatched nothing for over a day. Fixed with tiered local-fetch budgets, rate-limited failure/slow logs, distinct null-vs-rosterless skip lines, a consecutive-skip counter (warn at 3 and every 10th thereafter), and a muted `/alerts` health note after 3 skips.
 - Unofficial cycle write amplification (2026-08-19): each 15-minute cycle was DELETE+re-INSERT of ~1.5M `server_mods` rows plus a per-server `SELECT` to reread `cycles_seen`, pinning discovery around 40% CPU. Cycles now hash each server's normalized mod-id list, skip `server_mods` writes when unchanged (including empty lists), bulk-read `cycles_seen`/`mods_hash` once per cycle, add `idx_server_mods_mod_id` and `idx_unofficial_servers_last_seen` on open (in-place on existing DBs), and cache `GET /mods/summary` per `last_fetch_at`+limit.
 - Crawler cost-per-request (2026-08-19): AI crawlers walking server detail pages (~1 req/s peak) pinned both services at ~30% CPU because each page re-fetched the multi-MB official roster (eleven uncached call sites plus the alerts engine) and discovery re-parsed/re-stringified roster payloads per request. Fixed with the shared official-roster TTL cache, byte-serving `/roster` and cycle-keyed `/unofficial/roster`, and `robots.txt` Crawl-delay (PERF2).
+- Production crash (2026-08-23): `openHistoryDb` created `idx_server_change_state_updated` in the initial SCHEMA exec, before the ALTER that adds `updated_at` on pre-existing tables. Fresh DBs worked; production, whose table predated the column, crashed at startup. The index now follows the migration; a legacy-schema fixture test covers the old shape.
+
+## Lessons
+
+- A test gate that only opens a fresh schema (or a cold cache) does not prove production startup. The Cloudflare cache miss and the `idx_server_change_state_updated` crash share that root cause: prod is never a fresh world. Migrations must be tested against yesterday's schema, not just today's. The deploy-time cache-purge / versioned-URL gap remains on the horizon list.

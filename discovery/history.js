@@ -124,7 +124,6 @@ CREATE TABLE IF NOT EXISTS server_change_state (
   updated_at TEXT,
   PRIMARY KEY (server_id, field)
 );
-CREATE INDEX IF NOT EXISTS idx_server_change_state_updated ON server_change_state(updated_at);
 
 CREATE TABLE IF NOT EXISTS change_event_prune_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -160,6 +159,9 @@ function openHistoryDb(dbPath) {
     if (!/duplicate column name/i.test(err.message)) throw err;
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_server_change_events_type_at ON server_change_events(event_type, detected_at DESC)');
+  // Must follow the updated_at ALTER: CREATE TABLE IF NOT EXISTS is a
+  // no-op on pre-existing DBs, so an index in SCHEMA would run before
+  // the column exists and crash startup (production 2026-08-23).
   db.exec('CREATE INDEX IF NOT EXISTS idx_server_change_state_updated ON server_change_state(updated_at)');
   return db;
 }

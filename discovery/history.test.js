@@ -2,6 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { DatabaseSync } = require('node:sqlite');
 const {
   openHistoryDb,
   recordSnapshotRun,
@@ -29,6 +33,10 @@ const {
 
 function freshDb() {
   return openHistoryDb(':memory:');
+}
+
+function tmpHistoryDbFile() {
+  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ark-history-')), 'history.sqlite');
 }
 
 function servers(ids) {
@@ -426,6 +434,38 @@ test('pruneChangeEvents removes events older than 90 days and retains newer ones
   assert.equal(remaining.length, 1);
   assert.equal(remaining[0].eventType, 'map_change');
   assert.equal(remaining[0].detectedAt, '2026-08-01T00:00:00.000Z');
+});
+
+test('openHistoryDb migrates a pre-updated_at server_change_state and creates its index', () => {
+  const file = tmpHistoryDbFile();
+  const raw = new DatabaseSync(file);
+  raw.exec(`
+    CREATE TABLE server_change_state (
+      server_id TEXT NOT NULL,
+      field TEXT NOT NULL,
+      confirmed_value TEXT,
+      pending_value TEXT,
+      PRIMARY KEY (server_id, field)
+    );
+  `);
+  raw.prepare(
+    'INSERT INTO server_change_state (server_id, field, confirmed_value, pending_value) VALUES (?, ?, ?, ?)'
+  ).run('legacy', 'version', '92.41', null);
+  raw.close();
+
+  let db;
+  assert.doesNotThrow(() => {
+    db = openHistoryDb(file);
+  });
+  const cols = db.prepare('PRAGMA table_info(server_change_state)').all().map((c) => c.name);
+  assert.ok(cols.includes('updated_at'));
+  const index = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_server_change_state_updated'")
+    .get();
+  assert.ok(index);
+  const row = db.prepare('SELECT server_id, confirmed_value FROM server_change_state WHERE server_id = ?').get('legacy');
+  assert.equal(row.confirmed_value, '92.41');
+  db.close();
 });
 
 test('maybePruneChangeEvents drops state rows older than 14 days and keeps fresh ones', () => {
