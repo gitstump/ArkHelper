@@ -10,7 +10,7 @@
  *
  * Shared client-side JS lives here: a small inline script that closes
  * header-nav <details> on outside click / Escape. Pages may pass extraJs
- * for their own vanilla behaviour (the demolish-refund calculator).
+ * for their own vanilla behaviour (the tool calculators).
  * Nav stays fully usable with JS disabled (native <details> + name=).
  */
 
@@ -30,6 +30,7 @@ const LIST_NAV = [
 ];
 
 const TOOLS_NAV = [
+  { href: '/tools/crafting-cost', label: 'Crafting Cost', match: ['/tools/crafting-cost'] },
   { href: '/tools/demolish-refund', label: 'Demolish Refund', match: ['/tools/demolish-refund'] },
 ];
 
@@ -143,6 +144,7 @@ function renderFooter(live, year = new Date().getFullYear()) {
           <li><a href="/compare">Compare</a></li>
           <li><a href="/maps">Maps</a></li>
           <li><a href="/guides">Guides</a></li>
+          <li><a href="/tools/crafting-cost">Crafting Cost</a></li>
           <li><a href="/tools/demolish-refund">Demolish Refund</a></li>
           <li><a href="/favorites">Favorites</a></li>
           <li><a href="/alerts">Alerts</a></li>

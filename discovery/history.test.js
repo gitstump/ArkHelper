@@ -7,6 +7,8 @@ const {
   recordSnapshotRun,
   detectAndLogChanges,
   getChangeLog,
+  getChangeEvents,
+  pruneChangeEvents,
   getRecentWipes,
   computeUptimePercent,
   getServerHistory,
@@ -309,6 +311,130 @@ test('getRecentWipes returns the latest wipe per server inside the window', () =
   assert.equal(recent.length, 1);
   assert.equal(recent[0].serverId, 'b');
   assert.equal(recent[0].seenAt, '2026-08-10T01:00:00.000Z');
+});
+
+// ---------------------------------------------------------------------
+// Two-cycle stable change events (server_change_events)
+// ---------------------------------------------------------------------
+function changeEventsFor(db, serverId) {
+  return getChangeEvents(db, serverId, { limit: 50 });
+}
+
+test('a changed field that holds two cycles writes exactly one event', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.47', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+  recordSnapshotRun(db, [{ id: 'a', version: '92.47', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T02:00:00.000Z' });
+
+  const events = changeEventsFor(db, 'a');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].eventType, 'version_change');
+  assert.equal(events[0].field, 'version');
+  assert.equal(events[0].oldValue, '92.45');
+  assert.equal(events[0].newValue, '92.47');
+});
+
+test('a changed field that reverts on the second cycle writes no event', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.47', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T02:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+});
+
+test('a field changing twice across four cycles writes two chained events', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: 'A', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: 'B', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: 'B', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T02:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: 'C', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T03:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: 'C', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T04:00:00.000Z' });
+
+  const events = changeEventsFor(db, 'a');
+  assert.equal(events.length, 2);
+  assert.equal(events[0].oldValue, 'B');
+  assert.equal(events[0].newValue, 'C');
+  assert.equal(events[1].oldValue, 'A');
+  assert.equal(events[1].newValue, 'B');
+});
+
+test('day 5 to day 1 held two cycles writes probable_wipe', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 5 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 1 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 1 }], { now: () => '2026-08-15T02:00:00.000Z' });
+
+  const events = changeEventsFor(db, 'a');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].eventType, 'probable_wipe');
+  assert.equal(events[0].field, null);
+  assert.equal(events[0].oldValue, '5');
+  assert.equal(events[0].newValue, '1');
+});
+
+test('day 2 to day 1 writes no wipe event', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 2 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 1 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 1 }], { now: () => '2026-08-15T02:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+});
+
+test('day 5 to day 1 that reverts to day 5 writes nothing', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 5 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 1 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 5 }], { now: () => '2026-08-15T02:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+});
+
+test('first sighting of a server writes no change events', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+});
+
+test('a server absent for a cycle then returning with different values writes no events', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'b', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.47', map: 'Extinction_WP', maxPlayers: 50, day: 1 }], { now: () => '2026-08-15T02:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.47', map: 'Extinction_WP', maxPlayers: 50, day: 1 }], { now: () => '2026-08-15T03:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+});
+
+test('pruneChangeEvents removes events older than 90 days and retains newer ones', () => {
+  const db = freshDb();
+  db.prepare(
+    'INSERT INTO server_change_events (server_id, event_type, field, old_value, new_value, detected_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run('a', 'version_change', 'version', '1', '2', '2026-05-01T00:00:00.000Z');
+  db.prepare(
+    'INSERT INTO server_change_events (server_id, event_type, field, old_value, new_value, detected_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run('a', 'map_change', 'map', 'Old', 'New', '2026-08-01T00:00:00.000Z');
+
+  const result = pruneChangeEvents(db, '2026-05-24T00:00:00.000Z');
+  assert.equal(result.eventsRemoved, 1);
+  const remaining = changeEventsFor(db, 'a');
+  assert.equal(remaining.length, 1);
+  assert.equal(remaining[0].eventType, 'map_change');
+  assert.equal(remaining[0].detectedAt, '2026-08-01T00:00:00.000Z');
+});
+
+test('map and max-player changes that hold two cycles write map_change and capacity_change', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'Extinction_WP', maxPlayers: 50, day: 10 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'Extinction_WP', maxPlayers: 50, day: 10 }], { now: () => '2026-08-15T02:00:00.000Z' });
+
+  const events = changeEventsFor(db, 'a');
+  assert.equal(events.length, 2);
+  const byType = Object.fromEntries(events.map((e) => [e.eventType, e]));
+  assert.equal(byType.map_change.oldValue, 'TheIsland_WP');
+  assert.equal(byType.map_change.newValue, 'Extinction_WP');
+  assert.equal(byType.capacity_change.oldValue, '70');
+  assert.equal(byType.capacity_change.newValue, '50');
 });
 
 // ---------------------------------------------------------------------

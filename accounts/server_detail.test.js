@@ -447,3 +447,61 @@ test('embed snippets honor an origin override and strip a trailing slash', () =>
     assert.doesNotMatch(box, /(?:\]\(|href=&quot;|src=&quot;)\/servers\//);
   }
 });
+
+// ---------------------------------------------------------------------
+// renderServerDetailPage — Recent changes (two-cycle events)
+// ---------------------------------------------------------------------
+test('renderServerDetailPage shows the Recent changes empty state when there are no events', () => {
+  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [], changeEvents: [] });
+  assert.match(html, /<h2>Recent changes<\/h2>/);
+  assert.match(html, /Configuration and world changes we've observed on this server. A change is recorded only after it holds for two polling cycles, so brief glitches during a restart aren't logged here./);
+  assert.match(html, /No changes observed yet. This server's settings have held steady since we started tracking it./);
+  assert.doesNotMatch(html, /<ul class="change-log">[\s\S]*Updated from/);
+  assert.doesNotMatch(html, /Wipes are inferred from a world day reset/);
+});
+
+test('renderServerDetailPage renders Recent changes with verbatim copy, newest first, capped at 10', () => {
+  const changeEvents = [
+    { eventType: 'version_change', field: 'version', oldValue: '92.45', newValue: '92.47', detectedAt: '2026-08-15T10:00:00.000Z' },
+    { eventType: 'transfer_change', field: 'characterTransfers', oldValue: 'false', newValue: 'true', detectedAt: '2026-08-15T09:00:00.000Z' },
+    { eventType: 'transfer_change', field: 'itemTransfers', oldValue: 'true', newValue: 'false', detectedAt: '2026-08-15T08:00:00.000Z' },
+    { eventType: 'map_change', field: 'map', oldValue: 'TheIsland_WP', newValue: 'Extinction_WP', detectedAt: '2026-08-15T07:00:00.000Z' },
+    { eventType: 'capacity_change', field: 'maxPlayers', oldValue: '70', newValue: '50', detectedAt: '2026-08-15T06:00:00.000Z' },
+    { eventType: 'probable_wipe', field: null, oldValue: '45', newValue: '1', detectedAt: '2026-08-15T05:00:00.000Z' },
+    { eventType: 'version_change', field: 'version', oldValue: '92.41', newValue: '92.42', detectedAt: '2026-08-15T04:00:00.000Z' },
+    { eventType: 'version_change', field: 'version', oldValue: '92.40', newValue: '92.41', detectedAt: '2026-08-15T03:00:00.000Z' },
+    { eventType: 'version_change', field: 'version', oldValue: '92.39', newValue: '92.40', detectedAt: '2026-08-15T02:00:00.000Z' },
+    { eventType: 'version_change', field: 'version', oldValue: '92.38', newValue: '92.39', detectedAt: '2026-08-15T01:00:00.000Z' },
+    { eventType: 'version_change', field: 'version', oldValue: '92.37', newValue: '92.38', detectedAt: '2026-08-15T00:00:00.000Z' },
+  ];
+  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [], changeEvents });
+  assert.match(html, /<h2>Recent changes<\/h2>/);
+  assert.match(html, /Updated from 92\.45 to 92\.47/);
+  assert.match(html, /Character transfers enabled/);
+  assert.match(html, /Item transfers disabled/);
+  assert.match(html, /Map changed from TheIsland_WP to Extinction_WP/);
+  assert.match(html, /Player slots changed from 70 to 50/);
+  assert.match(html, /Possible wipe \u2014 world day reset from 45 to day 1/);
+  assert.match(html, /Wipes are inferred from a world day reset, not confirmed by the server. A day reset can also follow a save restore./);
+  assert.ok(html.indexOf('Updated from 92.45 to 92.47') < html.indexOf('Character transfers enabled'));
+  assert.ok(html.indexOf('2026-08-15T10:00:00.000Z') < html.indexOf('2026-08-15T09:00:00.000Z'));
+  assert.doesNotMatch(html, /Updated from 92\.37 to 92\.38/);
+  assert.match(html, /Updated from 92\.38 to 92\.39/);
+});
+
+test('renderServerDetailPage still shows Recent changes empty state when changeEvents is omitted', () => {
+  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [] });
+  assert.match(html, /<h2>Recent changes<\/h2>/);
+  assert.match(html, /No changes observed yet. This server's settings have held steady since we started tracking it./);
+});
+
+test('renderServerDetailPage escapes hostile Recent changes values', () => {
+  const html = renderServerDetailPage({
+    server: makeServer(),
+    uptime: null,
+    history: [],
+    changeEvents: [{ eventType: 'version_change', field: 'version', oldValue: '<script>x</script>', newValue: '1.0', detectedAt: 'now' }],
+  });
+  assert.doesNotMatch(html, /<script>x<\/script>/);
+  assert.match(html, /Updated from &lt;script&gt;x&lt;\/script&gt; to 1\.0/);
+});

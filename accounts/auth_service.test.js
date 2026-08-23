@@ -338,6 +338,8 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/maps/:slug'));
   assert.ok(body.routes.includes('/guides'));
   assert.ok(body.routes.includes('/guides/:slug'));
+  assert.ok(body.routes.includes('/tools/crafting-cost'));
+  assert.ok(body.routes.includes('/data/crafting-costs.json'));
   assert.ok(body.routes.includes('/tools/demolish-refund'));
   assert.ok(body.routes.includes('/data/demolish-refunds.json'));
   assert.ok(body.routes.includes('/news'));
@@ -719,6 +721,7 @@ test('GET /servers/:id passes changeLog and heatmap data through when the histor
     uptime: { uptimePercent: 100, totalRuns: 5, presentCount: 5 },
     history: [],
     changeLog: [{ changeType: 'wipe', oldValue: '45', newValue: '1', seenAt: 'now' }],
+    changeEvents: [{ eventType: 'version_change', field: 'version', oldValue: '92.45', newValue: '92.47', detectedAt: 'now' }],
     peakTimes: flatGrid({ sampleCount: 2 }),
     downtimePatterns: flatGrid({ totalRuns: 2 }),
   };
@@ -734,6 +737,8 @@ test('GET /servers/:id passes changeLog and heatmap data through when the histor
   const res = await fetch(`${base}/servers/abc`);
   const html = await res.text();
   assert.match(html, /Wipe detected/);
+  assert.match(html, /<h2>Recent changes<\/h2>/);
+  assert.match(html, /Updated from 92\.45 to 92\.47/);
   assert.match(html, /<svg/); // at least one heatmap rendered
 
   server.close();
@@ -3579,6 +3584,51 @@ test('GET /guides/nope returns 404 HTML', async () => {
   assert.match(html, /Guide not found/);
   assert.match(html, /nope/);
   assert.match(html, /href="\/guides"/);
+
+  server.close();
+});
+
+test('GET /tools/crafting-cost renders the calculator shell', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/tools/crafting-cost`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Crafting Cost Calculator<\/h1>/);
+  assert.match(html, /href="\/tools\/crafting-cost"/);
+  assert.match(html, /\/data\/crafting-costs\.json/);
+
+  server.close();
+});
+
+test('GET /data/crafting-costs.json serves the preloaded asset with a long cache header', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const res = await fetch(`${base}/data/crafting-costs.json`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /application\/json/);
+  assert.match(res.headers.get('cache-control'), /public,\s*max-age=86400/);
+  const body = await res.json();
+  assert.ok(Array.isArray(body.items));
+  assert.ok(body.items.length > 0);
+  assert.ok(Array.isArray(body.stations));
+  assert.equal(body.stations.length, 6);
 
   server.close();
 });

@@ -10,7 +10,7 @@ accounts/     — port 8793. Everything a browser actually loads: login, homepag
                  webhook), stats, rankings, status ("Is ARK down?"), derived server lists,
                  leaderboard suite, maps index and per-map pages, guides index and per-guide
                  pages, official rates, launcher news, unofficial mod adoption,
-                 demolish-refund calculator.
+                 demolish-refund calculator, crafting-cost calculator.
 ```
 
 They're separate Node processes, talking over plain local HTTP — `accounts/` fetches from
@@ -29,7 +29,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `info_feeds.js` | Fetches/parses Wildcard CDN rate INIs and news.ini (injectable fetch) |
 | `info_store.js` | Separate SQLite (`feeds.sqlite`) — current rates per variant + change log; news entries hashed by imagePath+action |
 | `discovery_service.js` | CLI + scheduler + the HTTP server exposing everything below |
-| `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, wipe/version detection, heatmaps; gathers ranking inputs and stamps scores onto the roster; records network incidents |
+| `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, wipe/version detection, two-cycle `server_change_events`, heatmaps; gathers ranking inputs and stamps scores onto the roster; records network incidents |
 | `ranking.js` | Pure composite rank scorer (no DB / network / clock) — weights live here |
 | `incidents.js` | Pure incident classifier (thresholds, hysteresis, consecutive-fetch-failure counting) |
 | `geo_lookup.js` | GeoLite2/MaxMind country lookups — optional via `GEOLITE2_DB_PATH`; stamps `country` / `countryName` on the official roster |
@@ -70,6 +70,8 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `guides_page.js` | `/guides` index and `/guides/:slug` article pages |
 | `demolish_refund.js` | Pure demolish-refund filter, math, and dataset builder |
 | `demolish_refund_page.js` | `/tools/demolish-refund` calculator shell (vanilla JS + static JSON) |
+| `crafting_cost.js` | Pure crafting-cost filter, math, and dataset builder |
+| `crafting_cost_page.js` | `/tools/crafting-cost` calculator shell (vanilla JS + static JSON) |
 | `heatmap_svg.js` | Renders peak-time/downtime grids as inline SVG |
 | `badge.js` | The embeddable live-status SVG badge |
 | `local_fetch.js` | Shared "fetch JSON from discovery, never throw" helper |

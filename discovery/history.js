@@ -31,6 +31,15 @@ const {
 } = require('./incidents.js');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const CHANGE_EVENT_RETENTION_DAYS = 90;
+const CHANGE_EVENT_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+
+const WATCHED_CHANGE_FIELDS = [
+  { key: 'version', eventType: 'version_change' },
+  { key: 'map', eventType: 'map_change' },
+  { key: 'maxPlayers', eventType: 'capacity_change' },
+];
+const DAY_FIELD = 'day';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS snapshot_runs (
@@ -92,6 +101,30 @@ CREATE TABLE IF NOT EXISTS incident_status (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   payload TEXT NOT NULL,
   computed_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS server_change_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  server_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  field TEXT,
+  old_value TEXT,
+  new_value TEXT,
+  detected_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_server_change_events_server ON server_change_events(server_id, detected_at DESC);
+
+CREATE TABLE IF NOT EXISTS server_change_state (
+  server_id TEXT NOT NULL,
+  field TEXT NOT NULL,
+  confirmed_value TEXT,
+  pending_value TEXT,
+  PRIMARY KEY (server_id, field)
+);
+
+CREATE TABLE IF NOT EXISTS change_event_prune_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  pruned_at TEXT NOT NULL
 );
 `;
 
@@ -156,6 +189,184 @@ function getChangeLog(db, serverId, { limit = 20 } = {}) {
     .map((r) => ({ seenAt: r.seen_at, changeType: r.change_type, oldValue: r.old_value, newValue: r.new_value }));
 }
 
+function serializeChangeValue(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : null;
+  const text = String(value);
+  return text.length > 0 ? text : null;
+}
+
+function loadLastRunServerIds(db) {
+  const lastRun = db.prepare('SELECT id FROM snapshot_runs ORDER BY id DESC LIMIT 1').get();
+  if (!lastRun) return new Set();
+  return new Set(db.prepare('SELECT server_id FROM server_snapshots WHERE run_id = ?').all(lastRun.id).map((r) => r.server_id));
+}
+
+function loadChangeStateByServer(db) {
+  const byServer = new Map();
+  for (const row of db.prepare('SELECT server_id, field, confirmed_value, pending_value FROM server_change_state').all()) {
+    let fields = byServer.get(row.server_id);
+    if (!fields) {
+      fields = new Map();
+      byServer.set(row.server_id, fields);
+    }
+    fields.set(row.field, { confirmed: row.confirmed_value ?? null, pending: row.pending_value ?? null });
+  }
+  return byServer;
+}
+
+function nextFieldState(prev, incoming, isFreshBaseline) {
+  const confirmed = prev ? prev.confirmed : null;
+  const pending = prev ? prev.pending : null;
+  if (isFreshBaseline) return { confirmed: incoming, pending: null, changed: true };
+  if (incoming === null) return { confirmed, pending: null, changed: pending !== null };
+  if (confirmed === null) return { confirmed: incoming, pending: null, changed: incoming !== null || pending !== null };
+  if (incoming === confirmed) return { confirmed, pending: null, changed: pending !== null };
+  if (pending !== null && incoming === pending) {
+    return { confirmed: incoming, pending: null, changed: true, confirmedChange: { oldValue: confirmed, newValue: incoming } };
+  }
+  return { confirmed, pending: incoming, changed: pending !== incoming };
+}
+
+function qualifiesAsProbableWipe(oldValue, newValue) {
+  const oldDay = Number(oldValue);
+  const newDay = Number(newValue);
+  return Number.isFinite(oldDay) && Number.isFinite(newDay) && oldDay >= 3 && newDay === 1;
+}
+
+function detectStableChanges(db, servers, runAt) {
+  const presentLastCycle = loadLastRunServerIds(db);
+  const stateByServer = loadChangeStateByServer(db);
+  const events = [];
+  const stateWrites = [];
+
+  for (const server of servers) {
+    if (!server || !server.id) continue;
+    const isFreshBaseline = !presentLastCycle.has(server.id);
+    const prevFields = stateByServer.get(server.id) || new Map();
+
+    for (const { key, eventType } of WATCHED_CHANGE_FIELDS) {
+      const incoming = serializeChangeValue(server[key]);
+      const next = nextFieldState(prevFields.get(key), incoming, isFreshBaseline);
+      if (next.confirmedChange) {
+        events.push({
+          serverId: server.id,
+          eventType,
+          field: key,
+          oldValue: next.confirmedChange.oldValue,
+          newValue: next.confirmedChange.newValue,
+        });
+      }
+      if (next.changed || !prevFields.has(key)) {
+        stateWrites.push({
+          serverId: server.id,
+          field: key,
+          confirmedValue: next.confirmed,
+          pendingValue: next.pending,
+        });
+      }
+    }
+
+    const incomingDay = serializeChangeValue(server.day);
+    const nextDay = nextFieldState(prevFields.get(DAY_FIELD), incomingDay, isFreshBaseline);
+    if (nextDay.confirmedChange && qualifiesAsProbableWipe(nextDay.confirmedChange.oldValue, nextDay.confirmedChange.newValue)) {
+      events.push({
+        serverId: server.id,
+        eventType: 'probable_wipe',
+        field: null,
+        oldValue: nextDay.confirmedChange.oldValue,
+        newValue: nextDay.confirmedChange.newValue,
+      });
+    }
+    if (nextDay.changed || !prevFields.has(DAY_FIELD)) {
+      stateWrites.push({
+        serverId: server.id,
+        field: DAY_FIELD,
+        confirmedValue: nextDay.confirmed,
+        pendingValue: nextDay.pending,
+      });
+    }
+  }
+
+  persistChangeResults(db, events, stateWrites, runAt);
+  return events;
+}
+
+function persistChangeResults(db, events, stateWrites, runAt) {
+  if (events.length === 0 && stateWrites.length === 0) return;
+  const insertEvent = db.prepare(
+    'INSERT INTO server_change_events (server_id, event_type, field, old_value, new_value, detected_at) VALUES (?, ?, ?, ?, ?, ?)'
+  );
+  const upsertState = db.prepare(
+    `INSERT INTO server_change_state (server_id, field, confirmed_value, pending_value)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(server_id, field) DO UPDATE SET
+       confirmed_value = excluded.confirmed_value,
+       pending_value = excluded.pending_value`
+  );
+  db.exec('BEGIN');
+  try {
+    for (const event of events) {
+      insertEvent.run(event.serverId, event.eventType, event.field, event.oldValue, event.newValue, runAt);
+    }
+    for (const row of stateWrites) {
+      upsertState.run(row.serverId, row.field, row.confirmedValue, row.pendingValue);
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // already rolled back or not in a transaction
+    }
+    throw err;
+  }
+}
+
+function getChangeEvents(db, serverId, { limit = 10 } = {}) {
+  return db
+    .prepare(
+      `SELECT event_type, field, old_value, new_value, detected_at
+       FROM server_change_events
+       WHERE server_id = ?
+       ORDER BY detected_at DESC, id DESC
+       LIMIT ?`
+    )
+    .all(serverId, limit)
+    .map((r) => ({
+      eventType: r.event_type,
+      field: r.field,
+      oldValue: r.old_value,
+      newValue: r.new_value,
+      detectedAt: r.detected_at,
+    }));
+}
+
+function pruneChangeEvents(db, beforeIso) {
+  const removed = db.prepare('DELETE FROM server_change_events WHERE detected_at < ?').run(beforeIso).changes;
+  return { eventsRemoved: removed };
+}
+
+function maybePruneChangeEvents(db, nowIso) {
+  const nowMs = Date.parse(nowIso);
+  if (!Number.isFinite(nowMs)) return { eventsRemoved: 0, skipped: true };
+  const row = db.prepare('SELECT pruned_at FROM change_event_prune_state WHERE id = 1').get();
+  if (row && row.pruned_at) {
+    const lastMs = Date.parse(row.pruned_at);
+    if (Number.isFinite(lastMs) && nowMs - lastMs < CHANGE_EVENT_PRUNE_INTERVAL_MS) {
+      return { eventsRemoved: 0, skipped: true };
+    }
+  }
+  const beforeIso = new Date(nowMs - CHANGE_EVENT_RETENTION_DAYS * DAY_MS).toISOString();
+  const result = pruneChangeEvents(db, beforeIso);
+  db.prepare(
+    `INSERT INTO change_event_prune_state (id, pruned_at) VALUES (1, ?)
+     ON CONFLICT(id) DO UPDATE SET pruned_at = excluded.pruned_at`
+  ).run(nowIso);
+  return { ...result, skipped: false, beforeIso };
+}
+
 function getRecentWipes(db, { sinceIso, limit = 5000 } = {}) {
   const rows = sinceIso
     ? db
@@ -183,6 +394,7 @@ function recordSnapshotRun(db, servers, { now = () => new Date().toISOString() }
   const runAt = now();
 
   detectAndLogChanges(db, servers, runAt); // must run before inserting this run's rows
+  detectStableChanges(db, servers, runAt); // two-cycle events; also needs the previous run
 
   const insertRun = db.prepare('INSERT INTO snapshot_runs (run_at) VALUES (?)');
   const runInfo = insertRun.run(runAt);
@@ -195,6 +407,8 @@ function recordSnapshotRun(db, servers, { now = () => new Date().toISOString() }
     if (!s.id) continue; // defensive — never let one bad record break the whole run
     insertServer.run(runId, s.id, runAt, s.playersNow ?? null, s.maxPlayers ?? null, s.day ?? null, s.version ?? null, s.wildcardReportedPing ?? null);
   }
+
+  maybePruneChangeEvents(db, runAt);
 
   return { runId, runAt, serverCount: servers.length };
 }
@@ -737,7 +951,12 @@ module.exports = {
   openHistoryDb,
   recordSnapshotRun,
   detectAndLogChanges,
+  detectStableChanges,
   getChangeLog,
+  getChangeEvents,
+  pruneChangeEvents,
+  maybePruneChangeEvents,
+  CHANGE_EVENT_RETENTION_DAYS,
   getRecentWipes,
   computeUptimePercent,
   getServerHistory,

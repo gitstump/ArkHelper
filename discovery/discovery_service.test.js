@@ -311,6 +311,7 @@ test('GET /history/:id returns uptime and history for a tracked server', async (
   assert.equal(body.uptime.totalRuns, 1);
   assert.equal(body.history.length, 1);
   assert.deepEqual(body.changeLog, []); // first sighting, nothing to compare against yet
+  assert.deepEqual(body.changeEvents, []);
   assert.equal(body.peakTimes.length, 168);
   assert.equal(body.downtimePatterns.length, 168);
 

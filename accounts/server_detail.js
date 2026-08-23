@@ -6,9 +6,10 @@
  *
  * The per-server page — reached by clicking a server name in the
  * browser. Shows everything the roster knows about it, uptime %, a
- * simple history table, a rank-neighborhood table, alert configuration
- * (feed + optional Discord webhook), peak-times and downtime-pattern
- * heatmaps, a wipe/version change log, and an embeddable status badge.
+ * simple history table, a rank-neighborhood table, recent two-cycle
+ * change events, alert configuration (feed + optional Discord webhook),
+ * peak-times and downtime-pattern heatmaps, a wipe/version change log,
+ * and an embeddable status badge.
  *
  * Same pattern as the rest of the accounts service: pure render
  * function for testability, server-side HTML, no client JS needed.
@@ -70,6 +71,64 @@ function lookupServerName(serverNames, serverId) {
   return typeof name === 'string' && name ? name : null;
 }
 
+function isEnabledChangeValue(value) {
+  const text = String(value ?? '').toLowerCase();
+  return text === 'true' || text === '1' || text === 'enabled' || text === 'yes';
+}
+
+function transferKind(field) {
+  const text = String(field || '').toLowerCase();
+  if (text.includes('item')) return 'item';
+  if (text.includes('char')) return 'character';
+  return null;
+}
+
+function renderChangeEventRow(event) {
+  const e = event && typeof event === 'object' ? event : {};
+  const ts = escapeHtml(String(e.detectedAt ?? ''));
+  const oldValue = escapeHtml(String(e.oldValue ?? ''));
+  const newValue = escapeHtml(String(e.newValue ?? ''));
+  const stamp = ts ? ` <span class="note">(${ts})</span>` : '';
+  switch (e.eventType) {
+    case 'version_change':
+      return `<li><strong>Version</strong> \u2014 Updated from ${oldValue} to ${newValue}${stamp}</li>`;
+    case 'transfer_change': {
+      const kind = transferKind(e.field);
+      const enabled = isEnabledChangeValue(e.newValue);
+      if (kind === 'item') {
+        return `<li><strong>Item transfers</strong> \u2014 Item transfers ${enabled ? 'enabled' : 'disabled'}${stamp}</li>`;
+      }
+      return `<li><strong>Character transfers</strong> \u2014 Character transfers ${enabled ? 'enabled' : 'disabled'}${stamp}</li>`;
+    }
+    case 'map_change':
+      return `<li><strong>Map</strong> \u2014 Map changed from ${oldValue} to ${newValue}${stamp}</li>`;
+    case 'capacity_change':
+      return `<li><strong>Capacity</strong> \u2014 Player slots changed from ${oldValue} to ${newValue}${stamp}</li>`;
+    case 'probable_wipe':
+      return `<li><strong>Probable wipe</strong> \u2014 Possible wipe \u2014 world day reset from ${oldValue} to day 1${stamp}</li>`;
+    default:
+      return '';
+  }
+}
+
+function renderRecentChangesSection(changeEvents) {
+  const events = Array.isArray(changeEvents) ? changeEvents.slice(0, 10) : [];
+  const heading = `<h2>Recent changes</h2>
+  <p>Configuration and world changes we've observed on this server. A change is recorded only after it holds for two polling cycles, so brief glitches during a restart aren't logged here.</p>`;
+  if (events.length === 0) {
+    return `${heading}
+  <p>No changes observed yet. This server's settings have held steady since we started tracking it.</p>`;
+  }
+  const rows = events.map(renderChangeEventRow).filter(Boolean).join('');
+  const hasWipe = events.some((e) => e && e.eventType === 'probable_wipe');
+  const footnote = hasWipe
+    ? `<p class="note">Wipes are inferred from a world day reset, not confirmed by the server. A day reset can also follow a save restore.</p>`
+    : '';
+  return `${heading}
+  <ul class="change-log">${rows}</ul>
+  ${footnote}`;
+}
+
 function renderRankNeighborhoodSection(rankNeighborhood, currentServerId, serverNames) {
   const ranking = rankNeighborhood && rankNeighborhood.ranking;
   if (!ranking) return '';
@@ -107,7 +166,7 @@ function renderRankNeighborhoodSection(rankNeighborhood, currentServerId, server
   </table>`;
 }
 
-function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, peakTimes, downtimePatterns, badgeUrl, account = null, live = null, origin, rankNeighborhood = null, serverNames = null } = {}) {
+function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, changeEvents, peakTimes, downtimePatterns, badgeUrl, account = null, live = null, origin, rankNeighborhood = null, serverNames = null } = {}) {
   const modList = server.modIds && server.modIds.length ? server.modIds.map((id) => escapeHtml(id)).join(', ') : 'None (vanilla server)';
 
   const favoriteSection = !loggedIn
@@ -244,6 +303,8 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
   ${downtimeSection}
 
   ${rankNeighborhoodSection}
+
+  ${renderRecentChangesSection(changeEvents)}
 
   <p><a href="/compare?s=${encodeURIComponent(server.id || '')}">Compare this server</a></p>
 

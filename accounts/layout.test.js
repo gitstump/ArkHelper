@@ -76,6 +76,7 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
   assert.match(html, />Guides<\/a>/);
   assert.match(html, /<summary class="">Tools<\/summary>/);
+  assert.match(html, /href="\/tools\/crafting-cost"/);
   assert.match(html, /href="\/tools\/demolish-refund"/);
   assert.match(html, />Alerts<\/a>/);
   assert.match(html, />Favorites<\/a>/);
@@ -116,6 +117,12 @@ test('renderNav marks the Tools group active on the demolish-refund page', () =>
   const html = renderNav('/tools/demolish-refund');
   assert.match(html, /<summary class="active">Tools<\/summary>/);
   assert.match(html, /class="active" href="\/tools\/demolish-refund"/);
+});
+
+test('renderNav marks the Tools group active on the crafting-cost page', () => {
+  const html = renderNav('/tools/crafting-cost');
+  assert.match(html, /<summary class="active">Tools<\/summary>/);
+  assert.match(html, /class="active" href="\/tools\/crafting-cost"/);
 });
 
 test('renderNav marks Alerts active on the feed and keeps it a plain link', () => {
@@ -168,6 +175,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/compare">Compare/);
   assert.match(html, /href="\/maps">Maps/);
   assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /href="\/tools\/crafting-cost">Crafting Cost/);
   assert.match(html, /href="\/tools\/demolish-refund">Demolish Refund/);
   assert.match(html, /href="\/lists\/official-pve">Official PvE/);
   assert.match(html, /href="\/lists\/official-pvp">Official PvP/);
