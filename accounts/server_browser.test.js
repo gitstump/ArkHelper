@@ -783,7 +783,7 @@ test('unofficial rows render without rank/uptime and may show a seen-rate', () =
     },
     { source: 'unofficial', cyclesTotal: 4 }
   );
-  assert.doesNotMatch(html, /href="\/servers\/u1"/);
+  assert.match(html, /href="\/servers\/u1"/);
   assert.match(html, /Community Box/);
   const cells = [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
   assert.equal(cells[8], '75%');
@@ -852,7 +852,7 @@ test('renderBrowserPage unofficial source uses Seen header and keeps filters wor
   assert.match(html, />Seen</);
   assert.doesNotMatch(html, />Uptime</);
   assert.match(html, /Community Box/);
-  assert.doesNotMatch(html, /href="\/servers\/u1"/);
+  assert.match(html, /href="\/servers\/u1"/);
   assert.match(html, /name="source" value="unofficial"/);
   assert.match(html, /<p class="counters">Showing 1 unofficial servers/);
   assert.match(html, /4 players on them/);

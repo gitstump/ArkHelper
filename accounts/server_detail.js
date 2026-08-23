@@ -323,8 +323,122 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
   });
 }
 
+const UNOFFICIAL_ABSENT_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+function formatLastSeenDate(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const day = iso.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : iso;
+}
+
+function unofficialAbsentNotice(lastSeen, now = Date.now) {
+  const nowMs = typeof now === 'function' ? now() : now;
+  const seenMs = Date.parse(lastSeen);
+  if (!Number.isFinite(nowMs) || !Number.isFinite(seenMs)) return '';
+  if (nowMs - seenMs <= UNOFFICIAL_ABSENT_AFTER_MS) return '';
+  const date = formatLastSeenDate(lastSeen);
+  if (!date) return '';
+  return `<p>This server hasn't appeared in the server list since ${escapeHtml(date)}. It may have been taken offline.</p>`;
+}
+
+function escapedFactRow(label, text) {
+  if (text == null || text === '') return '';
+  return `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(String(text))}</td></tr>`;
+}
+
+function unofficialPlayersText(server) {
+  const now = server && server.playersNow;
+  const max = server && server.maxPlayers;
+  const nowOk = typeof now === 'number' && Number.isFinite(now);
+  const maxOk = typeof max === 'number' && Number.isFinite(max);
+  if (!nowOk && !maxOk) return '';
+  return `${nowOk ? now : '\u2014'} / ${maxOk ? max : '\u2014'}`;
+}
+
+function unofficialModeText(server) {
+  if (server && server.gameMode === 'pve') return 'PvE';
+  if (server && server.gameMode === 'pvp') return 'PvP';
+  return '';
+}
+
+function unofficialPingText(server) {
+  const ping =
+    server && typeof server.ping === 'number' && Number.isFinite(server.ping)
+      ? server.ping
+      : server && typeof server.wildcardReportedPing === 'number' && Number.isFinite(server.wildcardReportedPing)
+        ? server.wildcardReportedPing
+        : null;
+  return ping == null ? '' : String(ping);
+}
+
+function unofficialPasswordText(server) {
+  if (!server) return '';
+  if (server.hasPassword === true) return 'Yes';
+  if (server.hasPassword === false) return 'No';
+  return '';
+}
+
+function unofficialPlatformCell(server) {
+  const raw = server && server.platformType;
+  if (!raw) return '';
+  const badge = platformBadge(raw);
+  return badge ? `<span class="platform-badge">${escapeHtml(badge)}</span> ${escapeHtml(raw)}` : escapeHtml(raw);
+}
+
+function unofficialCountryRow(server) {
+  const code = normalizeCountryCode(server && server.country);
+  const name = countryDisplayName(server || {});
+  if (!code || !name) return '';
+  const flag = flagEmoji(code);
+  const label = flag ? `${flag} ${escapeHtml(name)}` : escapeHtml(name);
+  return `<tr><td>Country</td><td>${label}</td></tr>`;
+}
+
+function renderUnofficialFacts(server) {
+  const s = server && typeof server === 'object' ? server : {};
+  const platformCell = unofficialPlatformCell(s);
+  const platformRow = platformCell ? `<tr><td>Platforms</td><td>${platformCell}</td></tr>` : '';
+  return `<table class="facts">
+    ${escapedFactRow('Players', unofficialPlayersText(s))}
+    ${escapedFactRow('Map', s.map)}
+    ${escapedFactRow('Mode', unofficialModeText(s))}
+    ${escapedFactRow('Version', s.version)}
+    ${escapedFactRow('Ping', unofficialPingText(s))}
+    ${platformRow}
+    ${escapedFactRow('Password protected', unofficialPasswordText(s))}
+    ${transferFactRow('Character transfers', s.allowCharTransfers)}
+    ${transferFactRow('Item transfers', s.allowItemTransfers)}
+    ${unofficialCountryRow(s)}
+    ${escapedFactRow('Last seen', s.lastSeen)}
+  </table>`;
+}
+
+function renderUnofficialServerDetailPage({
+  server,
+  changeEvents,
+  account = null,
+  live = null,
+  now = Date.now,
+} = {}) {
+  const s = server && typeof server === 'object' ? server : {};
+  return renderPage({
+    title: `ArkHelper \u2014 ${s.name || 'Server'}`,
+    currentPath: `/servers/${s.id || ''}`,
+    account,
+    live,
+    extraCss: PAGE_CSS,
+    body: `<h1><a href="/servers">Servers</a> &rsaquo; ${escapeHtml(s.name || '(unnamed)')}</h1>
+
+  ${unofficialAbsentNotice(s.lastSeen, now)}
+  ${renderUnofficialFacts(s)}
+
+  ${renderRecentChangesSection(changeEvents)}`,
+  });
+}
+
 module.exports = {
   renderServerDetailPage,
+  renderUnofficialServerDetailPage,
   renderServerNotFoundPage,
   renderRosterUnavailablePage,
 };

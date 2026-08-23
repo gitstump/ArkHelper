@@ -13,6 +13,8 @@ const {
   getLastCycleServerKeys,
   getUnofficialMeta,
   getUnofficialServer,
+  toUnofficialServerView,
+  explainUnofficialServerLookup,
   getUnknownModIds,
   getStaleModIds,
   upsertMods,
@@ -457,4 +459,40 @@ test('in-memory cycles_seen matches post-upsert count without a per-server SELEC
   assert.equal(getUnofficialServer(db, 'a').cycles_seen, 2);
   assert.equal(getUnofficialServer(db, 'b').cycles_seen, 1);
   assert.equal(stats.perServerSelect, 0);
+});
+
+test('toUnofficialServerView maps persisted columns and omits in-memory-only fields', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(db, [sample('sess-1', { name: 'Community Box', ping: 40, hasPassword: true })], {
+    now: () => '2026-08-16T00:00:00.000Z',
+  });
+  const view = toUnofficialServerView(getUnofficialServer(db, 'sess-1'));
+  assert.deepEqual(view, {
+    id: 'sess-1',
+    name: 'Community Box',
+    map: 'TheIsland_WP',
+    gameMode: 'pve',
+    playersNow: 3,
+    maxPlayers: 20,
+    version: '92.41',
+    platformType: 'PC',
+    ping: 40,
+    hasPassword: true,
+    firstSeen: '2026-08-16T00:00:00.000Z',
+    lastSeen: '2026-08-16T00:00:00.000Z',
+    cyclesSeen: 1,
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(view, 'day'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(view, 'allowCharTransfers'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(view, 'allowItemTransfers'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(view, 'country'), false);
+});
+
+test('unofficial server lookup uses the primary-key index', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(db, [sample('sess-1')], { now: () => '2026-08-16T00:00:00.000Z' });
+  const plan = explainUnofficialServerLookup(db, 'sess-1');
+  const detail = plan.map((row) => row.detail).join('\n');
+  assert.match(detail, /SEARCH unofficial_servers/);
+  assert.doesNotMatch(detail, /SCAN unofficial_servers/);
 });

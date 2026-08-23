@@ -368,11 +368,12 @@ function fakeBrowserDeps(roster = null) {
   return { fetchJsonSafe: async () => roster };
 }
 
-function fakeDetailDeps({ roster = null, historyData = null, rankingData = null } = {}) {
+function fakeDetailDeps({ roster = null, historyData = null, rankingData = null, unofficialServer = null } = {}) {
   return {
     fetchJsonSafe: async (url) => {
       if (url.includes('/history/')) return historyData;
       if (url.includes('/rankings/')) return rankingData;
+      if (url.includes('/unofficial/server/')) return unofficialServer;
       return roster;
     },
   };
@@ -698,6 +699,73 @@ test('GET /servers/:id returns 404 for an id not in the roster', async () => {
   assert.equal(res.status, 404);
   const html = await res.text();
   assert.match(html, /not found/i);
+
+  server.close();
+});
+
+test('GET /servers/:id renders a persisted unofficial server with recent changes', async () => {
+  const db = openDb(':memory:');
+  const unofficialServer = {
+    id: 'u-sess-1',
+    name: 'Community Box',
+    map: 'TheIsland_WP',
+    gameMode: 'pve',
+    playersNow: 4,
+    maxPlayers: 20,
+    version: '92.41',
+    ping: 40,
+    lastSeen: '2026-08-23T12:00:00.000Z',
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    detailDeps: fakeDetailDeps({
+      roster: { servers: [] },
+      unofficialServer,
+      historyData: {
+        changeEvents: [
+          { eventType: 'version_change', field: 'version', oldValue: '92.45', newValue: '92.47', detectedAt: 'now' },
+        ],
+      },
+    }),
+  });
+
+  const res = await fetch(`${base}/servers/u-sess-1`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /Community Box/);
+  assert.match(html, /<td>Players<\/td><td>4 \/ 20<\/td>/);
+  assert.match(html, /Updated from 92\.45 to 92\.47/);
+  assert.doesNotMatch(html, /<h2>Uptime<\/h2>/);
+  assert.doesNotMatch(html, /<h2>Recent history<\/h2>/);
+
+  server.close();
+});
+
+test('GET /servers/:id still prefers the official roster when the id exists there', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    detailDeps: fakeDetailDeps({
+      roster: { servers: [{ id: 'abc', name: 'EU-PVE-TheIsland5313', map: 'TheIsland_WP', gameMode: 'pve', modIds: [] }] },
+      unofficialServer: { id: 'abc', name: 'Should Not Win', lastSeen: '2026-08-23T12:00:00.000Z' },
+      historyData: { uptime: { uptimePercent: 100, totalRuns: 3, presentCount: 3 }, history: [] },
+    }),
+  });
+
+  const res = await fetch(`${base}/servers/abc`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /Should Not Win/);
+  assert.match(html, /<h2>Uptime<\/h2>/);
 
   server.close();
 });
@@ -2686,6 +2754,8 @@ test('GET /lists/recently-wiped merges unofficial wipes and filters by type', as
   assert.match(allHtml, /Community Fresh/);
   assert.match(allHtml, /<span class="wipe-type">Official<\/span>/);
   assert.match(allHtml, /<span class="wipe-type">Unofficial<\/span>/);
+  assert.match(allHtml, /href="\/servers\/comm-1"/);
+  assert.match(allHtml, /href="\/servers\/pve"/);
 
   const official = await fetch(`${base}/lists/recently-wiped?type=official`);
   const officialHtml = await official.text();
@@ -2695,6 +2765,7 @@ test('GET /lists/recently-wiped merges unofficial wipes and filters by type', as
   const unofficial = await fetch(`${base}/lists/recently-wiped?type=unofficial`);
   const unofficialHtml = await unofficial.text();
   assert.match(unofficialHtml, /Community Fresh/);
+  assert.match(unofficialHtml, /href="\/servers\/comm-1"/);
   assert.doesNotMatch(unofficialHtml, /EU-PVE-TheIsland5313/);
 
   server.close();
@@ -2856,7 +2927,7 @@ test('GET /servers?source=unofficial lists unofficial servers without rank/uptim
   assert.equal(res.status, 200);
   assert.match(html, /Community Box/);
   assert.doesNotMatch(html, /EU-PVE-TheIsland5313/);
-  assert.doesNotMatch(html, /href="\/servers\/u1"/);
+  assert.match(html, /href="\/servers\/u1"/);
   assert.match(html, />Seen</);
   assert.match(html, /75%/);
 

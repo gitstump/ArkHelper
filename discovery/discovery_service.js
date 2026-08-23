@@ -69,6 +69,8 @@ const {
   recordUnofficialFetchFailure,
   getLastCycleServerKeys,
   getUnofficialMeta,
+  getUnofficialServer,
+  toUnofficialServerView,
   getUnknownModIds,
   getStaleModIds,
   upsertMods,
@@ -101,6 +103,7 @@ const DISCOVERY_ROUTES = [
   '/roster/meta',
   '/unofficial/roster',
   '/unofficial/meta',
+  '/unofficial/server/:id',
   '/history/wipes',
   '/history/:id',
   '/leaderboards/uptime',
@@ -739,6 +742,30 @@ function createRosterServer({
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
       });
+      res.end(body);
+      return;
+    }
+
+    const unofficialServerMatch = parsedUrl.pathname.match(/^\/unofficial\/server\/([^/]+)$/);
+    if (unofficialServerMatch) {
+      if (!unofficialDb) {
+        const body = JSON.stringify({ error: 'not found' });
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(body);
+        return;
+      }
+      let serverKey;
+      try {
+        serverKey = decodeURIComponent(unofficialServerMatch[1]);
+      } catch {
+        const body = JSON.stringify({ error: 'not found' });
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(body);
+        return;
+      }
+      const view = toUnofficialServerView(getUnofficialServer(unofficialDb, serverKey));
+      const body = JSON.stringify(view || { error: 'not found' });
+      res.writeHead(view ? 200 : 404, { 'Content-Type': 'application/json' });
       res.end(body);
       return;
     }

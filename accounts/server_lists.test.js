@@ -281,6 +281,8 @@ test('recently-wiped merged list tags both types and filters by type', () => {
   assert.match(html, /Community Wipe/);
   assert.match(html, /<span class="wipe-type">Official<\/span>/);
   assert.match(html, /<span class="wipe-type">Unofficial<\/span>/);
+  assert.match(html, /href="\/servers\/un-1"/);
+  assert.match(html, /href="\/servers\/off-1"/);
   assert.match(html, /aria-label="Wipe source"/);
   assert.match(html, /href="\/lists\/recently-wiped" class="active">All</);
   assert.match(html, /href="\/lists\/recently-wiped\?type=official">Official</);
@@ -319,6 +321,7 @@ test('recently-wiped merged list tags both types and filters by type', () => {
     rosterAvailable: true,
   });
   assert.match(unofficialHtml, /Community Wipe/);
+  assert.match(unofficialHtml, /href="\/servers\/un-1"/);
   assert.doesNotMatch(unofficialHtml, /EU-Official-Wipe/);
 });
 

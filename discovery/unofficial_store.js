@@ -253,6 +253,29 @@ function getUnofficialServer(db, serverKey) {
   return db.prepare('SELECT * FROM unofficial_servers WHERE server_key = ?').get(serverKey) || null;
 }
 
+function toUnofficialServerView(row) {
+  if (!row) return null;
+  return {
+    id: row.server_key,
+    name: row.name ?? null,
+    map: row.map ?? null,
+    gameMode: row.game_mode ?? null,
+    playersNow: row.players_now ?? null,
+    maxPlayers: row.max_players ?? null,
+    version: row.version ?? null,
+    platformType: row.platform ?? null,
+    ping: row.ping ?? null,
+    hasPassword: row.has_password === 1 ? true : row.has_password === 0 ? false : null,
+    firstSeen: row.first_seen ?? null,
+    lastSeen: row.last_seen ?? null,
+    cyclesSeen: row.cycles_seen ?? null,
+  };
+}
+
+function explainUnofficialServerLookup(db, serverKey = 'x') {
+  return db.prepare('EXPLAIN QUERY PLAN SELECT * FROM unofficial_servers WHERE server_key = ?').all(serverKey);
+}
+
 function getUnknownModIds(db, limit = 200) {
   const cap = Number.isInteger(limit) && limit > 0 ? limit : 200;
   const rows = db.prepare(`
@@ -434,6 +457,8 @@ module.exports = {
   getLastCycleServerKeys,
   getUnofficialMeta,
   getUnofficialServer,
+  toUnofficialServerView,
+  explainUnofficialServerLookup,
   getUnknownModIds,
   getStaleModIds,
   upsertMods,

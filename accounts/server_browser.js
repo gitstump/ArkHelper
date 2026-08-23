@@ -471,9 +471,7 @@ function renderServerRow(s, { showWipeDate = false, showWipeType = false, source
     showWipeDate && s.wipeDetectedAt
       ? `<div class="wipe-meta">Wiped ${escapeHtml(formatWipeDate(s.wipeDetectedAt))} \u00b7 Day ${escapeHtml(dash(s.day))}</div>`
       : '';
-  const nameHtml = unofficial
-    ? escapeHtml(s.name || '(unnamed)')
-    : `<a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a>`;
+  const nameHtml = `<a href="/servers/${encodeURIComponent(s.id || '')}">${escapeHtml(s.name || '(unnamed)')}</a>`;
   const selectCell = showCompare
     ? `<td><input type="checkbox" name="s" value="${escapeHtml(String(s.id || ''))}" aria-label="Select for comparison"></td>`
     : '';

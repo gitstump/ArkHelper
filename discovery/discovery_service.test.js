@@ -234,7 +234,7 @@ test('roster HTTP server 404s on unknown routes with a helpful body', async () =
   const res = await fetch(`http://127.0.0.1:${port}/nonsense`);
   const body = await res.json();
   assert.equal(res.status, 404);
-  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status', '/rates', '/news', '/mods/summary', '/mods/:id']);
+  assert.deepEqual(body.routes, ['/roster', '/roster/meta', '/unofficial/roster', '/unofficial/meta', '/unofficial/server/:id', '/history/wipes', '/history/:id', '/leaderboards/uptime', '/rankings', '/rankings/:id', '/incidents/status', '/rates', '/news', '/mods/summary', '/mods/:id']);
 
   server.close();
 });
@@ -715,6 +715,37 @@ test('GET /unofficial/roster is 503 before the first good fetch; meta still has 
   assert.equal(meta.lastFetchAt, null);
   assert.equal(meta.lastFetchStatus, null);
   assert.equal(meta.trackedTotal, 0);
+
+  server.close();
+});
+
+test('GET /unofficial/server/:id returns persisted latest-state and 404s unknown ids', async () => {
+  const file = tmpFile('roster.json');
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  await refreshUnofficialCycle({
+    unofficialState,
+    unofficialDb,
+    fetchUnofficial: async () => fakeUnofficialServers(),
+    now: () => '2026-08-16T11:00:00.000Z',
+  });
+
+  const server = createRosterServer({ outPath: file, unofficialState, unofficialDb });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+  const firstId = fakeUnofficialServers().servers[0].id;
+
+  const found = await fetch(`http://127.0.0.1:${port}/unofficial/server/${encodeURIComponent(firstId)}`);
+  const body = await found.json();
+  assert.equal(found.status, 200);
+  assert.equal(body.id, firstId);
+  assert.equal(body.name, 'Community PvE');
+  assert.equal(body.lastSeen, '2026-08-16T11:00:00.000Z');
+  assert.equal(Object.prototype.hasOwnProperty.call(body, 'day'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(body, 'allowCharTransfers'), false);
+
+  const missing = await fetch(`http://127.0.0.1:${port}/unofficial/server/does-not-exist`);
+  assert.equal(missing.status, 404);
 
   server.close();
 });

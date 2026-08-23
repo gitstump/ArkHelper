@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { renderServerDetailPage, renderServerNotFoundPage, renderRosterUnavailablePage } = require('./server_detail.js');
+const { renderServerDetailPage, renderUnofficialServerDetailPage, renderServerNotFoundPage, renderRosterUnavailablePage } = require('./server_detail.js');
 
 function makeServer(overrides = {}) {
   return {
@@ -535,4 +535,140 @@ test('renderServerDetailPage escapes hostile Recent changes values', () => {
   });
   assert.doesNotMatch(html, /<script>x<\/script>/);
   assert.match(html, /Updated from &lt;script&gt;x&lt;\/script&gt; to 1\.0/);
+});
+
+function makeUnofficialServer(overrides = {}) {
+  return {
+    id: 'u-sess-1',
+    name: 'Community Box',
+    map: 'TheIsland_WP',
+    gameMode: 'pve',
+    playersNow: 4,
+    maxPlayers: 20,
+    version: '92.41',
+    platformType: 'PC',
+    ping: 40,
+    hasPassword: false,
+    lastSeen: '2026-08-23T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function officialOnlySections() {
+  return [
+    /<h2>Uptime<\/h2>/,
+    /<h2>Recent history<\/h2>/,
+    /<h2>Activity log<\/h2>/,
+    /<h2>Peak times<\/h2>/,
+    /<h2>Downtime patterns<\/h2>/,
+    /Rank neighborhood/,
+    /Compare this server/,
+    /Embed this server/,
+    /Add to favorites/,
+    /Save alert settings/,
+  ];
+}
+
+test('renderUnofficialServerDetailPage shows persisted facts and omits history sections', () => {
+  const html = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer(),
+    changeEvents: [],
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.match(html, /Community Box/);
+  assert.match(html, /<td>Players<\/td><td>4 \/ 20<\/td>/);
+  assert.match(html, /<td>Map<\/td><td>TheIsland_WP<\/td>/);
+  assert.match(html, />PvE</);
+  assert.match(html, /<td>Version<\/td><td>92\.41<\/td>/);
+  assert.match(html, /<td>Ping<\/td><td>40<\/td>/);
+  assert.match(html, /<td>Last seen<\/td><td>2026-08-23T12:00:00\.000Z<\/td>/);
+  assert.match(html, /<h2>Recent changes<\/h2>/);
+  assert.doesNotMatch(html, /This server hasn't appeared in the server list/);
+  for (const pattern of officialOnlySections()) {
+    assert.doesNotMatch(html, pattern);
+  }
+});
+
+test('renderUnofficialServerDetailPage omits lines for fields that are not persisted', () => {
+  const html = renderUnofficialServerDetailPage({
+    server: {
+      id: 'u-sparse',
+      name: 'Sparse Box',
+      lastSeen: '2026-08-23T12:00:00.000Z',
+    },
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.doesNotMatch(html, /<td>Players<\/td>/);
+  assert.doesNotMatch(html, /<td>Map<\/td>/);
+  assert.doesNotMatch(html, /<td>Mode<\/td>/);
+  assert.doesNotMatch(html, /<td>Version<\/td>/);
+  assert.doesNotMatch(html, /<td>Ping<\/td>/);
+  assert.doesNotMatch(html, /<td>Platforms<\/td>/);
+  assert.doesNotMatch(html, /<td>Password protected<\/td>/);
+  assert.doesNotMatch(html, /<td>Character transfers<\/td>/);
+  assert.doesNotMatch(html, /<td>Item transfers<\/td>/);
+  assert.doesNotMatch(html, /<td>Country<\/td>/);
+  assert.doesNotMatch(html, /<td>Day<\/td>/);
+  assert.doesNotMatch(html, /N\/A/);
+  assert.match(html, /<td>Last seen<\/td>/);
+});
+
+test('renderUnofficialServerDetailPage renders Recent changes events and the empty state', () => {
+  const empty = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer(),
+    changeEvents: [],
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.match(empty, /<h2>Recent changes<\/h2>/);
+  assert.match(empty, /Configuration and world changes we've observed on this server. A change is recorded only after it holds for two polling cycles, so brief glitches during a restart aren't logged here./);
+  assert.match(empty, /No changes observed yet. This server's settings have held steady since we started tracking it./);
+  assert.doesNotMatch(empty, /Wipes are inferred from a world day reset/);
+
+  const withEvents = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer(),
+    changeEvents: [
+      { eventType: 'version_change', field: 'version', oldValue: '92.45', newValue: '92.47', detectedAt: '2026-08-22T10:00:00.000Z' },
+    ],
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.match(withEvents, /Updated from 92\.45 to 92\.47/);
+  assert.doesNotMatch(withEvents, /No changes observed yet/);
+});
+
+test('renderUnofficialServerDetailPage shows the probable_wipe footnote verbatim', () => {
+  const html = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer(),
+    changeEvents: [
+      { eventType: 'probable_wipe', field: null, oldValue: '45', newValue: '1', detectedAt: '2026-08-22T05:00:00.000Z' },
+    ],
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.match(html, /Possible wipe \u2014 world day reset from 45 to day 1/);
+  assert.match(html, /Wipes are inferred from a world day reset, not confirmed by the server. A day reset can also follow a save restore./);
+});
+
+test('renderUnofficialServerDetailPage shows the absent line only when last seen is over 7 days ago', () => {
+  const now = () => Date.parse('2026-08-23T12:00:00.000Z');
+  const stale = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer({ lastSeen: '2026-08-15T11:59:59.000Z' }),
+    now,
+  });
+  assert.match(
+    stale,
+    /This server hasn't appeared in the server list since 2026-08-15. It may have been taken offline./
+  );
+
+  const recent = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer({ lastSeen: '2026-08-16T12:00:00.000Z' }),
+    now,
+  });
+  assert.doesNotMatch(recent, /This server hasn't appeared in the server list/);
+});
+
+test('official detail page still includes official-only sections', () => {
+  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [] });
+  assert.match(html, /<h2>Uptime<\/h2>/);
+  assert.match(html, /<h2>Recent history<\/h2>/);
+  assert.match(html, /<h2>Activity log<\/h2>/);
+  assert.match(html, /Compare this server/);
 });

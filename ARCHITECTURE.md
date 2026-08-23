@@ -34,7 +34,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `incidents.js` | Pure incident classifier (thresholds, hysteresis, consecutive-fetch-failure counting) |
 | `geo_lookup.js` | GeoLite2/MaxMind country lookups — optional via `GEOLITE2_DB_PATH`; stamps `country` / `countryName` on the official roster |
 
-**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/unofficial/roster`, `/unofficial/meta`, `/history/:id`, `/history/wipes`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`, `/rates`, `/news`, `/mods/summary`, `/mods/:id`
+**Discovery HTTP endpoints:** `/roster`, `/roster/meta`, `/unofficial/roster`, `/unofficial/meta`, `/unofficial/server/:id`, `/history/:id`, `/history/wipes`, `/leaderboards/uptime`, `/rankings`, `/rankings/:id`, `/incidents/status`, `/rates`, `/news`, `/mods/summary`, `/mods/:id`
 
 ## accounts/
 
@@ -50,7 +50,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `server_browser.js` | Filter/sort/paginate + the `/` and `/servers` list page |
 | `server_lists.js` | Canonical derived list pages (`/lists/...`) — pre-filtered views that reuse the browser pipeline |
 | `presets.js` | Named filter snapshots — query sanitization, cookie cap/size guards; share tokens live in db.js |
-| `server_detail.js` | The `/servers/:id` page — facts, uptime, history, activity log, heatmaps, badge embed |
+| `server_detail.js` | The `/servers/:id` page — official facts/uptime/history/rank/heatmaps/badge, or unofficial latest-state + Recent changes |
 | `compare_page.js` | The `/compare` page — URL-as-state side-by-side comparison (cap 4 servers), add-a-server search, best-value highlights |
 | `favorites_page.js` | The `/favorites` page |
 | `alert_engine.js` | Pure alert evaluator (hysteresis, latches, cooldown) plus a timer wrapper; no HTTP of its own |

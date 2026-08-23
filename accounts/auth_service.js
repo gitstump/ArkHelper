@@ -103,7 +103,7 @@ const {
   addCookiePreset,
   deleteCookiePreset,
 } = require('./presets.js');
-const { renderServerDetailPage, renderServerNotFoundPage, renderRosterUnavailablePage } = require('./server_detail.js');
+const { renderServerDetailPage, renderUnofficialServerDetailPage, renderServerNotFoundPage, renderRosterUnavailablePage } = require('./server_detail.js');
 const { renderBadgeSvg, renderUnknownBadgeSvg } = require('./badge.js');
 const { renderFavoritesPage } = require('./favorites_page.js');
 const { renderAlertsPage } = require('./alerts_page.js');
@@ -315,6 +315,7 @@ function createAuthServer({
   rosterUrl = 'http://localhost:8792/roster',
   unofficialRosterUrl = 'http://localhost:8792/unofficial/roster',
   unofficialMetaUrl = 'http://localhost:8792/unofficial/meta',
+  unofficialServerUrlBase = 'http://localhost:8792/unofficial/server',
   unofficialRosterCache,
   officialRosterCache,
   historyUrlBase = 'http://localhost:8792/history',
@@ -453,10 +454,27 @@ function createAuthServer({
           return;
         }
 
+        const encodedId = encodeURIComponent(serverId);
         const server = roster.servers.find((s) => s.id === serverId);
         if (!server) {
-          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(renderServerNotFoundPage(serverId, { account, live: liveFromRoster(roster) }));
+          const unofficial = await detailDeps.fetchJsonSafe(`${unofficialServerUrlBase}/${encodedId}`);
+          if (!unofficial || typeof unofficial !== 'object' || unofficial.id == null || unofficial.id === '') {
+            res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(renderServerNotFoundPage(serverId, { account, live: liveFromRoster(roster) }));
+            return;
+          }
+          const unofficialHistory = await detailDeps.fetchJsonSafe(`${historyUrlBase}/${encodedId}`);
+          const unofficialBody = renderUnofficialServerDetailPage({
+            server: unofficial,
+            changeEvents:
+              unofficialHistory && Array.isArray(unofficialHistory.changeEvents)
+                ? unofficialHistory.changeEvents
+                : [],
+            account,
+            live: liveFromRoster(roster),
+          });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(unofficialBody);
           return;
         }
 
@@ -469,8 +487,6 @@ function createAuthServer({
             serverNames.set(s.id, s.name);
           }
         }
-
-        const encodedId = encodeURIComponent(serverId);
         const [historyData, rankRaw] = await Promise.all([
           detailDeps.fetchJsonSafe(`${historyUrlBase}/${encodedId}`),
           detailDeps.fetchJsonSafe(`${rankingUrl}/${encodedId}`),
