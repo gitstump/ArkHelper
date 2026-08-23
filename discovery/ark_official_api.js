@@ -83,6 +83,24 @@ function truthyFlag(value) {
   return Boolean(value);
 }
 
+// Transfer flags are known 0/1 numbers on both live lists. Sibling flags on
+// the same payloads already flip between number / boolean / digit-string, so
+// those three forms are accepted. Anything else — including missing — is
+// omitted. Never coerce unknown to false.
+function parseTransferFlag(value) {
+  if (value === true || value === 1 || value === '1') return true;
+  if (value === false || value === 0 || value === '0') return false;
+  return undefined;
+}
+
+function applyTransferFlags(target, raw) {
+  const allowCharTransfers = parseTransferFlag(raw && raw.AllowDownloadChars);
+  const allowItemTransfers = parseTransferFlag(raw && raw.AllowDownloadItems);
+  if (allowCharTransfers !== undefined) target.allowCharTransfers = allowCharTransfers;
+  if (allowItemTransfers !== undefined) target.allowItemTransfers = allowItemTransfers;
+  return target;
+}
+
 function parseVersion(raw) {
   const buildId = raw.BuildId;
   const minorBuildId = raw.MinorBuildId;
@@ -98,7 +116,7 @@ function normalizeServer(raw) {
   const r = raw || {};
   const day = Number(r.DayTime);
 
-  return {
+  return applyTransferFlags({
     id: r.SessionID || (r.IP && r.Port ? `${r.IP}:${r.Port}` : null),
     name: r.Name || null,
     sessionName: r.SessionName || null,
@@ -123,7 +141,7 @@ function normalizeServer(raw) {
     gameMode: r.SessionIsPve === undefined || r.SessionIsPve === null ? 'unknown' : truthyFlag(r.SessionIsPve) ? 'pve' : 'pvp',
     rawDetails: r,
     seenAt: new Date().toISOString(),
-  };
+  }, r);
 }
 
 // ---------------------------------------------------------------------
@@ -203,6 +221,8 @@ module.exports = {
   UNOFFICIAL_SERVER_LIST_URL,
   parseServerListBody,
   truthyFlag,
+  parseTransferFlag,
+  applyTransferFlags,
   parseVersion,
   normalizeServer,
   discoverFullRoster,

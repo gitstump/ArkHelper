@@ -72,6 +72,37 @@ test('renderServerDetailPage lists mod IDs when present', () => {
   assert.match(html, /123, 456/);
 });
 
+test('renderServerDetailPage shows transfer facts only when known, with verbatim Enabled/Disabled copy', () => {
+  const bothOn = renderServerDetailPage({
+    server: makeServer({ allowCharTransfers: true, allowItemTransfers: true }),
+    uptime: null,
+    history: [],
+  });
+  assert.match(bothOn, /<td>Character transfers<\/td><td>Enabled<\/td>/);
+  assert.match(bothOn, /<td>Item transfers<\/td><td>Enabled<\/td>/);
+  assert.doesNotMatch(bothOn, /Unknown/);
+
+  const bothOff = renderServerDetailPage({
+    server: makeServer({ allowCharTransfers: false, allowItemTransfers: false }),
+    uptime: null,
+    history: [],
+  });
+  assert.match(bothOff, /<td>Character transfers<\/td><td>Disabled<\/td>/);
+  assert.match(bothOff, /<td>Item transfers<\/td><td>Disabled<\/td>/);
+
+  const charsOnly = renderServerDetailPage({
+    server: makeServer({ allowCharTransfers: true }),
+    uptime: null,
+    history: [],
+  });
+  assert.match(charsOnly, /<td>Character transfers<\/td><td>Enabled<\/td>/);
+  assert.doesNotMatch(charsOnly, /<td>Item transfers<\/td>/);
+
+  const unknown = renderServerDetailPage({ server: makeServer(), uptime: null, history: [] });
+  assert.doesNotMatch(unknown, /<td>Character transfers<\/td>/);
+  assert.doesNotMatch(unknown, /<td>Item transfers<\/td>/);
+});
+
 test('renderServerDetailPage shows country when present, omits the row when absent', () => {
   const withCountry = renderServerDetailPage({ server: makeServer({ country: 'US', countryName: 'United States' }), uptime: null, history: [] });
   assert.match(withCountry, /United States/);

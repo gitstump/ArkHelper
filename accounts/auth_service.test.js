@@ -502,6 +502,39 @@ test('GET /servers renders the roster when the discovery feed is reachable', asy
   server.close();
 });
 
+test('GET /servers?transfers= composes with gameMode and excludes unknown-flag servers', async () => {
+  const db = openDb(':memory:');
+  const roster = {
+    servers: [
+      { id: '1', name: 'EU-PVE-TheIsland5313', map: 'TheIsland_WP', gameMode: 'pve', playersNow: 5, maxPlayers: 70, day: 100, clusterId: 'C', hasPassword: false, allowCharTransfers: true, allowItemTransfers: true },
+      { id: '2', name: 'Asia-PVP-LostColony2859', map: 'LostColony_WP', gameMode: 'pvp', playersNow: 20, maxPlayers: 70, day: 50, clusterId: 'C', hasPassword: false, allowCharTransfers: true, allowItemTransfers: true },
+      { id: '3', name: 'NA-PVE-NoFlags', map: 'Astraeos_WP', gameMode: 'pve', playersNow: 1, maxPlayers: 70, day: 10, clusterId: 'C', hasPassword: false },
+    ],
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(roster),
+  });
+
+  const both = await fetch(`${base}/servers?transfers=both&gameMode=pve`);
+  const bothHtml = await both.text();
+  assert.match(bothHtml, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(bothHtml, /Asia-PVP-LostColony2859/);
+  assert.doesNotMatch(bothHtml, /NA-PVE-NoFlags/);
+  assert.match(bothHtml, /<option value="both" selected>Transfers allowed<\/option>/);
+
+  const any = await fetch(`${base}/servers?gameMode=pve`);
+  const anyHtml = await any.text();
+  assert.match(anyHtml, /EU-PVE-TheIsland5313/);
+  assert.match(anyHtml, /NA-PVE-NoFlags/);
+
+  server.close();
+});
+
 test('GET /servers applies query-string filters', async () => {
   const db = openDb(':memory:');
   const { server, base } = await startServer({

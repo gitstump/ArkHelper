@@ -23,13 +23,15 @@
  *   unofficial roster JSON (/unofficial/roster), unofficial_store
  *   (recordUnofficialCycle / server_mods), and the accounts browser
  *   chip. Trimmed shape uses official-compatible names (gameMode,
- *   platformType, wildcardReportedPing, day from DayTime) so the
- *   existing browser filter/sort/paginate pipeline can reuse them.
+ *   platformType, wildcardReportedPing, day from DayTime,
+ *   allowCharTransfers / allowItemTransfers from AllowDownloadChars /
+ *   AllowDownloadItems) so the existing browser filter/sort/paginate
+ *   pipeline can reuse them.
  */
 
 const http = require('http');
 const https = require('https');
-const { truthyFlag, parseVersion } = require('./ark_official_api.js');
+const { truthyFlag, parseVersion, applyTransferFlags } = require('./ark_official_api.js');
 
 const UNOFFICIAL_SERVER_LIST_URL = 'https://cdn2.arkdedicated.com/servers/asa/unofficialserverlist.json';
 const DEFAULT_MAX_BYTES = 96 * 1024 * 1024;
@@ -167,7 +169,7 @@ function trimUnofficialServer(raw) {
     modIds: parseModIds(r.ModIDs),
   };
   if (day !== undefined) trimmed.day = day;
-  return trimmed;
+  return applyTransferFlags(trimmed, r);
 }
 
 function trimUnofficialList(rawServers) {

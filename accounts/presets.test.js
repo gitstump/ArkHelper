@@ -100,6 +100,11 @@ test('sanitizeQueryString keeps country as a known filter param', () => {
   assert.equal(sanitizeQueryString('country=DE&evil=1'), 'country=DE');
 });
 
+test('sanitizeQueryString keeps transfers as a known filter param', () => {
+  assert.equal(sanitizeQueryString('transfers=both&evil=1'), 'transfers=both');
+  assert.equal(sanitizeQueryString('transfers=chars&gameMode=pve'), 'gameMode=pve&transfers=chars');
+});
+
 test('sanitizeQueryString keeps source=unofficial', () => {
   assert.equal(sanitizeQueryString('source=unofficial&gameMode=pve'), 'gameMode=pve&source=unofficial');
 });

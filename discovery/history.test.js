@@ -25,6 +25,7 @@ const {
   applyRankingToServers,
   getRankNeighborhood,
   pruneOldSnapshots,
+  detectStableChanges,
   recordIncidentCycle,
   getIncidentStatus,
   getActiveIncident,
@@ -487,6 +488,90 @@ test('maybePruneChangeEvents drops state rows older than 14 days and keeps fresh
     .all()
     .map((r) => r.server_id);
   assert.deepEqual(rows, ['live', 'null-ts']);
+});
+
+test('a transfer flag toggle held two cycles writes one transfer_change with correct old/new', () => {
+  const db = freshDb();
+  const base = { id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 };
+  recordSnapshotRun(db, [{ ...base, allowCharTransfers: false, allowItemTransfers: true }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ ...base, allowCharTransfers: true, allowItemTransfers: false }], { now: () => '2026-08-15T01:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+  recordSnapshotRun(db, [{ ...base, allowCharTransfers: true, allowItemTransfers: false }], { now: () => '2026-08-15T02:00:00.000Z' });
+
+  const events = changeEventsFor(db, 'a');
+  assert.equal(events.length, 2);
+  const byField = Object.fromEntries(events.map((e) => [e.field, e]));
+  assert.equal(byField.allowCharTransfers.eventType, 'transfer_change');
+  assert.equal(byField.allowCharTransfers.oldValue, 'false');
+  assert.equal(byField.allowCharTransfers.newValue, 'true');
+  assert.equal(byField.allowItemTransfers.eventType, 'transfer_change');
+  assert.equal(byField.allowItemTransfers.oldValue, 'true');
+  assert.equal(byField.allowItemTransfers.newValue, 'false');
+});
+
+test('first sighting of transfer flags writes no events', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{
+    id: 'a',
+    version: '92.45',
+    map: 'TheIsland_WP',
+    maxPlayers: 70,
+    day: 10,
+    allowCharTransfers: true,
+    allowItemTransfers: false,
+  }], { now: () => '2026-08-15T00:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+});
+
+test('first post-baseline sighting of transfer flags on an existing server writes no events', () => {
+  const db = freshDb();
+  const base = { id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 };
+  recordSnapshotRun(db, [base], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ ...base, allowCharTransfers: true, allowItemTransfers: true }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ ...base, allowCharTransfers: true, allowItemTransfers: true }], { now: () => '2026-08-15T02:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+});
+
+test('a one-cycle transfer flag flap writes no event', () => {
+  const db = freshDb();
+  const base = { id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10, allowCharTransfers: true, allowItemTransfers: true };
+  recordSnapshotRun(db, [base], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ ...base, allowCharTransfers: false }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [base], { now: () => '2026-08-15T02:00:00.000Z' });
+  assert.deepEqual(changeEventsFor(db, 'a'), []);
+});
+
+test('first confirmation of transfer flags on a 100-server fixture writes 200 transfer state rows and no events', () => {
+  const db = freshDb();
+  const roster = Array.from({ length: 100 }, (_, i) => ({
+    id: `s${i}`,
+    version: '92.45',
+    map: 'TheIsland_WP',
+    maxPlayers: 70,
+    day: 10,
+    allowCharTransfers: true,
+    allowItemTransfers: i % 2 === 0,
+  }));
+  const events = detectStableChanges(db, roster, '2026-08-23T00:00:00.000Z', { presentLastCycle: new Set() });
+  assert.equal(events.length, 0);
+  const transferRows = db
+    .prepare("SELECT COUNT(*) as c FROM server_change_state WHERE field IN ('allowCharTransfers', 'allowItemTransfers')")
+    .get().c;
+  assert.equal(transferRows, 200);
+  const allRows = db.prepare('SELECT COUNT(*) as c FROM server_change_state').get().c;
+  assert.equal(allRows, 600);
+});
+
+test('servers without transfer fields still emit version_change as before', () => {
+  const db = freshDb();
+  recordSnapshotRun(db, [{ id: 'a', version: '92.45', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T00:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.47', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', version: '92.47', map: 'TheIsland_WP', maxPlayers: 70, day: 10 }], { now: () => '2026-08-15T02:00:00.000Z' });
+  const events = changeEventsFor(db, 'a');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].eventType, 'version_change');
+  assert.equal(events[0].oldValue, '92.45');
+  assert.equal(events[0].newValue, '92.47');
 });
 
 test('map and max-player changes that hold two cycles write map_change and capacity_change', () => {

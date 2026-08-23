@@ -39,6 +39,8 @@ const WATCHED_CHANGE_FIELDS = [
   { key: 'version', eventType: 'version_change' },
   { key: 'map', eventType: 'map_change' },
   { key: 'maxPlayers', eventType: 'capacity_change' },
+  { key: 'allowCharTransfers', eventType: 'transfer_change' },
+  { key: 'allowItemTransfers', eventType: 'transfer_change' },
 ];
 const DAY_FIELD = 'day';
 

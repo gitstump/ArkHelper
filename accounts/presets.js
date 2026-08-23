@@ -27,6 +27,7 @@ const KNOWN_PRESET_PARAMS = [
   'gameMode',
   'platform',
   'hasPassword',
+  'transfers',
   'minPlayers',
   'maxPlayers',
   'minPing',

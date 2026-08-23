@@ -98,6 +98,7 @@ function filtersFromSearchParams(params) {
     notFull: params.get('notFull') || '',
     wipedWithinDays: params.get('wipedWithinDays') || '',
     country: normalizeCountryCode(params.get('country')) || '',
+    transfers: params.get('transfers') || '',
   };
 }
 
@@ -117,8 +118,19 @@ function effectivePing(s) {
   return null;
 }
 
+function matchesTransfersFilter(s, transfers) {
+  if (!transfers) return true;
+  const chars = s.allowCharTransfers;
+  const items = s.allowItemTransfers;
+  if (transfers === 'both') return chars === true && items === true;
+  if (transfers === 'chars') return chars === true;
+  if (transfers === 'items') return items === true;
+  if (transfers === 'none') return chars === false && items === false;
+  return true;
+}
+
 function filterServers(servers, filters = {}, { now = Date.now } = {}) {
-  const { search, map, gameMode, platform, hasPassword, minPlayers, maxPlayers, minPing, maxPing, minUptime, clusterId, online, hasPing, minFreeSlots, notFull, wipedWithinDays, country } = filters;
+  const { search, map, gameMode, platform, hasPassword, minPlayers, maxPlayers, minPing, maxPing, minUptime, clusterId, online, hasPing, minFreeSlots, notFull, wipedWithinDays, country, transfers } = filters;
   const countryFilter = normalizeCountryCode(country);
   const minPingBound = numericBound(minPing);
   const maxPingBound = numericBound(maxPing);
@@ -163,6 +175,7 @@ function filterServers(servers, filters = {}, { now = Date.now } = {}) {
       if (!s.wipeDetectedAt || s.wipeDetectedAt < wipeCutoff) return false;
     }
     if (countryFilter && normalizeCountryCode(s.country) !== countryFilter) return false;
+    if (!matchesTransfersFilter(s, transfers)) return false;
     return true;
   });
 }
@@ -648,6 +661,13 @@ function renderBrowserBody({
     <option value="">Any</option>
     <option value="false" ${f.hasPassword === 'false' ? 'selected' : ''}>Public only</option>
     <option value="true" ${f.hasPassword === 'true' ? 'selected' : ''}>Passworded only</option>
+  </select>
+  <select name="transfers" aria-label="Transfers">
+    <option value="">Transfers: Any</option>
+    <option value="both" ${f.transfers === 'both' ? 'selected' : ''}>Transfers allowed</option>
+    <option value="chars" ${f.transfers === 'chars' ? 'selected' : ''}>Character transfers allowed</option>
+    <option value="items" ${f.transfers === 'items' ? 'selected' : ''}>Item transfers allowed</option>
+    <option value="none" ${f.transfers === 'none' ? 'selected' : ''}>Transfers disabled</option>
   </select>
   <input class="narrow" type="number" name="minPlayers" placeholder="Min players" value="${escapeHtml(f.minPlayers || '')}">
   <input class="narrow" type="number" name="maxPlayers" placeholder="Max players" value="${escapeHtml(f.maxPlayers || '')}">

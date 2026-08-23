@@ -110,6 +110,53 @@ test('filterServers treats non-numeric and negative ping/uptime bounds as unset'
   assert.equal(filterServers(servers, { minPing: '-5', maxPing: 'NaN', minUptime: '-1' }).length, 2);
 });
 
+function transferFixtureServers() {
+  return [
+    { id: 'both', name: 'Both On', map: 'TheIsland_WP', gameMode: 'pve', allowCharTransfers: true, allowItemTransfers: true },
+    { id: 'chars', name: 'Chars Only', map: 'TheIsland_WP', gameMode: 'pvp', allowCharTransfers: true, allowItemTransfers: false },
+    { id: 'items', name: 'Items Only', map: 'Extinction_WP', gameMode: 'pve', allowCharTransfers: false, allowItemTransfers: true },
+    { id: 'none', name: 'Both Off', map: 'Extinction_WP', gameMode: 'pvp', allowCharTransfers: false, allowItemTransfers: false },
+    { id: 'unknown', name: 'Unknown Flags', map: 'TheIsland_WP', gameMode: 'pve' },
+    { id: 'partial', name: 'Partial Flags', map: 'TheIsland_WP', gameMode: 'pvp', allowCharTransfers: true },
+  ];
+}
+
+test('filterServers transfers=both matches only servers with both flags true', () => {
+  assert.deepEqual(filterServers(transferFixtureServers(), { transfers: 'both' }).map((s) => s.id), ['both']);
+});
+
+test('filterServers transfers=chars matches servers with character transfers true', () => {
+  assert.deepEqual(filterServers(transferFixtureServers(), { transfers: 'chars' }).map((s) => s.id), ['both', 'chars', 'partial']);
+});
+
+test('filterServers transfers=items matches servers with item transfers true', () => {
+  assert.deepEqual(filterServers(transferFixtureServers(), { transfers: 'items' }).map((s) => s.id), ['both', 'items']);
+});
+
+test('filterServers transfers=none matches only servers with both flags false', () => {
+  assert.deepEqual(filterServers(transferFixtureServers(), { transfers: 'none' }).map((s) => s.id), ['none']);
+});
+
+test('filterServers unknown-flag servers appear only under Transfers Any', () => {
+  const servers = transferFixtureServers();
+  assert.deepEqual(filterServers(servers, {}).map((s) => s.id), ['both', 'chars', 'items', 'none', 'unknown', 'partial']);
+  assert.deepEqual(filterServers(servers, { transfers: '' }).map((s) => s.id), ['both', 'chars', 'items', 'none', 'unknown', 'partial']);
+  for (const value of ['both', 'chars', 'items', 'none']) {
+    assert.ok(!filterServers(servers, { transfers: value }).some((s) => s.id === 'unknown'));
+  }
+});
+
+test('filterServers transfers composes with gameMode', () => {
+  assert.deepEqual(
+    filterServers(transferFixtureServers(), { transfers: 'chars', gameMode: 'pve' }).map((s) => s.id),
+    ['both']
+  );
+});
+
+test('filterServers treats an unrecognized transfers value as Any', () => {
+  assert.equal(filterServers(transferFixtureServers(), { transfers: 'maybe' }).length, 6);
+});
+
 test('filterServers combines multiple filters with AND logic', () => {
   const result = filterServers(makeServers(), { gameMode: 'pvp', minPlayers: '30' });
   assert.equal(result.length, 1);
@@ -633,6 +680,41 @@ test('renderServerRow shows a compact platform badge', () => {
   assert.match(html, /PC\+Console/);
 });
 
+test('renderBrowserPage includes the transfers filter with verbatim labels on official and unofficial views', () => {
+  const official = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: { transfers: 'both' },
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    currentPath: '/servers',
+    source: 'official',
+  });
+  const unofficial = renderBrowserPage({
+    page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
+    filters: { transfers: 'none' },
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters([]),
+    mapOptions: [],
+    rosterAvailable: true,
+    currentPath: '/servers',
+    source: 'unofficial',
+  });
+  for (const html of [official, unofficial]) {
+    assert.match(html, /name="transfers"/);
+    assert.match(html, />Transfers: Any</);
+    assert.match(html, />Transfers allowed</);
+    assert.match(html, />Character transfers allowed</);
+    assert.match(html, />Item transfers allowed</);
+    assert.match(html, />Transfers disabled</);
+  }
+  assert.match(official, /<option value="both" selected>Transfers allowed<\/option>/);
+  assert.match(unofficial, /<option value="none" selected>Transfers disabled<\/option>/);
+});
+
 test('renderBrowserPage includes a Server lists index and a Platform filter', () => {
   const html = renderBrowserPage({
     page: { items: [], page: 1, totalPages: 1, totalCount: 0 },
@@ -920,6 +1002,12 @@ test('filtersFromSearchParams round-trips minPing, maxPing, and minUptime', () =
   assert.equal(empty.minPing, '');
   assert.equal(empty.maxPing, '');
   assert.equal(empty.minUptime, '');
+});
+
+test('filtersFromSearchParams round-trips transfers', () => {
+  assert.equal(filtersFromSearchParams(new URLSearchParams('transfers=both')).transfers, 'both');
+  assert.equal(filtersFromSearchParams(new URLSearchParams('transfers=chars&gameMode=pve')).transfers, 'chars');
+  assert.equal(filtersFromSearchParams(new URLSearchParams()).transfers, '');
 });
 
 test('getDistinctCountries is alphabetical by name and skips missing country', () => {

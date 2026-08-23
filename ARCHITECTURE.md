@@ -23,7 +23,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | File | Role |
 |---|---|
 | `ark_official_api.js` | Fetches Wildcard's own official server list (no key needed) |
-| `unofficial_api.js` | Fetches Wildcard's unofficial list, trims immediately (including `modIds` from `ModIDs` and `day` from `DayTime`), rejects oversized bodies |
+| `unofficial_api.js` | Fetches Wildcard's unofficial list, trims immediately (including `modIds` from `ModIDs`, `day` from `DayTime`, and transfer flags from `AllowDownloadChars` / `AllowDownloadItems`), rejects oversized bodies |
 | `unofficial_store.js` | Separate SQLite (`unofficial.sqlite`) — latest trimmed fields + first_seen/last_seen/cycles_seen; `server_mods` / `mods` for CurseForge-backed adoption |
 | `curseforge_api.js` | Batch-resolves CurseForge project IDs (`POST /v1/mods`); key is passed in, never read from env here |
 | `info_feeds.js` | Fetches/parses Wildcard CDN rate INIs and news.ini (injectable fetch) |

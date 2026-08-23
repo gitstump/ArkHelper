@@ -79,6 +79,8 @@ test('trimUnofficialServer maps live unofficial field names onto the trimmed sha
   assert.equal(trimmed.hasPassword, false);
   assert.deepEqual(trimmed.modIds, [928793, 947033, 927084]);
   assert.equal(trimmed.day, 6992);
+  assert.equal(trimmed.allowCharTransfers, true);
+  assert.equal(trimmed.allowItemTransfers, true);
   assert.equal(trimmed.ModIDs, undefined);
   assert.equal(trimmed.SessionName, undefined);
   assert.equal(trimmed.rawDetails, undefined);
@@ -106,11 +108,35 @@ test('parseUnofficialDay accepts live numeric strings, numbers, and Day prefixes
   assert.equal(Object.prototype.hasOwnProperty.call(trimUnofficialServer({ SessionID: 'x' }), 'day'), false);
 });
 
+test('trimUnofficialServer maps live AllowDownload* numbers and omits missing/malformed flags', () => {
+  const bothOn = trimUnofficialServer({ AllowDownloadChars: 1, AllowDownloadItems: 1 });
+  assert.equal(bothOn.allowCharTransfers, true);
+  assert.equal(bothOn.allowItemTransfers, true);
+
+  const bothOff = trimUnofficialServer({ AllowDownloadChars: 0, AllowDownloadItems: 0 });
+  assert.equal(bothOff.allowCharTransfers, false);
+  assert.equal(bothOff.allowItemTransfers, false);
+
+  const mixed = trimUnofficialServer({ AllowDownloadChars: 0, AllowDownloadItems: 1 });
+  assert.equal(mixed.allowCharTransfers, false);
+  assert.equal(mixed.allowItemTransfers, true);
+
+  const empty = trimUnofficialServer({ SessionID: 'x' });
+  assert.equal(Object.prototype.hasOwnProperty.call(empty, 'allowCharTransfers'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(empty, 'allowItemTransfers'), false);
+
+  const bad = trimUnofficialServer({ AllowDownloadChars: 'False', AllowDownloadItems: null });
+  assert.equal(Object.prototype.hasOwnProperty.call(bad, 'allowCharTransfers'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(bad, 'allowItemTransfers'), false);
+});
+
 test('trimUnofficialServer maps SessionIsPve 0 and HasPassword true', () => {
   const trimmed = trimUnofficialServer(REAL_UNOFFICIAL_PVP_PASSWORD);
   assert.equal(trimmed.gameMode, 'pvp');
   assert.equal(trimmed.hasPassword, true);
   assert.equal(trimmed.ping, 81);
+  assert.equal(Object.prototype.hasOwnProperty.call(trimmed, 'allowCharTransfers'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(trimmed, 'allowItemTransfers'), false);
 });
 
 test('trimUnofficialServer falls back to IP:Port when SessionID is missing', () => {

@@ -65,6 +65,12 @@ function dashNumber(value, suffix = '') {
   return typeof value === 'number' && Number.isFinite(value) ? `${value}${suffix}` : '\u2014';
 }
 
+function transferFactRow(label, value) {
+  if (value === true) return `<tr><td>${label}</td><td>Enabled</td></tr>`;
+  if (value === false) return `<tr><td>${label}</td><td>Disabled</td></tr>`;
+  return '';
+}
+
 function lookupServerName(serverNames, serverId) {
   if (!serverNames || serverId == null) return null;
   const name = typeof serverNames.get === 'function' ? serverNames.get(serverId) : serverNames[serverId];
@@ -274,6 +280,8 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
     })()}</td></tr>
     <tr><td>Password protected</td><td>${server.hasPassword ? 'Yes' : 'No'}</td></tr>
     <tr><td>BattlEye</td><td>${server.battleye ? 'Enabled' : 'Disabled'}</td></tr>
+    ${transferFactRow('Character transfers', server.allowCharTransfers)}
+    ${transferFactRow('Item transfers', server.allowItemTransfers)}
     <tr><td>IP : Port</td><td>${escapeHtml(server.ip || '\u2014')} : ${escapeHtml(String(server.port ?? '\u2014'))}</td></tr>
     ${rosterUptime !== null ? `<tr><td>Uptime (7-day)</td><td>${escapeHtml(String(rosterUptime))}%</td></tr>` : ''}
     <tr><td>Mods</td><td>${modList}</td></tr>

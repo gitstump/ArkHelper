@@ -6,6 +6,7 @@ const {
   OFFICIAL_SERVER_LIST_URL,
   parseServerListBody,
   truthyFlag,
+  parseTransferFlag,
   parseVersion,
   normalizeServer,
   discoverFullRoster,
@@ -161,6 +162,8 @@ test('normalizeServer correctly reads a real official PvE server record', () => 
   assert.equal(server.official, true);
   assert.equal(server.gameMode, 'pve');
   assert.deepEqual(server.modIds, []);
+  assert.equal(server.allowCharTransfers, true);
+  assert.equal(server.allowItemTransfers, true);
 });
 
 test('normalizeServer correctly reads a real official PvP server record', () => {
@@ -198,6 +201,53 @@ test('normalizeServer never throws, even on null/undefined input', () => {
 test('normalizeServer falls back to IP:Port as id when SessionID is absent', () => {
   const server = normalizeServer({ IP: '1.2.3.4', Port: 7777 });
   assert.equal(server.id, '1.2.3.4:7777');
+});
+
+test('parseTransferFlag converts live 0/1 numbers and sibling boolean/digit-string forms', () => {
+  assert.equal(parseTransferFlag(1), true);
+  assert.equal(parseTransferFlag(0), false);
+  assert.equal(parseTransferFlag(true), true);
+  assert.equal(parseTransferFlag(false), false);
+  assert.equal(parseTransferFlag('1'), true);
+  assert.equal(parseTransferFlag('0'), false);
+});
+
+test('parseTransferFlag omits missing, malformed, and unrecognized values', () => {
+  assert.equal(parseTransferFlag(undefined), undefined);
+  assert.equal(parseTransferFlag(null), undefined);
+  assert.equal(parseTransferFlag(''), undefined);
+  assert.equal(parseTransferFlag('True'), undefined);
+  assert.equal(parseTransferFlag('False'), undefined);
+  assert.equal(parseTransferFlag('true'), undefined);
+  assert.equal(parseTransferFlag('false'), undefined);
+  assert.equal(parseTransferFlag(2), undefined);
+  assert.equal(parseTransferFlag('yes'), undefined);
+});
+
+test('normalizeServer maps live AllowDownload* numbers and omits missing/malformed flags', () => {
+  const bothOn = normalizeServer({ AllowDownloadChars: 1, AllowDownloadItems: 1 });
+  assert.equal(bothOn.allowCharTransfers, true);
+  assert.equal(bothOn.allowItemTransfers, true);
+
+  const bothOff = normalizeServer({ AllowDownloadChars: 0, AllowDownloadItems: 0 });
+  assert.equal(bothOff.allowCharTransfers, false);
+  assert.equal(bothOff.allowItemTransfers, false);
+
+  const mixed = normalizeServer({ AllowDownloadChars: 1, AllowDownloadItems: 0 });
+  assert.equal(mixed.allowCharTransfers, true);
+  assert.equal(mixed.allowItemTransfers, false);
+
+  const empty = normalizeServer({});
+  assert.equal(Object.prototype.hasOwnProperty.call(empty, 'allowCharTransfers'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(empty, 'allowItemTransfers'), false);
+
+  const bad = normalizeServer({ AllowDownloadChars: 'True', AllowDownloadItems: 2 });
+  assert.equal(Object.prototype.hasOwnProperty.call(bad, 'allowCharTransfers'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(bad, 'allowItemTransfers'), false);
+
+  const oneMissing = normalizeServer({ AllowDownloadChars: 1 });
+  assert.equal(oneMissing.allowCharTransfers, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(oneMissing, 'allowItemTransfers'), false);
 });
 
 // ---------------------------------------------------------------------
