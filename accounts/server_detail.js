@@ -8,8 +8,8 @@
  * browser. Shows everything the roster knows about it, uptime %, a
  * simple history table, a rank-neighborhood table, recent two-cycle
  * change events, alert configuration (feed + optional Discord webhook),
- * peak-times and downtime-pattern heatmaps, a wipe/version change log,
- * and an embeddable status badge.
+ * peak-times and downtime-pattern heatmaps, and an embeddable status
+ * badge.
  *
  * Same pattern as the rest of the accounts service: pure render
  * function for testability, server-side HTML, no client JS needed.
@@ -172,7 +172,7 @@ function renderRankNeighborhoodSection(rankNeighborhood, currentServerId, server
   </table>`;
 }
 
-function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeLog, changeEvents, peakTimes, downtimePatterns, badgeUrl, account = null, live = null, origin, rankNeighborhood = null, serverNames = null } = {}) {
+function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited, alertSettings, changeEvents, peakTimes, downtimePatterns, badgeUrl, account = null, live = null, origin, rankNeighborhood = null, serverNames = null } = {}) {
   const modList = server.modIds && server.modIds.length ? server.modIds.map((id) => escapeHtml(id)).join(', ') : 'None (vanilla server)';
 
   const favoriteSection = !loggedIn
@@ -215,17 +215,6 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
       </table>
       <p class="note">Showing the most recent ${Math.min(history.length, 20)} of ${history.length} recorded snapshots.</p>`
       : `<p class="note">No recorded history yet.</p>`;
-
-  const changeLogSection =
-    changeLog && changeLog.length > 0
-      ? `<ul class="change-log">${changeLog
-          .map((c) =>
-            c.changeType === 'wipe'
-              ? `<li>\u{1F4A5} <strong>Wipe detected</strong> \u2014 day count reset from ${escapeHtml(c.oldValue)} to ${escapeHtml(c.newValue)} <span class="note">(${escapeHtml(c.seenAt)})</span></li>`
-              : `<li>\u{1F504} <strong>Version changed</strong> \u2014 ${escapeHtml(c.oldValue)} \u2192 ${escapeHtml(c.newValue)} <span class="note">(${escapeHtml(c.seenAt)})</span></li>`
-          )
-          .join('')}</ul>`
-      : `<p class="note">No version changes or wipes detected yet.</p>`;
 
   const peakTimesSection =
     peakTimes && hasAnyData(peakTimes)
@@ -300,9 +289,6 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
 
   <h2>Recent history</h2>
   ${historySection}
-
-  <h2>Activity log</h2>
-  ${changeLogSection}
 
   <h2>Peak times</h2>
   ${peakTimesSection}

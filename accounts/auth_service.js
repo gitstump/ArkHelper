@@ -491,7 +491,6 @@ function createAuthServer({
           server,
           uptime: historyData ? historyData.uptime : null,
           history: historyData ? historyData.history : [],
-          changeLog: historyData ? historyData.changeLog : [],
           changeEvents: historyData && Array.isArray(historyData.changeEvents) ? historyData.changeEvents : [],
           peakTimes: historyData ? historyData.peakTimes : undefined,
           downtimePatterns: historyData ? historyData.downtimePatterns : undefined,

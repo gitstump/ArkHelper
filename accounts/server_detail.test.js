@@ -237,29 +237,41 @@ test('renderServerDetailPage shows the most recent snapshots first, capped at 20
 });
 
 // ---------------------------------------------------------------------
-// renderServerDetailPage — change log (wipe/version detection)
+// renderServerDetailPage — change_log is not a display source
 // ---------------------------------------------------------------------
-test('renderServerDetailPage shows "no changes" when the change log is empty', () => {
-  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [], changeLog: [] });
-  assert.match(html, /No version changes or wipes detected yet/);
+test('renderServerDetailPage ignores changeLog and does not render the retired activity log', () => {
+  const html = renderServerDetailPage({
+    server: makeServer(),
+    uptime: null,
+    history: [],
+    changeLog: [
+      { changeType: 'wipe', oldValue: '45', newValue: '1', seenAt: '2026-08-15T00:00:00.000Z' },
+      { changeType: 'version', oldValue: '92.41', newValue: '92.42', seenAt: '2026-08-14T00:00:00.000Z' },
+    ],
+    changeEvents: [],
+  });
+  assert.doesNotMatch(html, /<h2>Activity log<\/h2>/);
+  assert.doesNotMatch(html, /Wipe detected/);
+  assert.doesNotMatch(html, /Version changed/);
+  assert.doesNotMatch(html, /No version changes or wipes detected yet/);
+  assert.match(html, /No changes observed yet. This server's settings have held steady since we started tracking it./);
 });
 
-test('renderServerDetailPage renders a wipe entry distinctly from a version-change entry', () => {
-  const changeLog = [
-    { changeType: 'wipe', oldValue: '45', newValue: '1', seenAt: '2026-08-15T00:00:00.000Z' },
-    { changeType: 'version', oldValue: '92.41', newValue: '92.42', seenAt: '2026-08-14T00:00:00.000Z' },
-  ];
-  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [], changeLog });
-  assert.match(html, /Wipe detected/);
-  assert.match(html, /reset from 45 to 1/);
-  assert.match(html, /Version changed/);
-  assert.match(html, /92\.41.*92\.42/);
-});
-
-test('renderServerDetailPage escapes change log values (defensive, even though they come from our own DB)', () => {
-  const changeLog = [{ changeType: 'version', oldValue: '<script>x</script>', newValue: '1.0', seenAt: 'now' }];
-  const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [], changeLog });
-  assert.doesNotMatch(html, /<script>x<\/script>/);
+test('renderServerDetailPage shows a version change once from events, not from change_log', () => {
+  const html = renderServerDetailPage({
+    server: makeServer(),
+    uptime: null,
+    history: [],
+    changeLog: [{ changeType: 'version', oldValue: '92.41', newValue: '92.42', seenAt: '2026-08-15T00:00:00.000Z' }],
+    changeEvents: [
+      { eventType: 'version_change', field: 'version', oldValue: '92.41', newValue: '92.42', detectedAt: '2026-08-15T00:00:00.000Z' },
+    ],
+  });
+  assert.equal((html.match(/Updated from 92\.41 to 92\.42/g) || []).length, 1);
+  assert.doesNotMatch(html, /<h2>Activity log<\/h2>/);
+  assert.doesNotMatch(html, /Version changed/);
+  assert.match(html, /<h2>Recent changes<\/h2>/);
+  assert.match(html, /Updated from 92\.41 to 92\.42 <span class="note">\(2026-08-15T00:00:00.000Z\)<\/span>/);
 });
 
 // ---------------------------------------------------------------------
@@ -700,6 +712,7 @@ test('official detail page still includes official-only sections', () => {
   const html = renderServerDetailPage({ server: makeServer(), uptime: null, history: [] });
   assert.match(html, /<h2>Uptime<\/h2>/);
   assert.match(html, /<h2>Recent history<\/h2>/);
-  assert.match(html, /<h2>Activity log<\/h2>/);
+  assert.match(html, /<h2>Recent changes<\/h2>/);
+  assert.doesNotMatch(html, /<h2>Activity log<\/h2>/);
   assert.match(html, /Compare this server/);
 });

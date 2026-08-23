@@ -847,7 +847,7 @@ test('GET /servers/:id still renders the server facts even when history is unava
   server.close();
 });
 
-test('GET /servers/:id passes changeLog and heatmap data through when the history feed provides it', async () => {
+test('GET /servers/:id passes changeEvents and heatmap data through when the history feed provides it', async () => {
   const db = openDb(':memory:');
   const roster = { servers: [{ id: 'abc', name: 'A Server', map: 'M', gameMode: 'pve', modIds: [] }] };
   const flatGrid = (extra) => {
@@ -874,9 +874,10 @@ test('GET /servers/:id passes changeLog and heatmap data through when the histor
 
   const res = await fetch(`${base}/servers/abc`);
   const html = await res.text();
-  assert.match(html, /Wipe detected/);
+  assert.doesNotMatch(html, /Wipe detected/);
+  assert.doesNotMatch(html, /<h2>Activity log<\/h2>/);
   assert.match(html, /<h2>Recent changes<\/h2>/);
-  assert.match(html, /Updated from 92\.45 to 92\.47/);
+  assert.equal((html.match(/Updated from 92\.45 to 92\.47/g) || []).length, 1);
   assert.match(html, /<svg/); // at least one heatmap rendered
 
   server.close();
