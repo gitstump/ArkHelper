@@ -1,23 +1,17 @@
-# ArkHelper Caddy site block — reference copy for the droplet.
-# Caddy terminates TLS and reverse-proxies arkhelper.info + www to
-# accounts :8793. Hashed /data/<name>.<12-hex>.json files are served
-# by Node from a boot-time memory map (files under 5 MB). The header
-# matcher restates the immutable cache policy on those responses so
-# Cloudflare can keep them for a year. The manifest is server-side
-# only and is never fetched by the browser.
+# ArkHelper Caddy site block.
+# This is a copy of the live config at /etc/caddy/Caddyfile on the droplet.
+# Caddy terminates TLS and reverse-proxies arkhelper.info + www to accounts :8793.
+# Hashed /data/<name>.<12-hex>.json files are served by Node from a boot-time
+# memory map (files under 5 MB). The header matcher restates the immutable cache
+# policy on those responses so Cloudflare can keep them for a year. Node sends
+# the same Cache-Control, so this block is defence in depth, not a requirement.
 #
-# Header values:
-#   hashed data  Cache-Control: public, max-age=31536000, immutable
-#   manifest     not served over HTTP — no header
-#
-# Merge this @hashed_data / header pair into the live Caddyfile on
-# the droplet, then: caddy validate && systemctl reload caddy
-# Node already sends the same Cache-Control, so a delayed Caddy
-# reload does not leave hashed URLs under-cached.
+# After editing the live file: caddy validate --config /etc/caddy/Caddyfile
+# then systemctl reload caddy. Keep this copy in sync by hand — nothing
+# automates it.
 
 arkhelper.info, www.arkhelper.info {
-	@hashed_data path_regexp hashed_data ^/data/[^/]+\.[a-f0-9]{12}\.json$
-	header @hashed_data Cache-Control "public, max-age=31536000, immutable"
-
-	reverse_proxy localhost:8793
+        @hashed_data path_regexp hashed_data ^/data/[^/]+\.[a-f0-9]{12}\.json$
+        header @hashed_data Cache-Control "public, max-age=31536000, immutable"
+        reverse_proxy localhost:8793
 }
