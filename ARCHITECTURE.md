@@ -8,7 +8,8 @@ discovery/    — port 8792. Pulls the live official ARK:SA roster, records hist
 accounts/     — port 8793. Everything a browser actually loads: login, homepage, server
                  browser, detail pages, favorites, alerts (settings, in-page feed, Discord
                  webhook), stats, rankings, status ("Is ARK down?"), derived server lists,
-                 leaderboard suite, maps index and per-map pages, guides index and per-guide
+                 leaderboard suite, maps index and per-map pages, cluster index and
+                 per-cluster pages, guides index and per-guide
                  pages, official rates, launcher news, unofficial mod adoption,
                  demolish-refund calculator, crafting-cost calculator.
 ```
@@ -66,6 +67,7 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `mods_page.js` | `/mods` and `/mods/:id` — unofficial mod adoption (CurseForge metadata, allowlisted ForgeCDN thumbs) |
 | `maps.js` | Official-map registry (id → display name / slug / blurb) plus unknown-id fallback |
 | `maps_page.js` | `/maps` index and `/maps/:slug` per-map telemetry pages |
+| `clusters_page.js` | `/clusters` index and `/clusters/:id` official-cluster pages |
 | `guides.js` | Static guide registry (slug → title / sections / related); unknown slugs return null |
 | `guides_page.js` | `/guides` index and `/guides/:slug` article pages |
 | `demolish_refund.js` | Pure demolish-refund filter, math, and dataset builder |

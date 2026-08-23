@@ -374,6 +374,8 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/lists/:slug'));
   assert.ok(body.routes.includes('/maps'));
   assert.ok(body.routes.includes('/maps/:slug'));
+  assert.ok(body.routes.includes('/clusters'));
+  assert.ok(body.routes.includes('/clusters/:id'));
   assert.ok(body.routes.includes('/guides'));
   assert.ok(body.routes.includes('/guides/:slug'));
   assert.ok(body.routes.includes('/colors'));
@@ -3433,6 +3435,201 @@ test('GET /maps degrades when the roster is unreachable', async () => {
   });
 
   const res = await fetch(`${base}/maps`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /isn't available right now/);
+
+  server.close();
+});
+
+function clustersRoster() {
+  return {
+    generatedAt: '2026-08-16T00:00:00.000Z',
+    servers: [
+      {
+        id: 'island-pve',
+        name: 'EU-PVE-TheIsland5313',
+        map: 'TheIsland_WP',
+        gameMode: 'pve',
+        playersNow: 10,
+        maxPlayers: 70,
+        clusterId: 'PVECrossplay',
+        uptimePercent: 99,
+        rankScore: 90,
+        rank: 1,
+        wildcardReportedPing: 20,
+      },
+      {
+        id: 'ab-pvp',
+        name: 'NA-PVP-Aberration1',
+        map: 'Aberration_WP',
+        gameMode: 'pvp',
+        playersNow: 20,
+        maxPlayers: 70,
+        clusterId: 'PVPCrossplay',
+        uptimePercent: 80,
+        rankScore: 70,
+        rank: 3,
+        wildcardReportedPing: 40,
+      },
+      {
+        id: 'space-pve',
+        name: 'EU-PVE-SpaceCluster',
+        map: 'TheIsland_WP',
+        gameMode: 'pve',
+        playersNow: 4,
+        maxPlayers: 70,
+        clusterId: 'C 1',
+        uptimePercent: 50,
+        rankScore: 20,
+        rank: 8,
+      },
+      {
+        id: 'orphan',
+        name: 'Orphan',
+        map: 'TheIsland_WP',
+        gameMode: 'pve',
+        playersNow: 1,
+        maxPlayers: 70,
+      },
+    ],
+  };
+}
+
+test('GET /clusters renders 200 and lists every distinct cluster', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(clustersRoster()),
+  });
+
+  const res = await fetch(`${base}/clusters`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /<title>ARK Clusters/);
+  assert.match(html, /href="\/clusters\/PVECrossplay"/);
+  assert.match(html, /href="\/clusters\/PVPCrossplay"/);
+  assert.match(html, /href="\/clusters\/C%201"/);
+  assert.doesNotMatch(html, /Orphan/);
+  assert.match(html, /<summary class="active">Stats<\/summary>/);
+
+  server.close();
+});
+
+test('GET /clusters/:id renders 200 and contains member server names', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(clustersRoster()),
+  });
+
+  const res = await fetch(`${base}/clusters/PVECrossplay`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(html, /NA-PVP-Aberration1/);
+  assert.doesNotMatch(html, /EU-PVE-SpaceCluster/);
+
+  server.close();
+});
+
+test('GET /clusters/not-a-real-cluster returns the 404 HTML page', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(clustersRoster()),
+  });
+
+  const res = await fetch(`${base}/clusters/not-a-real-cluster`);
+  const html = await res.text();
+  assert.equal(res.status, 404);
+  assert.match(html, /Cluster not found/);
+  assert.match(html, /href="\/clusters\/PVECrossplay"/);
+
+  server.close();
+});
+
+test('GET /clusters/:id resolves an encoded URL-unsafe cluster ID', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(clustersRoster()),
+  });
+
+  const res = await fetch(`${base}/clusters/${encodeURIComponent('C 1')}`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /EU-PVE-SpaceCluster/);
+
+  server.close();
+});
+
+test('GET /clusters/bad% 404s on malformed percent-encoding without throwing', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(clustersRoster()),
+  });
+
+  const res = await fetch(`${base}/clusters/bad%`);
+  const html = await res.text();
+  assert.equal(res.status, 404);
+  assert.match(html, /Cluster not found/);
+
+  server.close();
+});
+
+test('GET /clusters degrades when the roster is unreachable', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/clusters`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /isn't available right now/);
+
+  server.close();
+});
+
+test('GET /clusters/:id degrades when the roster is unreachable', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/clusters/PVECrossplay`);
   const html = await res.text();
   assert.equal(res.status, 200);
   assert.match(html, /isn't available right now/);

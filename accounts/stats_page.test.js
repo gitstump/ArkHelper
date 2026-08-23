@@ -125,6 +125,8 @@ test('renderStatsPage renders mode, platform, map, and cluster sections', () => 
   assert.match(html, /TheIsland_WP/);
   assert.match(html, /Aberration_WP/);
   assert.match(html, /C1/);
+  assert.match(html, /href="\/clusters\/C1"/);
+  assert.match(html, /href="\/clusters"/);
   assert.match(html, />PC</);
 });
 

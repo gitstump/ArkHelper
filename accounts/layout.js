@@ -36,6 +36,7 @@ const TOOLS_NAV = [
 
 const STATS_NAV = [
   { href: '/rankings', label: 'Rankings', match: ['/rankings'] },
+  { href: '/clusters', label: 'Clusters', match: ['/clusters'] },
   { href: '/mods', label: 'Mods', match: ['/mods'] },
   { href: '/leaderboards', label: 'Leaderboards', match: ['/leaderboards'] },
   { href: '/leaderboards/map-uptime', label: 'Map Uptime' },
@@ -68,7 +69,7 @@ const NAV = [
   },
   {
     label: 'Stats',
-    match: ['/rankings', '/stats', '/leaderboards', '/is-ark-down', '/status', '/rates', '/news', '/mods'],
+    match: ['/rankings', '/stats', '/leaderboards', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/clusters'],
     children: STATS_NAV,
   },
   { href: '/guides', label: 'Guides', match: ['/guides'] },

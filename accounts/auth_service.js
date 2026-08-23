@@ -26,6 +26,8 @@
  *   GET  /robots.txt             -> allow-all crawler policy with Crawl-delay
  *   GET  /maps                   -> official-map index
  *   GET  /maps/:slug             -> per-map telemetry page
+ *   GET  /clusters               -> official-cluster index
+ *   GET  /clusters/:id           -> per-cluster member page
    *   GET  /guides                 -> guides index
    *   GET  /guides/:slug           -> a single guide
    *   GET  /colors                 -> creature color palette, dyes, lookup
@@ -148,6 +150,13 @@ const {
   renderMapPage,
   renderMapNotFoundPage,
 } = require('./maps_page.js');
+const {
+  serversForCluster,
+  computeClusterIndex,
+  renderClusterIndexPage,
+  renderClusterPage,
+  renderClusterNotFoundPage,
+} = require('./clusters_page.js');
 const { resolveGuide } = require('./guides.js');
 const { renderGuidesIndexPage, renderGuidePage, renderGuideNotFoundPage } = require('./guides_page.js');
 const {
@@ -938,6 +947,72 @@ function createAuthServer({
         return;
       }
 
+      if (req.method === 'GET' && (url.pathname === '/clusters' || url.pathname.startsWith('/clusters/'))) {
+        let clusterId = url.pathname === '/clusters' ? '' : url.pathname.slice('/clusters/'.length);
+        try {
+          clusterId = decodeURIComponent(clusterId);
+        } catch {
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(renderClusterNotFoundPage({ clusterId: url.pathname.slice('/clusters/'.length), account }));
+          return;
+        }
+        if (clusterId.includes('/')) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'not found' }));
+          return;
+        }
+
+        const roster = await fetchOfficialRosterCached(browserDeps.fetchJsonSafe);
+        const live = liveFromRoster(roster);
+        const rosterAvailable = Boolean(roster && Array.isArray(roster.servers));
+        const servers = rosterAvailable ? roster.servers : [];
+
+        if (clusterId === '') {
+          const body = renderClusterIndexPage({
+            rosterAvailable,
+            clusters: rosterAvailable ? computeClusterIndex(servers) : [],
+            account,
+            live,
+          });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        if (!rosterAvailable) {
+          const body = renderClusterPage({
+            rosterAvailable: false,
+            cluster: { clusterId },
+            servers: [],
+            account,
+            live,
+          });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const clusters = computeClusterIndex(servers);
+        const cluster = clusters.find((c) => c.clusterId === clusterId);
+        if (!cluster) {
+          const body = renderClusterNotFoundPage({ clusterId, clusters, account, live });
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const body = renderClusterPage({
+          rosterAvailable: true,
+          cluster,
+          servers: serversForCluster(servers, clusterId),
+          account,
+          live,
+        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
       if (req.method === 'GET' && (url.pathname === '/guides' || url.pathname.startsWith('/guides/'))) {
         let slug = url.pathname === '/guides' ? '' : url.pathname.slice('/guides/'.length);
         try {
@@ -1359,7 +1434,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/colors', '/colors/sets/:slug', '/tools/crafting-cost', '/data/:hashed.json', '/tools/demolish-refund', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/robots.txt', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/clusters', '/clusters/:id', '/guides', '/guides/:slug', '/colors', '/colors/sets/:slug', '/tools/crafting-cost', '/data/:hashed.json', '/tools/demolish-refund', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/robots.txt', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));

@@ -11,6 +11,7 @@
 
 const { escapeHtml } = require('./home_page.js');
 const { renderPage } = require('./layout.js');
+const { clusterLinkHtml } = require('./clusters_page.js');
 
 // Leaderboard rows are enriched with a real name by auth_service.js
 // when possible (joined against the live roster), but this stays
@@ -155,9 +156,10 @@ function renderStatsPage({
   const clusterSection =
     clusterStats.length > 0
       ? `<h2>Top clusters</h2>
+    <p class="note"><a href="/clusters">All clusters</a></p>
     <table>
       <thead><tr><th>Cluster</th><th>Servers</th><th>Total players</th></tr></thead>
-      <tbody>${clusterStats.map((c) => `<tr><td>${escapeHtml(c.clusterId)}</td><td>${escapeHtml(String(c.serverCount))}</td><td>${escapeHtml(String(c.totalPlayers))}</td></tr>`).join('')}</tbody>
+      <tbody>${clusterStats.map((c) => `<tr><td>${clusterLinkHtml(c.clusterId)}</td><td>${escapeHtml(String(c.serverCount))}</td><td>${escapeHtml(String(c.totalPlayers))}</td></tr>`).join('')}</tbody>
     </table>`
       : '';
 

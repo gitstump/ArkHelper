@@ -60,6 +60,7 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.match(html, /href="\/maps\/genesis"/);
   assert.match(html, /class="nav-menu nav-menu-cols"/);
   assert.match(html, /href="\/rankings"/);
+  assert.match(html, /href="\/clusters"/);
   assert.match(html, /href="\/mods"/);
   assert.match(html, /href="\/leaderboards"/);
   assert.match(html, /href="\/leaderboards\/map-uptime"/);
@@ -195,6 +196,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/lists\/recently-wiped">Recently Wiped/);
   assert.match(html, /href="\/lists\/available-now">Available Now/);
   assert.match(html, /href="\/rankings">Rankings/);
+  assert.match(html, /href="\/clusters">Clusters/);
   assert.match(html, /href="\/mods">Mods/);
   assert.match(html, /href="\/leaderboards">Leaderboards/);
   assert.match(html, /href="\/leaderboards\/map-uptime">Map Uptime/);
@@ -229,6 +231,18 @@ test('renderFooter honors an explicit year in the legal band', () => {
 test('renderFooter shows em dashes when live data is missing', () => {
   const html = renderFooter(null);
   assert.match(html, /\u2014/);
+});
+
+test('renderNav marks the Stats group active on /clusters', () => {
+  const html = renderNav('/clusters');
+  assert.match(html, /<summary class="active">Stats<\/summary>/);
+  assert.match(html, /class="active" href="\/clusters"/);
+});
+
+test('renderNav marks the Stats group active on a per-cluster page', () => {
+  const html = renderNav('/clusters/PVECrossplay');
+  assert.match(html, /<summary class="active">Stats<\/summary>/);
+  assert.match(html, /class="active" href="\/clusters"/);
 });
 
 test('nav and footer each show Mods exactly once', () => {

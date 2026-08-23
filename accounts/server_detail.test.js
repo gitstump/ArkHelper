@@ -55,6 +55,7 @@ test('renderServerDetailPage shows the core facts', () => {
   assert.match(html, /12182/);
   assert.match(html, /92\.41/);
   assert.match(html, /PVECrossplay/);
+  assert.match(html, /href="\/clusters\/PVECrossplay"/);
   assert.match(html, /5\.62\.112\.69/);
   assert.match(html, /7779/);
   assert.match(html, /platform-badge/);

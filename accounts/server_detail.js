@@ -17,6 +17,7 @@
 
 const { escapeHtml } = require('./home_page.js');
 const { renderPage } = require('./layout.js');
+const { clusterLinkHtml } = require('./clusters_page.js');
 const { renderPeakTimesHeatmap, renderDowntimeHeatmap, hasAnyData } = require('./heatmap_svg.js');
 const { buildEmbedSnippets } = require('./badge.js');
 const { platformBadge } = require('./server_browser.js');
@@ -261,7 +262,7 @@ function renderServerDetailPage({ server, uptime, history, loggedIn, isFavorited
     <tr><td>Mode</td><td>${server.gameMode === 'pve' ? 'PvE' : server.gameMode === 'pvp' ? 'PvP' : '\u2014'}</td></tr>
     <tr><td>Day</td><td>${escapeHtml(String(server.day ?? '\u2014'))}</td></tr>
     <tr><td>Version</td><td>${escapeHtml(server.version || '\u2014')}</td></tr>
-    <tr><td>Cluster</td><td>${escapeHtml(server.clusterId || '\u2014')}</td></tr>
+    <tr><td>Cluster</td><td>${server.clusterId ? clusterLinkHtml(server.clusterId) : '\u2014'}</td></tr>
     <tr><td>Platforms</td><td>${(() => {
       const badge = platformBadge(server.platformType);
       const raw = escapeHtml(server.platformType || '\u2014');
