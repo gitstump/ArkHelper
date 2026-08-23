@@ -84,6 +84,8 @@ function sample(id, extra = {}) {
     ping: extra.ping ?? 40,
     hasPassword: extra.hasPassword ?? false,
     modIds: extra.modIds || [],
+    allowCharTransfers: extra.allowCharTransfers,
+    allowItemTransfers: extra.allowItemTransfers,
   };
 }
 
@@ -356,6 +358,8 @@ test('opening a DB created without mods_hash migrates in place and is idempotent
   const db = openUnofficialDb(file);
   const cols = db.prepare('PRAGMA table_info(unofficial_servers)').all().map((c) => c.name);
   assert.ok(cols.includes('mods_hash'));
+  assert.ok(cols.includes('allow_char_transfers'));
+  assert.ok(cols.includes('allow_item_transfers'));
   const row = getUnofficialServer(db, 'legacy');
   assert.equal(row.name, 'Legacy Box');
   assert.equal(row.cycles_seen, 7);
@@ -375,13 +379,16 @@ test('opening a DB created without mods_hash migrates in place and is idempotent
   again.close();
 });
 
-test('fresh open creates mods_hash and adoption indexes', () => {
+test('fresh open creates mods_hash, transfer columns, and adoption indexes', () => {
   const db = openUnofficialDb(':memory:');
   const cols = db.prepare('PRAGMA table_info(unofficial_servers)').all().map((c) => c.name);
   assert.ok(cols.includes('mods_hash'));
+  assert.ok(cols.includes('allow_char_transfers'));
+  assert.ok(cols.includes('allow_item_transfers'));
   const names = indexNames(db);
   assert.ok(names.includes('idx_server_mods_mod_id'));
   assert.ok(names.includes('idx_unofficial_servers_last_seen'));
+  assert.equal(names.some((n) => /char_transfers|item_transfers/.test(n)), false);
 });
 
 test('unchanged mod list skips DELETE/INSERT; rowids stay stable; no per-server SELECT', () => {
@@ -478,14 +485,149 @@ test('toUnofficialServerView maps persisted columns and omits in-memory-only fie
     platformType: 'PC',
     ping: 40,
     hasPassword: true,
+    allowCharTransfers: null,
+    allowItemTransfers: null,
     firstSeen: '2026-08-16T00:00:00.000Z',
     lastSeen: '2026-08-16T00:00:00.000Z',
     cyclesSeen: 1,
   });
   assert.equal(Object.prototype.hasOwnProperty.call(view, 'day'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(view, 'allowCharTransfers'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(view, 'allowItemTransfers'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(view, 'country'), false);
+});
+
+test('opening a DB created without transfer columns migrates in place', () => {
+  const file = tmpDbFile();
+  const raw = new DatabaseSync(file);
+  raw.exec(`
+    CREATE TABLE unofficial_servers (
+      server_key TEXT PRIMARY KEY,
+      name TEXT,
+      map TEXT,
+      game_mode TEXT,
+      players_now INTEGER,
+      max_players INTEGER,
+      version TEXT,
+      platform TEXT,
+      ping INTEGER,
+      has_password INTEGER,
+      first_seen TEXT NOT NULL,
+      last_seen TEXT NOT NULL,
+      cycles_seen INTEGER NOT NULL DEFAULT 0,
+      mods_hash TEXT
+    );
+    CREATE TABLE unofficial_meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      cycles_total INTEGER NOT NULL DEFAULT 0,
+      last_fetch_at TEXT,
+      last_fetch_status TEXT
+    );
+    CREATE TABLE server_mods (
+      server_key TEXT NOT NULL,
+      mod_id INTEGER NOT NULL,
+      PRIMARY KEY (server_key, mod_id)
+    );
+    INSERT INTO unofficial_meta (id, cycles_total) VALUES (1, 0);
+  `);
+  raw.prepare(
+    `INSERT INTO unofficial_servers (
+      server_key, name, map, game_mode, players_now, max_players,
+      version, platform, ping, has_password, first_seen, last_seen, cycles_seen, mods_hash
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    'legacy',
+    'Legacy Box',
+    'TheIsland_WP',
+    'pve',
+    4,
+    20,
+    '92.41',
+    'PC',
+    40,
+    0,
+    '2026-08-01T00:00:00.000Z',
+    '2026-08-18T00:00:00.000Z',
+    7,
+    'abc'
+  );
+  raw.close();
+
+  let db;
+  assert.doesNotThrow(() => {
+    db = openUnofficialDb(file);
+  });
+  const cols = db.prepare('PRAGMA table_info(unofficial_servers)').all().map((c) => c.name);
+  assert.ok(cols.includes('allow_char_transfers'));
+  assert.ok(cols.includes('allow_item_transfers'));
+  const info = Object.fromEntries(
+    db.prepare('PRAGMA table_info(unofficial_servers)').all().map((c) => [c.name, c])
+  );
+  assert.equal(info.allow_char_transfers.dflt_value, null);
+  assert.equal(info.allow_item_transfers.dflt_value, null);
+  assert.equal(info.allow_char_transfers.notnull, 0);
+  assert.equal(info.allow_item_transfers.notnull, 0);
+  const row = getUnofficialServer(db, 'legacy');
+  assert.equal(row.name, 'Legacy Box');
+  assert.equal(row.allow_char_transfers, null);
+  assert.equal(row.allow_item_transfers, null);
+  db.close();
+});
+
+test('recordUnofficialCycle persists transfer flags as 1/0 and unknown as NULL', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(
+    db,
+    [
+      sample('on', { allowCharTransfers: true, allowItemTransfers: true }),
+      sample('off', { allowCharTransfers: false, allowItemTransfers: false }),
+      sample('unknown'),
+      sample('partial', { allowCharTransfers: true }),
+    ],
+    { now: () => '2026-08-23T00:00:00.000Z' }
+  );
+  const on = getUnofficialServer(db, 'on');
+  assert.equal(on.allow_char_transfers, 1);
+  assert.equal(on.allow_item_transfers, 1);
+  const off = getUnofficialServer(db, 'off');
+  assert.equal(off.allow_char_transfers, 0);
+  assert.equal(off.allow_item_transfers, 0);
+  const unknown = getUnofficialServer(db, 'unknown');
+  assert.equal(unknown.allow_char_transfers, null);
+  assert.equal(unknown.allow_item_transfers, null);
+  const partial = getUnofficialServer(db, 'partial');
+  assert.equal(partial.allow_char_transfers, 1);
+  assert.equal(partial.allow_item_transfers, null);
+
+  const viewOn = toUnofficialServerView(on);
+  assert.equal(viewOn.allowCharTransfers, true);
+  assert.equal(viewOn.allowItemTransfers, true);
+  const viewUnknown = toUnofficialServerView(unknown);
+  assert.equal(viewUnknown.allowCharTransfers, null);
+  assert.equal(viewUnknown.allowItemTransfers, null);
+});
+
+test('unknown transfer flags overwrite a prior 1/0 with NULL and never coerce to 0', () => {
+  const db = openUnofficialDb(':memory:');
+  recordUnofficialCycle(
+    db,
+    [sample('a', { allowCharTransfers: true, allowItemTransfers: false })],
+    { now: () => '2026-08-23T00:00:00.000Z' }
+  );
+  assert.equal(getUnofficialServer(db, 'a').allow_char_transfers, 1);
+  assert.equal(getUnofficialServer(db, 'a').allow_item_transfers, 0);
+
+  recordUnofficialCycle(db, [sample('a')], { now: () => '2026-08-23T00:15:00.000Z' });
+  const cleared = getUnofficialServer(db, 'a');
+  assert.equal(cleared.allow_char_transfers, null);
+  assert.equal(cleared.allow_item_transfers, null);
+
+  recordUnofficialCycle(
+    db,
+    [sample('a', { allowCharTransfers: false, allowItemTransfers: false })],
+    { now: () => '2026-08-23T00:30:00.000Z' }
+  );
+  const disabled = getUnofficialServer(db, 'a');
+  assert.equal(disabled.allow_char_transfers, 0);
+  assert.equal(disabled.allow_item_transfers, 0);
 });
 
 test('unofficial server lookup uses the primary-key index', () => {

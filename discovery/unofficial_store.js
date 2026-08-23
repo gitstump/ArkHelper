@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS unofficial_servers (
   first_seen TEXT NOT NULL,
   last_seen TEXT NOT NULL,
   cycles_seen INTEGER NOT NULL DEFAULT 0,
-  mods_hash TEXT
+  mods_hash TEXT,
+  allow_char_transfers INTEGER,
+  allow_item_transfers INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_unofficial_servers_last_seen ON unofficial_servers(last_seen);
@@ -83,6 +85,18 @@ function migrateUnofficialSchema(db) {
   if (!tableHasColumn(db, 'unofficial_servers', 'mods_hash')) {
     db.exec('ALTER TABLE unofficial_servers ADD COLUMN mods_hash TEXT');
   }
+  // try/catch ALTER matches openHistoryDb. No DEFAULT: NULL means unknown.
+  // Do not index these — detail pages read by primary key only.
+  try {
+    db.exec('ALTER TABLE unofficial_servers ADD COLUMN allow_char_transfers INTEGER');
+  } catch (err) {
+    if (!/duplicate column name/i.test(err.message)) throw err;
+  }
+  try {
+    db.exec('ALTER TABLE unofficial_servers ADD COLUMN allow_item_transfers INTEGER');
+  } catch (err) {
+    if (!/duplicate column name/i.test(err.message)) throw err;
+  }
   db.exec('CREATE INDEX IF NOT EXISTS idx_server_mods_mod_id ON server_mods(mod_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_unofficial_servers_last_seen ON unofficial_servers(last_seen)');
 }
@@ -98,10 +112,20 @@ function openUnofficialDb(dbPath) {
   return db;
 }
 
-function passwordFlag(value) {
+function nullableFlag(value) {
   if (value === true) return 1;
   if (value === false) return 0;
   return null;
+}
+
+function fromNullableFlag(value) {
+  if (value === 1) return true;
+  if (value === 0) return false;
+  return null;
+}
+
+function passwordFlag(value) {
+  return nullableFlag(value);
 }
 
 function positiveInt(value) {
@@ -145,8 +169,9 @@ function recordUnofficialCycle(db, servers, { now = () => new Date().toISOString
   const upsert = db.prepare(`
     INSERT INTO unofficial_servers (
       server_key, name, map, game_mode, players_now, max_players,
-      version, platform, ping, has_password, first_seen, last_seen, cycles_seen, mods_hash
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+      version, platform, ping, has_password, first_seen, last_seen, cycles_seen, mods_hash,
+      allow_char_transfers, allow_item_transfers
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
     ON CONFLICT(server_key) DO UPDATE SET
       name = excluded.name,
       map = excluded.map,
@@ -159,7 +184,9 @@ function recordUnofficialCycle(db, servers, { now = () => new Date().toISOString
       has_password = excluded.has_password,
       last_seen = excluded.last_seen,
       cycles_seen = unofficial_servers.cycles_seen + 1,
-      mods_hash = excluded.mods_hash
+      mods_hash = excluded.mods_hash,
+      allow_char_transfers = excluded.allow_char_transfers,
+      allow_item_transfers = excluded.allow_item_transfers
   `);
   const bumpMeta = db.prepare(
     `UPDATE unofficial_meta SET cycles_total = cycles_total + 1, last_fetch_at = ?, last_fetch_status = 'ok' WHERE id = 1`
@@ -190,7 +217,9 @@ function recordUnofficialCycle(db, servers, { now = () => new Date().toISOString
         passwordFlag(s.hasPassword),
         nowIso,
         nowIso,
-        hash
+        hash,
+        nullableFlag(s.allowCharTransfers),
+        nullableFlag(s.allowItemTransfers)
       );
       s.cycles_seen = prevCycles + 1;
       if (hash !== prevHash) {
@@ -265,7 +294,9 @@ function toUnofficialServerView(row) {
     version: row.version ?? null,
     platformType: row.platform ?? null,
     ping: row.ping ?? null,
-    hasPassword: row.has_password === 1 ? true : row.has_password === 0 ? false : null,
+    hasPassword: fromNullableFlag(row.has_password),
+    allowCharTransfers: fromNullableFlag(row.allow_char_transfers),
+    allowItemTransfers: fromNullableFlag(row.allow_item_transfers),
     firstSeen: row.first_seen ?? null,
     lastSeen: row.last_seen ?? null,
     cyclesSeen: row.cycles_seen ?? null,

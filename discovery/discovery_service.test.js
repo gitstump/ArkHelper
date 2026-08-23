@@ -742,7 +742,8 @@ test('GET /unofficial/server/:id returns persisted latest-state and 404s unknown
   assert.equal(body.name, 'Community PvE');
   assert.equal(body.lastSeen, '2026-08-16T11:00:00.000Z');
   assert.equal(Object.prototype.hasOwnProperty.call(body, 'day'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(body, 'allowCharTransfers'), false);
+  assert.equal(body.allowCharTransfers, null);
+  assert.equal(body.allowItemTransfers, null);
 
   const missing = await fetch(`http://127.0.0.1:${port}/unofficial/server/does-not-exist`);
   assert.equal(missing.status, 404);

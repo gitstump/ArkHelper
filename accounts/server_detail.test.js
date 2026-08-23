@@ -589,6 +589,37 @@ test('renderUnofficialServerDetailPage shows persisted facts and omits history s
   }
 });
 
+test('renderUnofficialServerDetailPage shows transfer facts only when known, with verbatim Enabled/Disabled copy', () => {
+  const bothOn = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer({ allowCharTransfers: true, allowItemTransfers: true }),
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.match(bothOn, /<td>Character transfers<\/td><td>Enabled<\/td>/);
+  assert.match(bothOn, /<td>Item transfers<\/td><td>Enabled<\/td>/);
+  assert.doesNotMatch(bothOn, /Unknown/);
+
+  const bothOff = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer({ allowCharTransfers: false, allowItemTransfers: false }),
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.match(bothOff, /<td>Character transfers<\/td><td>Disabled<\/td>/);
+  assert.match(bothOff, /<td>Item transfers<\/td><td>Disabled<\/td>/);
+
+  const charsOnly = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer({ allowCharTransfers: true, allowItemTransfers: null }),
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.match(charsOnly, /<td>Character transfers<\/td><td>Enabled<\/td>/);
+  assert.doesNotMatch(charsOnly, /<td>Item transfers<\/td>/);
+
+  const unknown = renderUnofficialServerDetailPage({
+    server: makeUnofficialServer(),
+    now: () => Date.parse('2026-08-23T12:00:00.000Z'),
+  });
+  assert.doesNotMatch(unknown, /<td>Character transfers<\/td>/);
+  assert.doesNotMatch(unknown, /<td>Item transfers<\/td>/);
+});
+
 test('renderUnofficialServerDetailPage omits lines for fields that are not persisted', () => {
   const html = renderUnofficialServerDetailPage({
     server: {
