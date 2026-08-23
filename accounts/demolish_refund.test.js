@@ -2,7 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const generated = require('./data/demolish_refunds.json');
+const { loadGeneratedJson } = require('./static_data.js');
+const generated = loadGeneratedJson('demolish-refunds');
 const { findStructure, refundTotalsFor, perUnitRefund, scaleRefunds, sumRows } = require('./demolish_refund.js');
 
 function amountsById(parts) {

@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { escapeHtml } = require('./theme.js');
+const { resolveDataUrl } = require('./static_data.js');
 const {
   PAGE_TITLE,
   INTRO,
@@ -59,8 +60,10 @@ test('chemistry bench note is present for the comparison', () => {
   assert.match(html, literal(CHEM_NOTE));
 });
 
-test('page fetches the static JSON asset', () => {
-  assert.match(html, /\/data\/crafting-costs\.json/);
+test('page fetches the static JSON asset from the manifest URL', () => {
+  const dataUrl = resolveDataUrl('crafting-costs');
+  assert.match(dataUrl, /\/data\/crafting-costs\.[a-f0-9]{12}\.json/);
+  assert.match(html, new RegExp(dataUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
 test('page is linked from the Tools nav', () => {

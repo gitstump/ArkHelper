@@ -2,9 +2,12 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { openDb, getAlertSettings } = require('./db.js');
 const { parseCookies, buildSetCookie, createAuthServer, fetchAlertsRoster, SESSION_COOKIE, STATE_COOKIE, PRESET_COOKIE } = require('./auth_service.js');
+const { HASHED_CACHE_CONTROL, publishStaticAsset, resolveDataUrl } = require('./static_data.js');
 const { siteOrigin } = require('./origin.js');
 const {
   LOCAL_FETCH_TIMEOUT_HEAVY_MS,
@@ -86,6 +89,41 @@ test('createAuthServer throws naming a missing brand asset file', () => {
       assetsDir: path.join(__dirname, 'assets', '__missing-brand-assets__'),
     }),
     /brand asset missing or unreadable: favicon\.ico/
+  );
+});
+
+test('createAuthServer fails at boot when the static-data manifest is missing', () => {
+  const db = openDb(':memory:');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arkhelper-auth-static-'));
+  assert.throws(
+    () => createAuthServer({
+      db,
+      clientId: 'a',
+      clientSecret: 'b',
+      redirectUri: 'http://x',
+      staticDataDir: dir,
+    }),
+    /static data manifest missing:/
+  );
+});
+
+test('createAuthServer fails at boot when the static-data manifest is missing a required key', () => {
+  const db = openDb(':memory:');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arkhelper-auth-static-'));
+  publishStaticAsset({
+    dir,
+    logicalName: 'crafting-costs',
+    content: Buffer.from('{"items":[]}\n'),
+  });
+  assert.throws(
+    () => createAuthServer({
+      db,
+      clientId: 'a',
+      clientSecret: 'b',
+      redirectUri: 'http://x',
+      staticDataDir: dir,
+    }),
+    /static data manifest missing key "demolish-refunds"/
   );
 });
 
@@ -339,9 +377,8 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/guides'));
   assert.ok(body.routes.includes('/guides/:slug'));
   assert.ok(body.routes.includes('/tools/crafting-cost'));
-  assert.ok(body.routes.includes('/data/crafting-costs.json'));
+  assert.ok(body.routes.includes('/data/:hashed.json'));
   assert.ok(body.routes.includes('/tools/demolish-refund'));
-  assert.ok(body.routes.includes('/data/demolish-refunds.json'));
   assert.ok(body.routes.includes('/news'));
   assert.ok(body.routes.includes('/mods'));
   assert.ok(body.routes.includes('/mods/:id'));
@@ -3754,12 +3791,13 @@ test('GET /tools/crafting-cost renders the calculator shell', async () => {
   assert.match(res.headers.get('content-type'), /text\/html/);
   assert.match(html, /<h1>Crafting Cost Calculator<\/h1>/);
   assert.match(html, /href="\/tools\/crafting-cost"/);
-  assert.match(html, /\/data\/crafting-costs\.json/);
+  const craftingUrl = resolveDataUrl('crafting-costs');
+  assert.match(html, new RegExp(craftingUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
   server.close();
 });
 
-test('GET /data/crafting-costs.json serves the preloaded asset with a long cache header', async () => {
+test('GET hashed crafting-costs JSON serves the preloaded asset with an immutable cache header', async () => {
   const db = openDb(':memory:');
   const { server, base } = await startServer({
     db,
@@ -3769,10 +3807,11 @@ test('GET /data/crafting-costs.json serves the preloaded asset with a long cache
     discordDeps: fakeDiscordDeps(),
   });
 
-  const res = await fetch(`${base}/data/crafting-costs.json`);
+  const craftingUrl = resolveDataUrl('crafting-costs');
+  const res = await fetch(`${base}${craftingUrl}`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /application\/json/);
-  assert.match(res.headers.get('cache-control'), /public,\s*max-age=86400/);
+  assert.equal(res.headers.get('cache-control'), HASHED_CACHE_CONTROL);
   const body = await res.json();
   assert.ok(Array.isArray(body.items));
   assert.ok(body.items.length > 0);
@@ -3800,12 +3839,13 @@ test('GET /tools/demolish-refund renders the calculator shell', async () => {
   assert.match(html, /<h1>Demolish Refund Calculator<\/h1>/);
   assert.match(html, /These numbers are for official servers/);
   assert.match(html, /href="\/tools\/demolish-refund"/);
-  assert.match(html, /\/data\/demolish-refunds\.json/);
+  const demolishUrl = resolveDataUrl('demolish-refunds');
+  assert.match(html, new RegExp(demolishUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
   server.close();
 });
 
-test('GET /data/demolish-refunds.json serves the preloaded asset with a long cache header', async () => {
+test('GET hashed demolish-refunds JSON serves the preloaded asset with an immutable cache header', async () => {
   const db = openDb(':memory:');
   const { server, base } = await startServer({
     db,
@@ -3815,10 +3855,11 @@ test('GET /data/demolish-refunds.json serves the preloaded asset with a long cac
     discordDeps: fakeDiscordDeps(),
   });
 
-  const res = await fetch(`${base}/data/demolish-refunds.json`);
+  const demolishUrl = resolveDataUrl('demolish-refunds');
+  const res = await fetch(`${base}${demolishUrl}`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /application\/json/);
-  assert.match(res.headers.get('cache-control'), /public,\s*max-age=86400/);
+  assert.equal(res.headers.get('cache-control'), HASHED_CACHE_CONTROL);
   const body = await res.json();
   assert.ok(Array.isArray(body.structures));
   assert.ok(body.structures.length > 0);

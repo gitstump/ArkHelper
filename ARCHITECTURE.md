@@ -69,12 +69,23 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | `guides.js` | Static guide registry (slug → title / sections / related); unknown slugs return null |
 | `guides_page.js` | `/guides` index and `/guides/:slug` article pages |
 | `demolish_refund.js` | Pure demolish-refund filter, math, and dataset builder |
-| `demolish_refund_page.js` | `/tools/demolish-refund` calculator shell (vanilla JS + static JSON) |
+| `demolish_refund_page.js` | `/tools/demolish-refund` calculator shell (vanilla JS + hashed static JSON) |
 | `crafting_cost.js` | Pure crafting-cost filter, math, and dataset builder |
-| `crafting_cost_page.js` | `/tools/crafting-cost` calculator shell (vanilla JS + static JSON) |
+| `crafting_cost_page.js` | `/tools/crafting-cost` calculator shell (vanilla JS + hashed static JSON) |
+| `static_data.js` | Content-hashed JSON publish, committed manifest, boot-time URL resolution |
 | `heatmap_svg.js` | Renders peak-time/downtime grids as inline SVG |
 | `badge.js` | The embeddable live-status SVG badge |
 | `local_fetch.js` | Shared "fetch JSON from discovery, never throw" helper |
+
+Static game-data JSON lives in `accounts/data/`. Build steps
+(`build_crafting_costs.js`, `build_demolish_refunds.js`) write
+`<logical-name>.<12-hex-sha256>.json` and update `manifest.json`
+(the only stable filename). Accounts reads the manifest once at
+boot, preloads those files into memory, and injects `/data/<hashed>`
+URLs into the calculator pages. Hashed responses send
+`Cache-Control: public, max-age=31536000, immutable`. The manifest
+is never served to the browser. Caddy restates that header in
+`deploy/Caddyfile`; it remains a TLS reverse proxy to :8793.
 
 ## Design conventions (see `.cursor/rules/` for the enforced version)
 

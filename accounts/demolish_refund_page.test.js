@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { resolveDataUrl } = require('./static_data.js');
 const {
   PAGE_TITLE,
   INTRO,
@@ -73,7 +74,9 @@ test('empty state hides the results table', () => {
 });
 
 test('page fetches the static JSON asset and marks Element rows via a footnote, not a hover-only tooltip', () => {
-  assert.match(html, /\/data\/demolish-refunds\.json/);
+  const dataUrl = resolveDataUrl('demolish-refunds');
+  assert.match(dataUrl, /\/data\/demolish-refunds\.[a-f0-9]{12}\.json/);
+  assert.match(html, new RegExp(dataUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(html, /href="#element-note"/);
   assert.match(html, /id="element-note"/);
   assert.doesNotMatch(html, /title="Element/);

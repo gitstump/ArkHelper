@@ -5,12 +5,11 @@
  * build_crafting_costs.js
  *
  * Build-time step: read phase1/items_full.jsonl, phase1/items_yield2.jsonl,
- * and phase1/Engrams.json and write the static crafting-cost JSON asset.
- * Runtime never opens the JSONL or Engrams file.
+ * and phase1/Engrams.json and write the content-hashed crafting-cost
+ * JSON asset plus manifest. Runtime never opens the JSONL or Engrams file.
  */
 
 const fs = require('node:fs');
-const path = require('node:path');
 const {
   parseItemsJsonl,
   buildDataset,
@@ -19,11 +18,17 @@ const {
   assertNoDuplicateDnames,
   assertOverridesPresent,
 } = require('./crafting_cost.js');
+const {
+  DEFAULT_DATA_DIR,
+  publishStaticAsset,
+  resolveDataDir,
+} = require('./static_data.js');
 
 const DEFAULT_SOURCE_FULL = 'C:\\arkhelper_extract\\phase1\\items_full.jsonl';
 const DEFAULT_SOURCE_YIELD = 'C:\\arkhelper_extract\\phase1\\items_yield2.jsonl';
 const DEFAULT_SOURCE_ENGRAMS = 'C:\\arkhelper_extract\\phase1\\Engrams.json';
-const DEFAULT_OUT = path.join(__dirname, 'data', 'crafting_costs.json');
+const DEFAULT_OUT = DEFAULT_DATA_DIR;
+const LOGICAL_NAME = 'crafting-costs';
 
 function buildFromFiles(fullPath, yieldPath, engramPath, outPath) {
   const fullItems = parseItemsJsonl(fs.readFileSync(fullPath, 'utf8'));
@@ -42,13 +47,19 @@ function buildFromFiles(fullPath, yieldPath, engramPath, outPath) {
     labels: dataset.labels,
     items: dataset.items,
   };
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, `${JSON.stringify(asset)}\n`);
+  const outDir = resolveDataDir(outPath, DEFAULT_DATA_DIR);
+  const published = publishStaticAsset({
+    dir: outDir,
+    logicalName: LOGICAL_NAME,
+    content: Buffer.from(`${JSON.stringify(asset)}\n`),
+  });
   return {
     fullPath,
     yieldPath,
     engramPath,
-    outPath,
+    outPath: published.filePath,
+    filename: published.filename,
+    deleted: published.deleted,
     itemCount: dataset.items.length,
     wrapperCount: dataset.excludedWrappers.length,
     unresolvedCount: dataset.unresolved.length,
@@ -77,6 +88,11 @@ function main(argv = process.argv.slice(2)) {
   process.stdout.write(
     `wrote ${result.itemCount} items (rule KEEP ${result.ruleKeepCount} / EXCLUDED ${result.ruleExcludeCount}), ` +
       `${result.wrapperCount} excluded wrappers -> ${result.outPath}\n`
+  );
+  process.stdout.write(
+    result.deleted.length
+      ? `removed superseded: ${result.deleted.join(', ')}\n`
+      : 'removed superseded: (none)\n'
   );
   if (result.duplicateDnames.length) {
     process.stdout.write(

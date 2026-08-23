@@ -2,7 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const generated = require('./data/crafting_costs.json');
+const { loadGeneratedJson } = require('./static_data.js');
+const generated = loadGeneratedJson('crafting-costs');
 const {
   STATIONS,
   EXPECTED_KEEP_COUNT,

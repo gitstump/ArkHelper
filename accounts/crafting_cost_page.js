@@ -11,6 +11,7 @@
 
 const { escapeHtml } = require('./theme.js');
 const { renderPage } = require('./layout.js');
+const { resolveDataUrl } = require('./static_data.js');
 
 const PAGE_TITLE = 'Crafting Cost Calculator';
 const INTRO =
@@ -81,9 +82,10 @@ const PAGE_CSS = `
 .craft-load-error { color: var(--offline); }
 `;
 
-const PAGE_JS = `
+function pageJs(dataUrl) {
+  return `
 (function () {
-  var DATA_URL = '/data/crafting-costs.json';
+  var DATA_URL = ${JSON.stringify(dataUrl)};
   var data = null;
   var rows = [];
   var highlight = 0;
@@ -391,8 +393,10 @@ const PAGE_JS = `
     });
 })();
 `.trim();
+}
 
-function renderCraftingCostPage({ account = null, live = null } = {}) {
+function renderCraftingCostPage({ account = null, live = null, dataUrl } = {}) {
+  const resolvedUrl = dataUrl || resolveDataUrl('crafting-costs');
   const body = `<h1>${escapeHtml(PAGE_TITLE)}</h1>
   <p class="craft-intro">${escapeHtml(INTRO)}</p>
   <p class="craft-scope">${escapeHtml(SCOPE_NOTE)}</p>
@@ -427,7 +431,7 @@ function renderCraftingCostPage({ account = null, live = null } = {}) {
     account,
     live,
     extraCss: PAGE_CSS,
-    extraJs: PAGE_JS,
+    extraJs: pageJs(resolvedUrl),
     body,
   });
 }

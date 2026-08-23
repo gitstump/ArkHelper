@@ -11,6 +11,7 @@
 
 const { escapeHtml } = require('./theme.js');
 const { renderPage } = require('./layout.js');
+const { resolveDataUrl } = require('./static_data.js');
 
 const PAGE_TITLE = 'Demolish Refund Calculator';
 const INTRO =
@@ -85,9 +86,10 @@ const PAGE_CSS = `
 .demo-load-error { color: var(--offline); }
 `;
 
-const PAGE_JS = `
+function pageJs(dataUrl) {
+  return `
 (function () {
-  var DATA_URL = '/data/demolish-refunds.json';
+  var DATA_URL = ${JSON.stringify(dataUrl)};
   var data = null;
   var rows = [];
   var highlight = 0;
@@ -301,8 +303,10 @@ const PAGE_JS = `
     });
 })();
 `.trim();
+}
 
-function renderDemolishRefundPage({ account = null, live = null } = {}) {
+function renderDemolishRefundPage({ account = null, live = null, dataUrl } = {}) {
+  const resolvedUrl = dataUrl || resolveDataUrl('demolish-refunds');
   const body = `<h1>${escapeHtml(PAGE_TITLE)}</h1>
   <p class="demo-intro">${escapeHtml(INTRO)}</p>
   <p class="demo-scope">${escapeHtml(SCOPE_NOTE)}</p>
@@ -338,7 +342,7 @@ function renderDemolishRefundPage({ account = null, live = null } = {}) {
     account,
     live,
     extraCss: PAGE_CSS,
-    extraJs: PAGE_JS,
+    extraJs: pageJs(resolvedUrl),
     body,
   });
 }

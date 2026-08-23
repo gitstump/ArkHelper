@@ -29,9 +29,8 @@
    *   GET  /guides                 -> guides index
    *   GET  /guides/:slug           -> a single guide
    *   GET  /tools/crafting-cost    -> crafting cost calculator
-   *   GET  /data/crafting-costs.json -> static precomputed crafting costs
+   *   GET  /data/:hashed.json      -> static precomputed game-data JSON
    *   GET  /tools/demolish-refund  -> demolish refund calculator
-   *   GET  /data/demolish-refunds.json -> static precomputed refunds
    *   GET  /compare                -> side-by-side official server comparison
    *   GET  /alerts                 -> in-page alert feed (login required)
  *   POST /alerts/webhook         -> save Discord webhook URL
@@ -151,9 +150,7 @@ const { resolveGuide } = require('./guides.js');
 const { renderGuidesIndexPage, renderGuidePage, renderGuideNotFoundPage } = require('./guides_page.js');
 const { renderDemolishRefundPage } = require('./demolish_refund_page.js');
 const { renderCraftingCostPage } = require('./crafting_cost_page.js');
-
-const DEMOLISH_REFUNDS_BODY = Buffer.from(JSON.stringify(require('./data/demolish_refunds.json')));
-const CRAFTING_COSTS_BODY = Buffer.from(JSON.stringify(require('./data/crafting_costs.json')));
+const { HASHED_CACHE_CONTROL, loadStaticData } = require('./static_data.js');
 
 const SESSION_COOKIE = 'ark_session';
 const STATE_COOKIE = 'ark_oauth_state';
@@ -336,6 +333,7 @@ function createAuthServer({
   randomToken = () => crypto.randomBytes(32).toString('hex'),
   webhookPostFn = defaultPostFn,
   assetsDir,
+  staticDataDir,
   getAlertsHealth = null,
 }) {
   if (!db) throw new Error('createAuthServer: db is required');
@@ -345,6 +343,13 @@ function createAuthServer({
   const rosterCache = unofficialRosterCache || createTtlCache();
   const officialCache = officialRosterCache || createTtlCache({ ttlMs: OFFICIAL_ROSTER_CACHE_TTL_MS });
   const brandAssets = loadBrandAssets(assetsDir);
+  const staticData = loadStaticData(staticDataDir);
+  const staticBodies = new Map();
+  for (const asset of staticData.assets.values()) {
+    staticBodies.set(asset.url, asset.body);
+  }
+  const craftingCostUrl = staticData.assets.get('crafting-costs').url;
+  const demolishRefundsUrl = staticData.assets.get('demolish-refunds').url;
 
   function fetchOfficialRosterCached(fetchFn) {
     return officialCache.get(rosterUrl, (u) => fetchFn(u, LOCAL_FETCH_HEAVY));
@@ -381,25 +386,15 @@ function createAuthServer({
         }
       }
 
-      if (req.method === 'GET' && url.pathname === '/data/demolish-refunds.json') {
+      if (req.method === 'GET' && staticBodies.has(url.pathname)) {
+        const body = staticBodies.get(url.pathname);
         const headers = {
           'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': 'public, max-age=86400',
-          'Content-Length': DEMOLISH_REFUNDS_BODY.length,
+          'Cache-Control': HASHED_CACHE_CONTROL,
+          'Content-Length': body.length,
         };
         res.writeHead(200, headers);
-        res.end(DEMOLISH_REFUNDS_BODY);
-        return;
-      }
-
-      if (req.method === 'GET' && url.pathname === '/data/crafting-costs.json') {
-        const headers = {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': 'public, max-age=86400',
-          'Content-Length': CRAFTING_COSTS_BODY.length,
-        };
-        res.writeHead(200, headers);
-        res.end(CRAFTING_COSTS_BODY);
+        res.end(body);
         return;
       }
 
@@ -974,7 +969,7 @@ function createAuthServer({
       if (req.method === 'GET' && url.pathname === '/tools/demolish-refund') {
         const roster = await fetchOfficialRosterCached(browserDeps.fetchJsonSafe);
         const live = liveFromRoster(roster);
-        const body = renderDemolishRefundPage({ account, live });
+        const body = renderDemolishRefundPage({ account, live, dataUrl: demolishRefundsUrl });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
         return;
@@ -983,7 +978,7 @@ function createAuthServer({
       if (req.method === 'GET' && url.pathname === '/tools/crafting-cost') {
         const roster = await fetchOfficialRosterCached(browserDeps.fetchJsonSafe);
         const live = liveFromRoster(roster);
-        const body = renderCraftingCostPage({ account, live });
+        const body = renderCraftingCostPage({ account, live, dataUrl: craftingCostUrl });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);
         return;
@@ -1307,7 +1302,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/tools/crafting-cost', '/data/crafting-costs.json', '/tools/demolish-refund', '/data/demolish-refunds.json', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/robots.txt', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/tools/crafting-cost', '/data/:hashed.json', '/tools/demolish-refund', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/robots.txt', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));
