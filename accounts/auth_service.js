@@ -92,7 +92,7 @@ const {
   filtersFromSearchParams,
   renderBrowserPage,
 } = require('./server_browser.js');
-const { getListDef, attachWipes, applyList, renderListPage } = require('./server_lists.js');
+const { getListDef, attachWipes, applyList, applyRecentlyWiped, tagWipeRosters, wipeTypeFromQuery, renderListPage } = require('./server_lists.js');
 const {
   PRESET_COOKIE,
   PRESET_COOKIE_MAX_AGE_SECONDS,
@@ -1008,6 +1008,16 @@ function createAuthServer({
         const wipesUrl = `${historyUrlBase}/wipes`;
         let servers = roster.servers;
         let extraNote;
+        let wipeType = 'all';
+        if (def.needsWipes) {
+          const unofficialRoster = await rosterCache.get(unofficialRosterUrl, (target) =>
+            browserDeps.fetchJsonSafe(target, LOCAL_FETCH_BACKGROUND)
+          );
+          const unofficialServers =
+            unofficialRoster && Array.isArray(unofficialRoster.servers) ? unofficialRoster.servers : [];
+          servers = tagWipeRosters(roster.servers, unofficialServers);
+          wipeType = wipeTypeFromQuery(url.searchParams.get('type'));
+        }
         if (def.needsWipes || queryFilters.wipedWithinDays) {
           const wipeResult = await withWipesIfNeeded(servers, { wipedWithinDays: def.filters.wipedWithinDays || queryFilters.wipedWithinDays }, browserDeps.fetchJsonSafe, wipesUrl);
           servers = wipeResult.servers;
@@ -1017,7 +1027,10 @@ function createAuthServer({
           }
         }
 
-        const view = applyList(servers, def, queryFilters, { page: url.searchParams.get('page') || '1' });
+        const view = def.needsWipes
+          ? applyRecentlyWiped(servers, queryFilters, { wipeType })
+          : applyList(servers, def, queryFilters, { page: url.searchParams.get('page') || '1' });
+        const mapSource = def.needsWipes ? servers : roster.servers;
         const body = renderListPage({
           list: def,
           page: view.page,
@@ -1025,13 +1038,14 @@ function createAuthServer({
           sort: view.sort,
           dir: view.dir,
           counters: computeLiveCounters(roster.servers),
-          mapOptions: getDistinctMaps(roster.servers),
-          platformOptions: getDistinctPlatforms(roster.servers),
+          mapOptions: getDistinctMaps(mapSource),
+          platformOptions: getDistinctPlatforms(mapSource),
           countryOptions: getDistinctCountries(roster.servers),
           rosterAvailable: true,
           account,
           live,
           extraNote,
+          wipeType: view.wipeType || wipeType,
         });
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(body);

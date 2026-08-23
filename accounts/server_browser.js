@@ -261,6 +261,7 @@ const PAGE_CSS = `
 .list-intro { color: var(--muted); margin: 0 0 var(--space-3); }
 .list-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 var(--space-3); }
 .wipe-meta { color: var(--muted); font-size: 0.78rem; }
+.wipe-type { color: var(--muted); font-size: 0.72rem; font-weight: 500; margin-left: var(--space-2); }
 .source-toggle { display: flex; gap: var(--space-2); margin: var(--space-4) 0 0; }
 .source-toggle a {
   padding: 4px 12px;
@@ -424,8 +425,8 @@ function formatWipeDate(iso) {
   return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : iso;
 }
 
-function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesTotal, compareSelect } = {}) {
-  const unofficial = source === 'unofficial';
+function renderServerRow(s, { showWipeDate = false, showWipeType = false, source = 'official', cyclesTotal, compareSelect } = {}) {
+  const unofficial = source === 'unofficial' || s.wipeType === 'unofficial';
   const showCompare = !unofficial && compareSelect !== false;
   const online = isOnline(s);
   const rankDisplay = unofficial
@@ -449,6 +450,10 @@ function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesT
   const badgeHtml = badge ? `<span class="platform-badge">${escapeHtml(badge)}</span>` : '';
   const modCount = unofficial && Array.isArray(s.modIds) ? s.modIds.length : 0;
   const modsChip = modCount > 0 ? `<span class="platform-badge">${escapeHtml(String(modCount))} mods</span>` : '';
+  const typeTag =
+    showWipeType && (s.wipeType === 'official' || s.wipeType === 'unofficial')
+      ? `<span class="wipe-type">${s.wipeType === 'unofficial' ? 'Unofficial' : 'Official'}</span>`
+      : '';
   const wipeHtml =
     showWipeDate && s.wipeDetectedAt
       ? `<div class="wipe-meta">Wiped ${escapeHtml(formatWipeDate(s.wipeDetectedAt))} \u00b7 Day ${escapeHtml(dash(s.day))}</div>`
@@ -461,7 +466,7 @@ function renderServerRow(s, { showWipeDate = false, source = 'official', cyclesT
     : '';
   return `<tr>
       ${selectCell}<td><span class="status-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online' : 'Offline'}"></span></td>
-      <td class="name">${nameHtml}${badgeHtml}${modsChip}${wipeHtml}</td>
+      <td class="name">${nameHtml}${badgeHtml}${modsChip}${typeTag}${wipeHtml}</td>
       <td>${escapeHtml(s.map || '')}</td>
       <td>${escapeHtml(regionLabel(s.country))}</td>
       <td class="num">${escapeHtml(dash(s.day))}</td>
@@ -556,6 +561,9 @@ function renderBrowserBody({
   showListIndex = false,
   browserLink = '',
   showWipeDate = false,
+  showWipeType = false,
+  showCompare,
+  extraNav = '',
   lockedFilterKeys = [],
   source = 'official',
   cyclesTotal,
@@ -650,9 +658,9 @@ function renderBrowserBody({
   <button type="submit">Filter</button>
 </form>`;
 
-  const compareEnabled = sourceKind !== 'unofficial';
+  const compareEnabled = showCompare === false ? false : sourceKind !== 'unofficial';
   const rows = page.items
-    .map((s) => renderServerRow(s, { showWipeDate, source: sourceKind, cyclesTotal, compareSelect: compareEnabled }))
+    .map((s) => renderServerRow(s, { showWipeDate, showWipeType, source: sourceKind, cyclesTotal, compareSelect: compareEnabled }))
     .join('');
   const linkOpts = { currentSort: sort, currentDir: dir, filters: f, basePath, source: sourceKind };
   const uptimeHeader = sourceKind === 'unofficial' ? 'Seen' : 'Uptime';
@@ -695,6 +703,7 @@ function renderBrowserBody({
   <h1>${escapeHtml(heading)}</h1>
   ${introHtml}
   ${noteHtml}
+  ${extraNav || ''}
   ${backLink}
   ${countersBar}
   ${homeMetaNote}

@@ -223,6 +223,17 @@ function recordUnofficialFetchFailure(db, { now = () => new Date().toISOString()
   return getUnofficialMeta(db);
 }
 
+function getLastCycleServerKeys(db) {
+  const latest = db.prepare('SELECT MAX(last_seen) AS last_seen FROM unofficial_servers').get();
+  if (!latest || !latest.last_seen) return new Set();
+  return new Set(
+    db
+      .prepare('SELECT server_key FROM unofficial_servers WHERE last_seen = ?')
+      .all(latest.last_seen)
+      .map((r) => r.server_key)
+  );
+}
+
 function getUnofficialMeta(db) {
   const row = db.prepare('SELECT cycles_total, last_fetch_at, last_fetch_status FROM unofficial_meta WHERE id = 1').get();
   const countRow = db.prepare('SELECT COUNT(*) AS n FROM unofficial_servers').get();
@@ -420,6 +431,7 @@ module.exports = {
   openUnofficialDb,
   recordUnofficialCycle,
   recordUnofficialFetchFailure,
+  getLastCycleServerKeys,
   getUnofficialMeta,
   getUnofficialServer,
   getUnknownModIds,

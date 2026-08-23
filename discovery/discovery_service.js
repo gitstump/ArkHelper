@@ -46,6 +46,7 @@ const { openCountryDb, enrichServersWithCountry } = require('./geo_lookup.js');
 const {
   openHistoryDb,
   recordSnapshotRun,
+  detectStableChanges,
   computeUptimePercent,
   getServerHistory,
   getChangeLog,
@@ -66,6 +67,7 @@ const {
   openUnofficialDb,
   recordUnofficialCycle,
   recordUnofficialFetchFailure,
+  getLastCycleServerKeys,
   getUnofficialMeta,
   getUnknownModIds,
   getStaleModIds,
@@ -328,6 +330,7 @@ function createUnofficialState() {
 async function refreshUnofficialCycle({
   unofficialState,
   unofficialDb,
+  historyDb,
   fetchUnofficial = fetchUnofficialRoster,
   fetchOpts = {},
   now = () => new Date().toISOString(),
@@ -343,7 +346,9 @@ async function refreshUnofficialCycle({
     const result = await fetchUnofficial(fetchOpts);
     const servers = result && Array.isArray(result.servers) ? result.servers : [];
     let cyclesTotal = 0;
+    let presentLastCycle = new Set();
     if (unofficialDb) {
+      presentLastCycle = getLastCycleServerKeys(unofficialDb);
       const meta = recordUnofficialCycle(unofficialDb, servers, { now: () => fetchedAt });
       cyclesTotal = meta.cycles_total;
     }
@@ -355,6 +360,14 @@ async function refreshUnofficialCycle({
     };
     unofficialState.lastFetchAt = fetchedAt;
     unofficialState.lastFetchStatus = 'ok';
+    if (historyDb) {
+      try {
+        const events = detectStableChanges(historyDb, servers, fetchedAt, { presentLastCycle });
+        unofficialState.roster.changeEventsWritten = events.length;
+      } catch {
+        // never throw into the unofficial cycle
+      }
+    }
     try {
       await resolveModsPass({
         unofficialDb,
@@ -462,6 +475,7 @@ function startInfoScheduledRefresh({
 function startUnofficialScheduledRefresh({
   unofficialState,
   unofficialDb,
+  historyDb,
   intervalMs,
   fetchUnofficial = fetchUnofficialRoster,
   fetchOpts = {},
@@ -484,6 +498,7 @@ function startUnofficialScheduledRefresh({
       const result = await refreshUnofficialCycle({
         unofficialState,
         unofficialDb,
+        historyDb,
         fetchUnofficial,
         fetchOpts,
         now,
@@ -1016,9 +1031,12 @@ async function main() {
     const unofficialScheduler = startUnofficialScheduledRefresh({
       unofficialState,
       unofficialDb,
+      historyDb,
       intervalMs: unofficialIntervalMs,
       onCycle: (result) => {
-        console.log(`[discovery] unofficial refreshed: ${result.count} servers (cycle ${result.cycles_total})`);
+        const eventsBit =
+          typeof result.changeEventsWritten === 'number' ? ` | ${result.changeEventsWritten} change events` : '';
+        console.log(`[discovery] unofficial refreshed: ${result.count} servers (cycle ${result.cycles_total})${eventsBit}`);
       },
     });
 

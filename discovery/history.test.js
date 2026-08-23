@@ -9,6 +9,7 @@ const {
   getChangeLog,
   getChangeEvents,
   pruneChangeEvents,
+  maybePruneChangeEvents,
   getRecentWipes,
   computeUptimePercent,
   getServerHistory,
@@ -244,16 +245,15 @@ test('recordSnapshotRun logs a version change between two runs', () => {
   assert.equal(log[0].newValue, '92.42');
 });
 
-test('recordSnapshotRun logs a wipe when day resets from 3+ down to 1', () => {
+test('recordSnapshotRun does not write a wipe into change_log after the switchover', () => {
   const db = freshDb();
   recordSnapshotRun(db, [{ id: 'a', day: 45, version: '92.41' }], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [{ id: 'a', day: 1, version: '92.41' }], { now: () => '2026-08-15T01:00:00.000Z' });
+  recordSnapshotRun(db, [{ id: 'a', day: 1, version: '92.41' }], { now: () => '2026-08-15T02:00:00.000Z' });
 
-  const log = getChangeLog(db, 'a');
-  assert.equal(log.length, 1);
-  assert.equal(log[0].changeType, 'wipe');
-  assert.equal(log[0].oldValue, '45');
-  assert.equal(log[0].newValue, '1');
+  assert.deepEqual(getChangeLog(db, 'a'), []);
+  const wipeRows = db.prepare("SELECT COUNT(*) as c FROM change_log WHERE change_type = 'wipe'").get();
+  assert.equal(wipeRows.c, 0);
 });
 
 test('recordSnapshotRun does NOT log a wipe for a normal day-count increment', () => {
@@ -270,14 +270,18 @@ test('recordSnapshotRun does NOT treat an early low day count as a wipe (needs 3
   assert.deepEqual(getChangeLog(db, 'a'), []);
 });
 
-test('recordSnapshotRun can log both a version change and a wipe in the same run', () => {
+test('recordSnapshotRun still logs a version change when a day reset happens in the same run', () => {
   const db = freshDb();
   recordSnapshotRun(db, [{ id: 'a', day: 45, version: '92.41' }], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [{ id: 'a', day: 1, version: '93.0' }], { now: () => '2026-08-15T01:00:00.000Z' });
 
   const log = getChangeLog(db, 'a');
-  assert.equal(log.length, 2);
-  assert.deepEqual(log.map((l) => l.changeType).sort(), ['version', 'wipe']);
+  assert.equal(log.length, 1);
+  assert.equal(log[0].changeType, 'version');
+  assert.equal(log[0].oldValue, '92.41');
+  assert.equal(log[0].newValue, '93.0');
+  const wipeRows = db.prepare("SELECT COUNT(*) as c FROM change_log WHERE change_type = 'wipe'").get();
+  assert.equal(wipeRows.c, 0);
 });
 
 test('getChangeLog respects the limit and orders newest first', () => {
@@ -300,12 +304,14 @@ test('getChangeLog is scoped per-server', () => {
   assert.equal(getChangeLog(db, 'b').length, 0);
 });
 
-test('getRecentWipes returns the latest wipe per server inside the window', () => {
+test('getRecentWipes returns the latest probable_wipe per server inside the window', () => {
   const db = freshDb();
-  recordSnapshotRun(db, [{ id: 'a', day: 45, version: '1' }], { now: () => '2026-08-01T00:00:00.000Z' });
-  recordSnapshotRun(db, [{ id: 'a', day: 1, version: '1' }], { now: () => '2026-08-01T01:00:00.000Z' });
-  recordSnapshotRun(db, [{ id: 'b', day: 45, version: '1' }], { now: () => '2026-08-10T00:00:00.000Z' });
-  recordSnapshotRun(db, [{ id: 'b', day: 1, version: '1' }], { now: () => '2026-08-10T01:00:00.000Z' });
+  const insert = db.prepare(
+    'INSERT INTO server_change_events (server_id, event_type, field, old_value, new_value, detected_at) VALUES (?, ?, ?, ?, ?, ?)'
+  );
+  insert.run('a', 'probable_wipe', null, '45', '1', '2026-08-01T01:00:00.000Z');
+  insert.run('b', 'probable_wipe', null, '45', '1', '2026-08-10T01:00:00.000Z');
+  insert.run('b', 'version_change', 'version', '1', '2', '2026-08-10T01:00:00.000Z');
 
   const recent = getRecentWipes(db, { sinceIso: '2026-08-05T00:00:00.000Z' });
   assert.equal(recent.length, 1);
@@ -420,6 +426,27 @@ test('pruneChangeEvents removes events older than 90 days and retains newer ones
   assert.equal(remaining.length, 1);
   assert.equal(remaining[0].eventType, 'map_change');
   assert.equal(remaining[0].detectedAt, '2026-08-01T00:00:00.000Z');
+});
+
+test('maybePruneChangeEvents drops state rows older than 14 days and keeps fresh ones', () => {
+  const db = freshDb();
+  const upsert = db.prepare(
+    `INSERT INTO server_change_state (server_id, field, confirmed_value, pending_value, updated_at)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+  upsert.run('dead', 'version', '1', null, '2026-08-01T00:00:00.000Z');
+  upsert.run('live', 'version', '2', null, '2026-08-20T00:00:00.000Z');
+  upsert.run('null-ts', 'map', 'TheIsland_WP', null, null);
+
+  const result = maybePruneChangeEvents(db, '2026-08-22T00:00:00.000Z');
+  assert.equal(result.skipped, false);
+  assert.equal(result.stateRemoved, 1);
+
+  const rows = db
+    .prepare('SELECT server_id FROM server_change_state ORDER BY server_id')
+    .all()
+    .map((r) => r.server_id);
+  assert.deepEqual(rows, ['live', 'null-ts']);
 });
 
 test('map and max-player changes that hold two cycles write map_change and capacity_change', () => {

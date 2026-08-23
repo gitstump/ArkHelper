@@ -10,6 +10,7 @@ const {
   openUnofficialDb,
   recordUnofficialCycle,
   recordUnofficialFetchFailure,
+  getLastCycleServerKeys,
   getUnofficialMeta,
   getUnofficialServer,
   getUnknownModIds,
@@ -83,6 +84,14 @@ function sample(id, extra = {}) {
     modIds: extra.modIds || [],
   };
 }
+
+test('getLastCycleServerKeys returns only servers seen on the latest successful cycle', () => {
+  const db = openUnofficialDb(':memory:');
+  assert.equal(getLastCycleServerKeys(db).size, 0);
+  recordUnofficialCycle(db, [sample('a'), sample('b')], { now: () => '2026-08-16T00:00:00.000Z' });
+  recordUnofficialCycle(db, [sample('a'), sample('c')], { now: () => '2026-08-16T00:15:00.000Z' });
+  assert.deepEqual([...getLastCycleServerKeys(db)].sort(), ['a', 'c']);
+});
 
 test('recordUnofficialCycle upserts latest fields and sets first_seen / last_seen', () => {
   const db = openUnofficialDb(':memory:');

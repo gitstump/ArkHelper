@@ -23,8 +23,8 @@
  *   unofficial roster JSON (/unofficial/roster), unofficial_store
  *   (recordUnofficialCycle / server_mods), and the accounts browser
  *   chip. Trimmed shape uses official-compatible names (gameMode,
- *   platformType, wildcardReportedPing) so the existing browser
- *   filter/sort/paginate pipeline can reuse them.
+ *   platformType, wildcardReportedPing, day from DayTime) so the
+ *   existing browser filter/sort/paginate pipeline can reuse them.
  */
 
 const http = require('http');
@@ -124,11 +124,35 @@ function realHttpGetCapped(url, { timeoutMs = DEFAULT_TIMEOUT_MS, maxBytes = DEF
   });
 }
 
+function parseUnofficialDay(raw) {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  let n;
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw)) return undefined;
+    n = Math.floor(raw);
+  } else if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text) return undefined;
+    if (/^-?\d+(\.\d+)?$/.test(text)) {
+      n = Math.floor(Number(text));
+    } else {
+      const match = text.match(/^Day\s+(\d+)/i);
+      if (!match) return undefined;
+      n = Number(match[1]);
+    }
+  } else {
+    return undefined;
+  }
+  if (!Number.isInteger(n) || n < 1) return undefined;
+  return n;
+}
+
 function trimUnofficialServer(raw) {
   const r = raw || {};
   const id = r.SessionID || (r.IP && r.Port ? `${r.IP}:${r.Port}` : null);
   const ping = typeof r.ServerPing === 'number' ? r.ServerPing : null;
-  return {
+  const day = parseUnofficialDay(r.DayTime);
+  const trimmed = {
     id,
     name: r.Name || null,
     map: r.MapName || null,
@@ -142,6 +166,8 @@ function trimUnofficialServer(raw) {
     hasPassword: typeof r.HasPassword === 'boolean' ? r.HasPassword : null,
     modIds: parseModIds(r.ModIDs),
   };
+  if (day !== undefined) trimmed.day = day;
+  return trimmed;
 }
 
 function trimUnofficialList(rawServers) {
@@ -198,6 +224,7 @@ module.exports = {
   DEFAULT_MAX_BYTES,
   MAX_MOD_IDS_PER_SERVER,
   parseModIds,
+  parseUnofficialDay,
   trimUnofficialServer,
   trimUnofficialList,
   fetchUnofficialRoster,

@@ -6,6 +6,7 @@ const http = require('http');
 const {
   trimUnofficialServer,
   trimUnofficialList,
+  parseUnofficialDay,
   fetchUnofficialRoster,
   assertWithinByteCap,
   realHttpGetCapped,
@@ -77,9 +78,32 @@ test('trimUnofficialServer maps live unofficial field names onto the trimmed sha
   assert.equal(trimmed.wildcardReportedPing, 128);
   assert.equal(trimmed.hasPassword, false);
   assert.deepEqual(trimmed.modIds, [928793, 947033, 927084]);
+  assert.equal(trimmed.day, 6992);
   assert.equal(trimmed.ModIDs, undefined);
   assert.equal(trimmed.SessionName, undefined);
   assert.equal(trimmed.rawDetails, undefined);
+});
+
+test('parseUnofficialDay accepts live numeric strings, numbers, and Day prefixes; omits junk', () => {
+  assert.equal(parseUnofficialDay('7081'), 7081);
+  assert.equal(parseUnofficialDay('765'), 765);
+  assert.equal(parseUnofficialDay('504'), 504);
+  assert.equal(parseUnofficialDay('340'), 340);
+  assert.equal(parseUnofficialDay('528'), 528);
+  assert.equal(parseUnofficialDay('612'), 612);
+  assert.equal(parseUnofficialDay('165'), 165);
+  assert.equal(parseUnofficialDay('1031'), 1031);
+  assert.equal(parseUnofficialDay('2538'), 2538);
+  assert.equal(parseUnofficialDay(5709.9), 5709);
+  assert.equal(parseUnofficialDay('Day 5023, 12:34'), 5023);
+  assert.equal(parseUnofficialDay('0'), undefined);
+  assert.equal(parseUnofficialDay(0), undefined);
+  assert.equal(parseUnofficialDay('-3'), undefined);
+  assert.equal(parseUnofficialDay('noon'), undefined);
+  assert.equal(parseUnofficialDay(''), undefined);
+  assert.equal(parseUnofficialDay(undefined), undefined);
+  assert.equal(Object.prototype.hasOwnProperty.call(trimUnofficialServer({ SessionID: 'x', DayTime: '0' }), 'day'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(trimUnofficialServer({ SessionID: 'x' }), 'day'), false);
 });
 
 test('trimUnofficialServer maps SessionIsPve 0 and HasPassword true', () => {

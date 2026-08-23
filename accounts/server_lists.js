@@ -9,6 +9,7 @@
  * sorting, pagination, and row rendering — not a forked table.
  */
 
+const { escapeHtml } = require('./theme.js');
 const { serversLocation } = require('./presets.js');
 const {
   filterServers,
@@ -16,6 +17,10 @@ const {
   paginateServers,
   renderBrowserPage,
 } = require('./server_browser.js');
+
+const WIPE_LIST_CAP = 100;
+const WIPE_FOOTNOTE =
+  'Wipes are inferred from a world day reset, not confirmed by the server. A day reset can also follow a save restore.';
 
 const LIST_DEFS = {
   'official-pve': {
@@ -76,8 +81,9 @@ const LIST_DEFS = {
     heading: 'Recently wiped ARK servers',
     documentTitle: 'Recently Wiped ARK Servers \u2014 ArkHelper',
     metaDescription:
-      'Recently wiped ARK servers on the official Survival Ascended network. Official servers with a wipe or day-reset detected in the last 14 days.',
-    description: 'Official servers with a wipe or day-reset detected in the last 14 days, most recent first.',
+      'Recently wiped ARK servers on the Survival Ascended network. Official and unofficial servers with a wipe or day-reset detected in the last 14 days.',
+    description: 'Official and unofficial servers with a wipe or day-reset detected in the last 14 days, most recent first.',
+    extraNote: WIPE_FOOTNOTE,
     filters: { wipedWithinDays: '14' },
     sort: 'wipedAt',
     dir: 'desc',
@@ -103,6 +109,68 @@ const LIST_DEFS = {
 
 function getListDef(slug) {
   return LIST_DEFS[slug] || null;
+}
+
+function wipeTypeFromQuery(value) {
+  const v = String(value || '').toLowerCase();
+  if (v === 'official' || v === 'unofficial') return v;
+  return 'all';
+}
+
+function tagWipeRosters(officialServers, unofficialServers) {
+  const tagged = [];
+  for (const s of officialServers || []) {
+    if (!s || !s.id) continue;
+    tagged.push({ ...s, wipeType: 'official' });
+  }
+  for (const s of unofficialServers || []) {
+    if (!s || !s.id) continue;
+    tagged.push({ ...s, wipeType: 'unofficial' });
+  }
+  return tagged;
+}
+
+function applyRecentlyWiped(servers, queryFilters = {}, { now = Date.now, wipeType = 'all' } = {}) {
+  const view = applyList(servers, LIST_DEFS['recently-wiped'], queryFilters, {
+    now,
+    page: 1,
+    pageSize: WIPE_LIST_CAP,
+  });
+  let rows = view.sorted;
+  if (wipeType === 'official' || wipeType === 'unofficial') {
+    rows = rows.filter((s) => s.wipeType === wipeType);
+  }
+  if (rows.length > WIPE_LIST_CAP) rows = rows.slice(0, WIPE_LIST_CAP);
+  return {
+    ...view,
+    sorted: rows,
+    filtered: rows,
+    page: paginateServers(rows, 1, WIPE_LIST_CAP),
+    wipeType: wipeType === 'official' || wipeType === 'unofficial' ? wipeType : 'all',
+  };
+}
+
+function renderWipeTypeFilter(wipeType = 'all', path = '/lists/recently-wiped', extraFilters = {}) {
+  const current = wipeType === 'official' || wipeType === 'unofficial' ? wipeType : 'all';
+  const options = [
+    { id: 'all', label: 'All' },
+    { id: 'official', label: 'Official' },
+    { id: 'unofficial', label: 'Unofficial' },
+  ];
+  const links = options
+    .map((o) => {
+      const params = new URLSearchParams();
+      if (o.id !== 'all') params.set('type', o.id);
+      for (const [key, value] of Object.entries(extraFilters || {})) {
+        if (value !== undefined && value !== '') params.set(key, String(value));
+      }
+      const q = params.toString();
+      const href = q ? `${path}?${q}` : path;
+      const cls = current === o.id ? ' class="active"' : '';
+      return `<a href="${escapeHtml(href)}"${cls}>${escapeHtml(o.label)}</a>`;
+    })
+    .join('');
+  return `<nav class="source-toggle" aria-label="Wipe source">${links}</nav>`;
 }
 
 function attachWipes(servers, wipes) {
@@ -159,6 +227,8 @@ function browserQueryString(def, extraFilters = {}) {
 function renderListPage(opts = {}) {
   const def = opts.list;
   const extra = extraFiltersFrom(opts.filters, def);
+  const showWipeType = Boolean(def.showWipeDate);
+  const wipeType = opts.wipeType || 'all';
   return renderBrowserPage({
     ...opts,
     currentPath: def.path,
@@ -167,21 +237,30 @@ function renderListPage(opts = {}) {
     showListIndex: false,
     heading: def.heading,
     intro: def.description,
-    extraNote: def.extraNote || opts.extraNote || '',
+    extraNote: opts.extraNote || def.extraNote || '',
+    extraNav: showWipeType ? renderWipeTypeFilter(wipeType, def.path, extra) : opts.extraNav || '',
     formAction: def.path,
     basePath: def.path,
     documentTitle: def.documentTitle,
     metaDescription: def.metaDescription,
     browserLink: serversLocation(browserQueryString(def, extra)),
     showWipeDate: Boolean(def.showWipeDate),
+    showWipeType,
+    showCompare: showWipeType ? false : opts.showCompare,
     lockedFilterKeys: def.lockedKeys || [],
   });
 }
 
 module.exports = {
   LIST_DEFS,
+  WIPE_LIST_CAP,
+  WIPE_FOOTNOTE,
   getListDef,
   attachWipes,
+  tagWipeRosters,
+  wipeTypeFromQuery,
+  applyRecentlyWiped,
+  renderWipeTypeFilter,
   extraFiltersFrom,
   applyList,
   browserQueryString,

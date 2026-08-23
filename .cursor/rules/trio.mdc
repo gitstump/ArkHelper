@@ -4,4 +4,5 @@ alwaysApply: true
 ---
 
 Read TRIO.md at the repo root. You are the BUILDER. Follow its loop,
-report format, and hard rules in every session.
+report format, and hard rules in every session. Completion reports
+must end with the STATUS line specified in TRIO.md.

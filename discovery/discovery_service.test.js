@@ -33,7 +33,7 @@ const {
 } = require('./discovery_service.js');
 const { openUnofficialDb, getUnofficialMeta, upsertMods, getMod, getModsSummary } = require('./unofficial_store.js');
 const { openInfoDb, getCurrentRates, getNewsEntries, getFeedsMeta } = require('./info_store.js');
-const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun } = require('./history.js');
+const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun, getChangeEvents, getRecentWipes, getChangeLog } = require('./history.js');
 
 function tmpFile(name) {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ark-tools-discovery-')), name);
@@ -335,7 +335,9 @@ test('GET /history/wipes returns recent wipe detections from history', async () 
   const historyDb = openHistoryDb(':memory:');
   const now = new Date().toISOString();
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  recordSnapshotRun(historyDb, [{ id: 'wipe-me', day: 45, version: '1' }], { now: () => hourAgo });
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  recordSnapshotRun(historyDb, [{ id: 'wipe-me', day: 45, version: '1' }], { now: () => twoHoursAgo });
+  recordSnapshotRun(historyDb, [{ id: 'wipe-me', day: 1, version: '1' }], { now: () => hourAgo });
   recordSnapshotRun(historyDb, [{ id: 'wipe-me', day: 1, version: '1' }], { now: () => now });
 
   const server = createRosterServer({ outPath: file, historyDb });
@@ -1274,4 +1276,291 @@ test('GET /unofficial/roster restringifies only when lastFetchAt changes', async
   assert.equal(stringifies, 2);
 
   server.close();
+});
+
+function unofficialChangeServer(id, extra = {}) {
+  return {
+    id,
+    name: `Community ${id}`,
+    map: extra.map || 'TheIsland_WP',
+    gameMode: 'pve',
+    playersNow: extra.playersNow ?? 4,
+    maxPlayers: extra.maxPlayers ?? 20,
+    version: extra.version || '92.41',
+    platformType: 'PC',
+    ping: 40,
+    wildcardReportedPing: 40,
+    hasPassword: false,
+    ...(Object.prototype.hasOwnProperty.call(extra, 'day') ? { day: extra.day } : {}),
+  };
+}
+
+async function unofficialChangeCycle({ unofficialState, unofficialDb, historyDb, servers, at }) {
+  return refreshUnofficialCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    fetchUnofficial: async () => ({ servers, count: servers.length }),
+    now: () => at,
+  });
+}
+
+test('unofficial cycle: a changed field held two cycles writes one event; reverting writes none', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const historyDb = openHistoryDb(':memory:');
+  const base = unofficialChangeServer('u-hold');
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...base, version: '92.41' }],
+    at: '2026-08-16T00:00:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...base, version: '92.47' }],
+    at: '2026-08-16T00:15:00.000Z',
+  });
+  assert.deepEqual(getChangeEvents(historyDb, 'u-hold'), []);
+
+  const held = await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...base, version: '92.47' }],
+    at: '2026-08-16T00:30:00.000Z',
+  });
+  const events = getChangeEvents(historyDb, 'u-hold');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].eventType, 'version_change');
+  assert.equal(events[0].oldValue, '92.41');
+  assert.equal(events[0].newValue, '92.47');
+  assert.equal(held.changeEventsWritten, 1);
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...base, version: '92.41' }],
+    at: '2026-08-16T00:45:00.000Z',
+  });
+  assert.equal(getChangeEvents(historyDb, 'u-hold').length, 1);
+});
+
+test('unofficial cycle: absent one cycle then reappearing with different values writes no events', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const historyDb = openHistoryDb(':memory:');
+  const server = unofficialChangeServer('u-gone', { version: '92.41', map: 'TheIsland_WP', maxPlayers: 20 });
+  const other = unofficialChangeServer('u-stay');
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [server, other],
+    at: '2026-08-16T01:00:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [other],
+    at: '2026-08-16T01:15:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, version: '92.47', map: 'Extinction_WP', maxPlayers: 50 }, other],
+    at: '2026-08-16T01:30:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, version: '92.47', map: 'Extinction_WP', maxPlayers: 50 }, other],
+    at: '2026-08-16T01:45:00.000Z',
+  });
+
+  assert.deepEqual(getChangeEvents(historyDb, 'u-gone'), []);
+});
+
+test('unofficial cycle: held day 5 to 1 wipe appears in getRecentWipes', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const historyDb = openHistoryDb(':memory:');
+  const server = unofficialChangeServer('u-wipe', { day: 5 });
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [server],
+    at: '2026-08-16T02:00:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, day: 1 }],
+    at: '2026-08-16T02:15:00.000Z',
+  });
+  assert.deepEqual(getRecentWipes(historyDb), []);
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, day: 1 }],
+    at: '2026-08-16T02:30:00.000Z',
+  });
+
+  const wipes = getRecentWipes(historyDb);
+  assert.equal(wipes.length, 1);
+  assert.equal(wipes[0].serverId, 'u-wipe');
+  assert.equal(wipes[0].seenAt, '2026-08-16T02:30:00.000Z');
+  const wipeRows = historyDb.prepare("SELECT COUNT(*) as c FROM change_log WHERE change_type = 'wipe'").get();
+  assert.equal(wipeRows.c, 0);
+});
+
+test('unofficial cycle: a one-cycle day flap writes no wipe event and no recently-wiped entry', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const historyDb = openHistoryDb(':memory:');
+  const server = unofficialChangeServer('u-flap', { day: 5 });
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [server],
+    at: '2026-08-16T03:00:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, day: 1 }],
+    at: '2026-08-16T03:15:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, day: 5 }],
+    at: '2026-08-16T03:30:00.000Z',
+  });
+
+  assert.deepEqual(getChangeEvents(historyDb, 'u-flap'), []);
+  assert.deepEqual(getRecentWipes(historyDb), []);
+});
+
+test('unofficial cycle: fields absent on the live path produce no events and no errors', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const historyDb = openHistoryDb(':memory:');
+  const server = unofficialChangeServer('u-noday');
+  assert.equal(Object.prototype.hasOwnProperty.call(server, 'day'), false);
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [server],
+    at: '2026-08-16T04:00:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, version: '92.47' }],
+    at: '2026-08-16T04:15:00.000Z',
+  });
+  const held = await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, version: '92.47' }],
+    at: '2026-08-16T04:30:00.000Z',
+  });
+
+  const events = getChangeEvents(historyDb, 'u-noday');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].eventType, 'version_change');
+  assert.ok(!events.some((e) => e.eventType === 'probable_wipe'));
+  assert.deepEqual(getRecentWipes(historyDb), []);
+  assert.equal(held.changeEventsWritten, 1);
+});
+
+test('unofficial cycle: day appearing for the first time writes no event', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const historyDb = openHistoryDb(':memory:');
+  const server = unofficialChangeServer('u-newday');
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [server],
+    at: '2026-08-16T06:00:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, day: 12 }],
+    at: '2026-08-16T06:15:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: [{ ...server, day: 12 }],
+    at: '2026-08-16T06:30:00.000Z',
+  });
+
+  assert.deepEqual(getChangeEvents(historyDb, 'u-newday'), []);
+  assert.deepEqual(getRecentWipes(historyDb), []);
+});
+
+test('unofficial cycle: batched inserts write one event per held version change over fixture data', async () => {
+  const unofficialState = createUnofficialState();
+  const unofficialDb = openUnofficialDb(':memory:');
+  const historyDb = openHistoryDb(':memory:');
+  const count = 20;
+  const baseline = Array.from({ length: count }, (_, i) => unofficialChangeServer(`u-fix-${i}`, { version: '92.41' }));
+  const bumped = baseline.map((s, i) => (i < 8 ? { ...s, version: '92.47' } : s));
+
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: baseline,
+    at: '2026-08-16T05:00:00.000Z',
+  });
+  await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: bumped,
+    at: '2026-08-16T05:15:00.000Z',
+  });
+  const confirming = await unofficialChangeCycle({
+    unofficialState,
+    unofficialDb,
+    historyDb,
+    servers: bumped,
+    at: '2026-08-16T05:30:00.000Z',
+  });
+
+  const written = historyDb.prepare('SELECT COUNT(*) as c FROM server_change_events').get().c;
+  assert.equal(written, 8);
+  assert.equal(confirming.changeEventsWritten, 8);
+  assert.equal(getChangeLog(historyDb, 'u-fix-0').length, 0);
 });

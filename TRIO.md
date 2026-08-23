@@ -29,6 +29,10 @@ Keep it under one page. If reality diverges from this file, fix the file.
 - COMMIT: a ready-to-use conventional commit message for this brief —
   one imperative subject line under 72 chars, then a short body
   (wrapped, plain text) naming what changed and the new test count.
+- STATUS: PROJECT_STATUS.md updated — <N> tests, <YYYY-MM-DD>
+  Fill this line only after PROJECT_STATUS.md is actually updated.
+  A report missing this line is incomplete and will be rejected by
+  the Architect's verdict.
 Keep the whole report under ~250 words. No code dumps unless asked.
 
 ## Hard rules for Builder

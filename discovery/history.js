@@ -32,6 +32,7 @@ const {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CHANGE_EVENT_RETENTION_DAYS = 90;
+const CHANGE_STATE_RETENTION_DAYS = 14;
 const CHANGE_EVENT_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 
 const WATCHED_CHANGE_FIELDS = [
@@ -113,14 +114,17 @@ CREATE TABLE IF NOT EXISTS server_change_events (
   detected_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_server_change_events_server ON server_change_events(server_id, detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_server_change_events_type_at ON server_change_events(event_type, detected_at DESC);
 
 CREATE TABLE IF NOT EXISTS server_change_state (
   server_id TEXT NOT NULL,
   field TEXT NOT NULL,
   confirmed_value TEXT,
   pending_value TEXT,
+  updated_at TEXT,
   PRIMARY KEY (server_id, field)
 );
+CREATE INDEX IF NOT EXISTS idx_server_change_state_updated ON server_change_state(updated_at);
 
 CREATE TABLE IF NOT EXISTS change_event_prune_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -150,19 +154,21 @@ function openHistoryDb(dbPath) {
   } catch (err) {
     if (!/duplicate column name/i.test(err.message)) throw err;
   }
+  try {
+    db.exec('ALTER TABLE server_change_state ADD COLUMN updated_at TEXT');
+  } catch (err) {
+    if (!/duplicate column name/i.test(err.message)) throw err;
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_server_change_events_type_at ON server_change_events(event_type, detected_at DESC)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_server_change_state_updated ON server_change_state(updated_at)');
   return db;
 }
 
 // ---------------------------------------------------------------------
-// Change detection (version changes, wipes) — runs BEFORE the new
-// snapshot is inserted, so "previous" correctly means "as of the last
-// run," not this one.
-//
-// Wipe heuristic: day count was 3+ and just dropped to 1 (or lower).
-// A day count that merely goes down slightly isn't a wipe signal by
-// itself — servers can report day count inconsistently around
-// restarts — but a drop from an established game (3+ days in) back to
-// day 1 is the same signal arkstatus.com documented using.
+// One-cycle change_log (version only) — runs BEFORE the new snapshot
+// is inserted, so "previous" correctly means "as of the last run,"
+// not this one. Wipes are not written here; they are two-cycle
+// probable_wipe events in server_change_events.
 // ---------------------------------------------------------------------
 function detectAndLogChanges(db, servers, runAt) {
   const getPrevious = db.prepare('SELECT day, version FROM server_snapshots WHERE server_id = ? ORDER BY seen_at DESC LIMIT 1');
@@ -176,9 +182,9 @@ function detectAndLogChanges(db, servers, runAt) {
     if (prev.version != null && s.version != null && prev.version !== s.version) {
       insertChange.run(s.id, runAt, 'version', prev.version, s.version);
     }
-    if (prev.day != null && s.day != null && prev.day >= 3 && s.day <= 1 && s.day < prev.day) {
-      insertChange.run(s.id, runAt, 'wipe', String(prev.day), String(s.day));
-    }
+    // Wipe rows used to be written here (one-cycle). Wipes now live only
+    // in server_change_events as probable_wipe. Version writes stay —
+    // incident detection reads change_type = 'version' from this table.
   }
 }
 
@@ -235,15 +241,15 @@ function qualifiesAsProbableWipe(oldValue, newValue) {
   return Number.isFinite(oldDay) && Number.isFinite(newDay) && oldDay >= 3 && newDay === 1;
 }
 
-function detectStableChanges(db, servers, runAt) {
-  const presentLastCycle = loadLastRunServerIds(db);
+function detectStableChanges(db, servers, runAt, { presentLastCycle } = {}) {
+  const lastCycleIds = presentLastCycle instanceof Set ? presentLastCycle : loadLastRunServerIds(db);
   const stateByServer = loadChangeStateByServer(db);
   const events = [];
   const stateWrites = [];
 
   for (const server of servers) {
     if (!server || !server.id) continue;
-    const isFreshBaseline = !presentLastCycle.has(server.id);
+    const isFreshBaseline = !lastCycleIds.has(server.id);
     const prevFields = stateByServer.get(server.id) || new Map();
 
     for (const { key, eventType } of WATCHED_CHANGE_FIELDS) {
@@ -299,11 +305,12 @@ function persistChangeResults(db, events, stateWrites, runAt) {
     'INSERT INTO server_change_events (server_id, event_type, field, old_value, new_value, detected_at) VALUES (?, ?, ?, ?, ?, ?)'
   );
   const upsertState = db.prepare(
-    `INSERT INTO server_change_state (server_id, field, confirmed_value, pending_value)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO server_change_state (server_id, field, confirmed_value, pending_value, updated_at)
+     VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(server_id, field) DO UPDATE SET
        confirmed_value = excluded.confirmed_value,
-       pending_value = excluded.pending_value`
+       pending_value = excluded.pending_value,
+       updated_at = excluded.updated_at`
   );
   db.exec('BEGIN');
   try {
@@ -311,7 +318,7 @@ function persistChangeResults(db, events, stateWrites, runAt) {
       insertEvent.run(event.serverId, event.eventType, event.field, event.oldValue, event.newValue, runAt);
     }
     for (const row of stateWrites) {
-      upsertState.run(row.serverId, row.field, row.confirmedValue, row.pendingValue);
+      upsertState.run(row.serverId, row.field, row.confirmedValue, row.pendingValue, runAt);
     }
     db.exec('COMMIT');
   } catch (err) {
@@ -348,38 +355,47 @@ function pruneChangeEvents(db, beforeIso) {
   return { eventsRemoved: removed };
 }
 
+function pruneChangeState(db, beforeIso) {
+  const removed = db
+    .prepare('DELETE FROM server_change_state WHERE updated_at IS NOT NULL AND updated_at < ?')
+    .run(beforeIso).changes;
+  return { stateRemoved: removed };
+}
+
 function maybePruneChangeEvents(db, nowIso) {
   const nowMs = Date.parse(nowIso);
-  if (!Number.isFinite(nowMs)) return { eventsRemoved: 0, skipped: true };
+  if (!Number.isFinite(nowMs)) return { eventsRemoved: 0, stateRemoved: 0, skipped: true };
   const row = db.prepare('SELECT pruned_at FROM change_event_prune_state WHERE id = 1').get();
   if (row && row.pruned_at) {
     const lastMs = Date.parse(row.pruned_at);
     if (Number.isFinite(lastMs) && nowMs - lastMs < CHANGE_EVENT_PRUNE_INTERVAL_MS) {
-      return { eventsRemoved: 0, skipped: true };
+      return { eventsRemoved: 0, stateRemoved: 0, skipped: true };
     }
   }
   const beforeIso = new Date(nowMs - CHANGE_EVENT_RETENTION_DAYS * DAY_MS).toISOString();
+  const stateBeforeIso = new Date(nowMs - CHANGE_STATE_RETENTION_DAYS * DAY_MS).toISOString();
   const result = pruneChangeEvents(db, beforeIso);
+  const stateResult = pruneChangeState(db, stateBeforeIso);
   db.prepare(
     `INSERT INTO change_event_prune_state (id, pruned_at) VALUES (1, ?)
      ON CONFLICT(id) DO UPDATE SET pruned_at = excluded.pruned_at`
   ).run(nowIso);
-  return { ...result, skipped: false, beforeIso };
+  return { ...result, ...stateResult, skipped: false, beforeIso, stateBeforeIso };
 }
 
 function getRecentWipes(db, { sinceIso, limit = 5000 } = {}) {
   const rows = sinceIso
     ? db
         .prepare(
-          `SELECT server_id, MAX(seen_at) as seen_at FROM change_log
-           WHERE change_type = 'wipe' AND seen_at >= ?
+          `SELECT server_id, MAX(detected_at) as seen_at FROM server_change_events
+           WHERE event_type = 'probable_wipe' AND detected_at >= ?
            GROUP BY server_id ORDER BY seen_at DESC LIMIT ?`
         )
         .all(sinceIso, limit)
     : db
         .prepare(
-          `SELECT server_id, MAX(seen_at) as seen_at FROM change_log
-           WHERE change_type = 'wipe'
+          `SELECT server_id, MAX(detected_at) as seen_at FROM server_change_events
+           WHERE event_type = 'probable_wipe'
            GROUP BY server_id ORDER BY seen_at DESC LIMIT ?`
         )
         .all(limit);
@@ -955,8 +971,10 @@ module.exports = {
   getChangeLog,
   getChangeEvents,
   pruneChangeEvents,
+  pruneChangeState,
   maybePruneChangeEvents,
   CHANGE_EVENT_RETENTION_DAYS,
+  CHANGE_STATE_RETENTION_DAYS,
   getRecentWipes,
   computeUptimePercent,
   getServerHistory,

@@ -23,13 +23,13 @@ crashing — every page has a tested "roster unavailable" fallback state.
 | File | Role |
 |---|---|
 | `ark_official_api.js` | Fetches Wildcard's own official server list (no key needed) |
-| `unofficial_api.js` | Fetches Wildcard's unofficial list, trims immediately (including `modIds` from `ModIDs`), rejects oversized bodies |
+| `unofficial_api.js` | Fetches Wildcard's unofficial list, trims immediately (including `modIds` from `ModIDs` and `day` from `DayTime`), rejects oversized bodies |
 | `unofficial_store.js` | Separate SQLite (`unofficial.sqlite`) — latest trimmed fields + first_seen/last_seen/cycles_seen; `server_mods` / `mods` for CurseForge-backed adoption |
 | `curseforge_api.js` | Batch-resolves CurseForge project IDs (`POST /v1/mods`); key is passed in, never read from env here |
 | `info_feeds.js` | Fetches/parses Wildcard CDN rate INIs and news.ini (injectable fetch) |
 | `info_store.js` | Separate SQLite (`feeds.sqlite`) — current rates per variant + change log; news entries hashed by imagePath+action |
 | `discovery_service.js` | CLI + scheduler + the HTTP server exposing everything below |
-| `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, wipe/version detection, two-cycle `server_change_events`, heatmaps; gathers ranking inputs and stamps scores onto the roster; records network incidents |
+| `history.js` | SQLite (`node:sqlite`) — snapshot recording, uptime, version `change_log` (incident input), two-cycle `server_change_events` (official + unofficial cycles; `probable_wipe` is the wipe source of truth), heatmaps; gathers ranking inputs and stamps scores onto the roster; records network incidents |
 | `ranking.js` | Pure composite rank scorer (no DB / network / clock) — weights live here |
 | `incidents.js` | Pure incident classifier (thresholds, hysteresis, consecutive-fetch-failure counting) |
 | `geo_lookup.js` | GeoLite2/MaxMind country lookups — optional via `GEOLITE2_DB_PATH`; stamps `country` / `countryName` on the official roster |
@@ -101,7 +101,9 @@ ark_official_api.js                    unofficial_api.js (trim + byte cap)
 discovery_service.js  ->  roster.json    unofficial_store.js (unofficial.sqlite)
         |                     |                    |
         v                     v                    v
-  history.js (SQLite)   GET /roster         GET /unofficial/roster
+  history.js (SQLite;     GET /roster         GET /unofficial/roster
+   official snapshots +                       unofficial cycle also
+   two-cycle events)                          calls detectStableChanges
         |
         +-- info_feeds.js -> info_store.js (feeds.sqlite) -> GET /rates, GET /news
         +-- curseforge_api.js (keyed) -> unofficial_store mods tables -> GET /mods/summary, GET /mods/:id

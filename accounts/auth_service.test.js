@@ -2543,10 +2543,11 @@ function listRoster() {
   };
 }
 
-function fakeListDeps({ roster = listRoster(), wipes = { wipes: [] } } = {}) {
+function fakeListDeps({ roster = listRoster(), unofficialRoster = { servers: [] }, wipes = { wipes: [] } } = {}) {
   return {
     fetchJsonSafe: async (url) => {
       if (String(url).includes('/history/wipes')) return wipes;
+      if (String(url).includes('/unofficial/roster')) return unofficialRoster;
       return roster;
     },
   };
@@ -2618,6 +2619,50 @@ test('GET /lists/recently-wiped shows in-window wipes and hides older ones', asy
   assert.match(html, /EU-PVE-TheIsland5313/);
   assert.doesNotMatch(html, /Asia-PVP-LostColony2859/);
   assert.match(html, /Wiped /);
+  assert.match(html, /<span class="wipe-type">Official<\/span>/);
+  assert.doesNotMatch(html, /<span class="wipe-type">Unofficial<\/span>/);
+  assert.match(html, /aria-label="Wipe source"/);
+
+  server.close();
+});
+
+test('GET /lists/recently-wiped merges unofficial wipes and filters by type', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeListDeps({
+      unofficialRoster: {
+        servers: [{ id: 'comm-1', name: 'Community Fresh', map: 'Extinction_WP', gameMode: 'pvp', playersNow: 3, maxPlayers: 20, day: 1 }],
+      },
+      wipes: {
+        wipes: [
+          { serverId: 'pve', seenAt: new Date().toISOString() },
+          { serverId: 'comm-1', seenAt: new Date().toISOString() },
+        ],
+      },
+    }),
+  });
+
+  const all = await fetch(`${base}/lists/recently-wiped`);
+  const allHtml = await all.text();
+  assert.match(allHtml, /EU-PVE-TheIsland5313/);
+  assert.match(allHtml, /Community Fresh/);
+  assert.match(allHtml, /<span class="wipe-type">Official<\/span>/);
+  assert.match(allHtml, /<span class="wipe-type">Unofficial<\/span>/);
+
+  const official = await fetch(`${base}/lists/recently-wiped?type=official`);
+  const officialHtml = await official.text();
+  assert.match(officialHtml, /EU-PVE-TheIsland5313/);
+  assert.doesNotMatch(officialHtml, /Community Fresh/);
+
+  const unofficial = await fetch(`${base}/lists/recently-wiped?type=unofficial`);
+  const unofficialHtml = await unofficial.text();
+  assert.match(unofficialHtml, /Community Fresh/);
+  assert.doesNotMatch(unofficialHtml, /EU-PVE-TheIsland5313/);
 
   server.close();
 });
