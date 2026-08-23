@@ -72,6 +72,7 @@ const NAV = [
     children: STATS_NAV,
   },
   { href: '/guides', label: 'Guides', match: ['/guides'] },
+  { href: '/colors', label: 'Colors', match: ['/colors'] },
   {
     label: 'Tools',
     match: ['/tools'],
@@ -144,6 +145,7 @@ function renderFooter(live, year = new Date().getFullYear()) {
           <li><a href="/compare">Compare</a></li>
           <li><a href="/maps">Maps</a></li>
           <li><a href="/guides">Guides</a></li>
+          <li><a href="/colors">Colors</a></li>
           <li><a href="/tools/crafting-cost">Crafting Cost</a></li>
           <li><a href="/tools/demolish-refund">Demolish Refund</a></li>
           <li><a href="/favorites">Favorites</a></li>

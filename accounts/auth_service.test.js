@@ -376,6 +376,8 @@ test('unknown routes 404 with a helpful body', async () => {
   assert.ok(body.routes.includes('/maps/:slug'));
   assert.ok(body.routes.includes('/guides'));
   assert.ok(body.routes.includes('/guides/:slug'));
+  assert.ok(body.routes.includes('/colors'));
+  assert.ok(body.routes.includes('/colors/sets/:slug'));
   assert.ok(body.routes.includes('/tools/crafting-cost'));
   assert.ok(body.routes.includes('/data/:hashed.json'));
   assert.ok(body.routes.includes('/tools/demolish-refund'));
@@ -3771,6 +3773,48 @@ test('GET /guides/nope returns 404 HTML', async () => {
   assert.match(html, /Guide not found/);
   assert.match(html, /nope/);
   assert.match(html, /href="\/guides"/);
+
+  server.close();
+});
+
+test('GET /colors returns the palette page with dyes and no dye IDs', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/colors`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /Burn/);
+  assert.doesNotMatch(html, /Color ID:\s*1\d{2}/);
+  assert.match(html, /href="\/colors"/);
+
+  server.close();
+});
+
+test('GET /colors/sets/dinocolorset-spino returns the set page', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/colors/sets/dinocolorset-spino`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /Region/);
 
   server.close();
 });

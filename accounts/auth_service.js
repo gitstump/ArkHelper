@@ -28,6 +28,8 @@
  *   GET  /maps/:slug             -> per-map telemetry page
    *   GET  /guides                 -> guides index
    *   GET  /guides/:slug           -> a single guide
+   *   GET  /colors                 -> creature color palette, dyes, lookup
+   *   GET  /colors/sets/:slug      -> one color set and its six regions
    *   GET  /tools/crafting-cost    -> crafting cost calculator
    *   GET/HEAD /data/:hashed.json  -> static precomputed game-data JSON
    *   GET  /tools/demolish-refund  -> demolish refund calculator
@@ -148,6 +150,13 @@ const {
 } = require('./maps_page.js');
 const { resolveGuide } = require('./guides.js');
 const { renderGuidesIndexPage, renderGuidePage, renderGuideNotFoundPage } = require('./guides_page.js');
+const {
+  loadColorsData,
+  resolveColorSet,
+  renderColorsIndexPage,
+  renderColorSetPage,
+  renderColorSetNotFoundPage,
+} = require('./colors_page.js');
 const { renderDemolishRefundPage } = require('./demolish_refund_page.js');
 const { renderCraftingCostPage } = require('./crafting_cost_page.js');
 const { HASHED_CACHE_CONTROL, loadStaticData } = require('./static_data.js');
@@ -334,6 +343,7 @@ function createAuthServer({
   webhookPostFn = defaultPostFn,
   assetsDir,
   staticDataDir,
+  colorsDataPath,
   getAlertsHealth = null,
 }) {
   if (!db) throw new Error('createAuthServer: db is required');
@@ -344,6 +354,7 @@ function createAuthServer({
   const officialCache = officialRosterCache || createTtlCache({ ttlMs: OFFICIAL_ROSTER_CACHE_TTL_MS });
   const brandAssets = loadBrandAssets(assetsDir);
   const staticData = loadStaticData(staticDataDir);
+  const colorsStore = loadColorsData(colorsDataPath);
   const staticBodies = new Map();
   for (const asset of staticData.assets.values()) {
     staticBodies.set(asset.url, asset.body);
@@ -966,6 +977,52 @@ function createAuthServer({
         return;
       }
 
+      if (req.method === 'GET' && (url.pathname === '/colors' || url.pathname.startsWith('/colors/'))) {
+        const roster = await fetchOfficialRosterCached(browserDeps.fetchJsonSafe);
+        const live = liveFromRoster(roster);
+
+        if (url.pathname === '/colors') {
+          const body = renderColorsIndexPage({ store: colorsStore, account, live });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const prefix = '/colors/sets/';
+        if (!url.pathname.startsWith(prefix)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'not found' }));
+          return;
+        }
+
+        let slug = url.pathname.slice(prefix.length);
+        try {
+          slug = decodeURIComponent(slug);
+        } catch {
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(renderColorSetNotFoundPage({ slug: url.pathname.slice(prefix.length), account, live }));
+          return;
+        }
+        if (!slug || slug.includes('/')) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'not found' }));
+          return;
+        }
+
+        const set = resolveColorSet(colorsStore, slug);
+        if (!set) {
+          const body = renderColorSetNotFoundPage({ slug, account, live });
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(body);
+          return;
+        }
+
+        const body = renderColorSetPage({ set, account, live });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(body);
+        return;
+      }
+
       if (req.method === 'GET' && url.pathname === '/tools/demolish-refund') {
         const roster = await fetchOfficialRosterCached(browserDeps.fetchJsonSafe);
         const live = liveFromRoster(roster);
@@ -1302,7 +1359,7 @@ function createAuthServer({
       }
 
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/tools/crafting-cost', '/data/:hashed.json', '/tools/demolish-refund', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/robots.txt', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
+      res.end(JSON.stringify({ error: 'not found', routes: ['/', '/servers', '/compare', '/servers/:id', '/servers/:id/badge.svg', '/lists/:slug', '/maps', '/maps/:slug', '/guides', '/guides/:slug', '/colors', '/colors/sets/:slug', '/tools/crafting-cost', '/data/:hashed.json', '/tools/demolish-refund', '/stats', '/rankings', '/is-ark-down', '/status', '/rates', '/news', '/mods', '/mods/:id', '/favorites', '/favorites/:id', '/favorites/:id/remove', '/alerts', '/alerts/:id', '/alerts/webhook', '/alerts/webhook/delete', '/alerts/webhook/test', '/presets', '/presets/delete', '/p/:token', '/robots.txt', '/auth/discord/login', '/auth/discord/callback', '/auth/me', '/auth/logout'] }));
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `auth flow failed: ${err.message}` }));

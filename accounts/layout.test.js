@@ -75,6 +75,7 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   assert.equal(navMods.length, 1);
   assert.doesNotMatch(html, /Leaderboards &amp; Stats/);
   assert.match(html, />Guides<\/a>/);
+  assert.match(html, />Colors<\/a>/);
   assert.match(html, /<summary class="">Tools<\/summary>/);
   assert.match(html, /href="\/tools\/crafting-cost"/);
   assert.match(html, /href="\/tools\/demolish-refund"/);
@@ -85,12 +86,13 @@ test('renderNav groups Servers, Maps, and Stats into details dropdowns and keeps
   const mapsAt = html.indexOf('>Maps</summary>');
   const statsAt = html.indexOf('>Stats</summary>');
   const guidesAt = html.indexOf('>Guides</a>');
+  const colorsAt = html.indexOf('>Colors</a>');
   const toolsAt = html.indexOf('>Tools</summary>');
   const alertsAt = html.indexOf('>Alerts</a>');
   const favAt = html.indexOf('>Favorites</a>');
   assert.ok(serversAt !== -1 && mapsAt !== -1 && statsAt !== -1);
   assert.ok(serversAt < mapsAt && mapsAt < statsAt);
-  assert.ok(statsAt < guidesAt && guidesAt < toolsAt && toolsAt < alertsAt && alertsAt < favAt);
+  assert.ok(statsAt < guidesAt && guidesAt < colorsAt && colorsAt < toolsAt && toolsAt < alertsAt && alertsAt < favAt);
 });
 
 test('renderNav marks the Maps group active on per-map pages', () => {
@@ -111,6 +113,14 @@ test('renderNav marks Guides active on the index and a guide page', () => {
   const page = renderNav('/guides/beginners');
   assert.match(page, /class="active" href="\/guides"/);
   assert.doesNotMatch(page, /<summary class="active">Guides<\/summary>/);
+});
+
+test('renderNav marks Colors active on the index and a set page', () => {
+  const index = renderNav('/colors');
+  assert.match(index, /class="active" href="\/colors"/);
+  const page = renderNav('/colors/sets/dinocolorset-spino');
+  assert.match(page, /class="active" href="\/colors"/);
+  assert.doesNotMatch(page, /<summary class="active">Colors<\/summary>/);
 });
 
 test('renderNav marks the Tools group active on the demolish-refund page', () => {
@@ -175,6 +185,7 @@ test('renderFooter lists the sitemap columns, GitHub repo, and live counts', () 
   assert.match(html, /href="\/compare">Compare/);
   assert.match(html, /href="\/maps">Maps/);
   assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /href="\/colors">Colors/);
   assert.match(html, /href="\/tools\/crafting-cost">Crafting Cost/);
   assert.match(html, /href="\/tools\/demolish-refund">Demolish Refund/);
   assert.match(html, /href="\/lists\/official-pve">Official PvE/);
