@@ -96,7 +96,7 @@ Not yet done: transform extraction for a defended resource allowlist, and census
   states the pairing is not listed. In-game verification is optional future work,
   blocking nothing. Do not publish the mapping without it.
 
-- Remaining guides work: per-map resource and progression fan-outs (the six-guide core index now matches arkstatus: beginner, taming, resources, settings, breeding, bosses)
+
 
 ## Known real gaps vs. arkstatus.com (confirmed via a live re-scan, not guessed)
 
