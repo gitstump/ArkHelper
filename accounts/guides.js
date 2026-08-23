@@ -1262,10 +1262,351 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'the-island-resources',
+    title: 'The Island Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'The Island Resources',
+    description:
+      'Terrain-first farming on The Island: beaches, jungle, swamp, snow, mountains, caves, and ocean — how the land pays, and how to haul it home.',
+    lastVerified: '2026-08-23',
+    related: ['resource-locations', 'scorched-earth-resources', 'aberration-resources', 'the-center-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The Island is the curriculum every later map assumes you already passed. It is one landmass ringed by ocean, with a coastline that teaches the game and an interior that spends what the coast taught. Beaches give way to jungle, jungle to swamp and highland, highland to snow and exposed rock. Caves punch down through all of it. The ocean is not a border so much as a second map glued to the first.',
+          },
+          {
+            type: 'p',
+            text: 'The layout is radial in spirit: the farther you walk from gentle water, the more the terrain asks of you. Warm sand and shallow surf are the tutorial. Green canopy is the workshop. Wet lowland is the first place that will eat an unprepared gatherer. High stone and ice are the economy. Dark water is the patience test. A survivor who learns that gradient — sand to soil to stone to ice, then cave and ocean — can farm this island without ever looking at a pin.',
+          },
+          {
+            type: 'callout',
+            text: 'Treat The Island as a terrain school, not a treasure map. The later maps only change the costume.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Wood and thatch live wherever trees live, which on this map is most of the warm interior. Dense jungle pays better than coastal scrub; swamp timber is thick but wet and contested. Fiber and berries come from bushes in those same green places. The whole starter kit — wood, thatch, fiber, stone, food — is a beach-and-jungle story. It never really stops being available. It only gets heavier once you mix it with ore.',
+          },
+          {
+            type: 'p',
+            text: 'Stone is the island\'s default mineral: beaches, riverbeds, any slope that has shrugged its soil. Metal is pickier. It shows up on exposed rock — mountain faces, cliff shoulders, cave interiors — not in dirt, not in sand, and not in the first meadow you like. If the ground still has a forest floor, keep walking until the rock shows through. Crystal prefers the high and the cold: snowy ridges, icy cave walls, places where the air already hurts. Obsidian wants volcanic and geothermal ground, or the deepest cave rock that looks poured rather than stacked.',
+          },
+          {
+            type: 'p',
+            text: 'Oil is a water story and a cold story. Seafloor nodes sit where the ocean floor goes dark. Surface oil belongs to the frozen fringe. Silica pearls hide in that same unfriendly water, usually deeper and quieter than a casual swim. Cementing paste is not a node; it is insects and chitin, which makes the swamp and insect-heavy caves your quarry. Shallow reefs are not the drop-off. If you cannot see the bottom, you are in the harvest zone and the danger zone together.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Green and wet: wood, thatch, fiber, chitin, the starter loop.',
+              'Bare rock and cave wall: metal first, then whatever else the stone is hiding.',
+              'Snow, ice, and thin air: crystal, and the oil that refuses to live in a jungle.',
+              'Dark water: oil, pearls, and a return trip you should plan before you dive.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'A stone pick and a stone hatchet teach the split that never goes away. The pick favors ore, flint, thatch, and the mineral side of a node. The hatchet favors wood, hide, and the organic side of the same swing. Upgrade both to metal when the island starts paying metal. They are not interchangeable, and carrying both is cheaper than two trips for the wrong mix. A sickle turns fiber from a chore into a stack; it will not replace the hatchet or mine a rock. Hands still gather pearls and loose ground stone.',
+          },
+          {
+            type: 'p',
+            text: 'Tames bias the same nodes harder in the same directions. A dedicated mineral gatherer on a mountain face will fill a saddle with metal that would have broken your spine. A wood specialist in jungle or swamp will empty a grove while you watch the tree line. An insect hunter in the swamp turns paste from a bottleneck into a routine. A strong swimmer with weight to spare turns the ocean from a dare into a commute. None of this changes where the nodes live. It only changes how many trips the same hillside costs.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The Island\'s weight problem is vertical. The richest mineral sits up, and home is usually down, near water and wood. Raw metal is heavier than you expect. Crystal is awkward. Oil and pearls are a swim with a backpack that wants to drown you. Load the tame, not the survivor. Put a bed near the deposit so death is a commute. Smelt or store on the mountain when you can — walk bars, not rocks.',
+          },
+          {
+            type: 'p',
+            text: 'Water is the island\'s road. Rivers and shoreline skip jungle sightlines and also advertise you. Overland through trees is worse for a loaded mount that cannot turn. Pick the route for the cargo, not the scenery. Two light trips beat one overloaded crawl. When a haul fails it is almost always on the way home: you are slow, the path is familiar, and whatever lives on that slope has had time to wander back. The harvest is finished when the box at home closes.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The beach is honest. The jungle is not. Predators use trees as cover, and a farming swing is a loud invitation. Swamp water hides things that consider you food. Snow drains stamina and health while you chip crystal. Caves combine darkness, tight rooms, and residents that do not want company. The ocean adds drowning to teeth. These are the rent each biome charges for its nodes.',
+          },
+          {
+            type: 'p',
+            text: 'Falling is an Island specialty. Mountain faces and cave drops punish a survivor who looks at the node instead of the footing. If the harvest made you too heavy to jump, you are already late to leave. Clear a pocket before you swing. Park the hauler where a slip does not take it over the edge. Night and weather are quieter killers — cold on a ridge, rain in a swamp, a storm at sea. Dress for the biome you are farming, not the one you spawned in.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on this map is not a metal rush. Secure a beach or river camp with a bed, a box, and a fire. Learn the pick-and-hatchet split on local stone and trees until the muscle memory is boring. Get a modest weight-carrying herbivore so the second day\'s wood and stone stop living in your own inventory. That tame is the difference between a base that grows and a survivor who spends every evening over-encumbered on the sand.',
+          },
+          {
+            type: 'p',
+            text: 'Then read the nearest rock. If the slope shows metal, treat that hillside as your first real economy and put a sleeping bag in walking distance of it. Do not graduate to snow or caves until you can leave a body behind and still have a kit at home. Oil and pearls wait until you have a swimmer you trust. Paste waits until the swamp is a job, not a dare. Crystal waits until you own clothes that answer the cold. The Island hub page tells you how crowded that lesson is right now. The Resource Locations guide is the grammar this page applies.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar this map-specific page applies' },
+              { href: '/maps/the-island', label: 'Live The Island servers', note: 'population, uptime, and versions right now' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'scorched-earth-resources',
+    title: 'Scorched Earth Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'Scorched Earth Resources',
+    description:
+      'Terrain-first farming on Scorched Earth: dunes, rock, salt, sulfur, and scarce water — what the desert pays, and what it costs to carry.',
+    lastVerified: '2026-08-23',
+    related: ['resource-locations', 'scorched-earth-progression', 'the-island-resources', 'ragnarok-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Scorched Earth is a desert with opinions. There is no gentle ring of beach to learn on, no continuous forest to hide a mistake in, and no freshwater ribbon you can follow home by ear. The landmass is open, bright, and dry. Dunes roll into badland cuts. Badland cuts rise into bare mountains. The rare green is a wet exception, not a climate. Shade is a resource. Water is a resource. Time in the sun is a cost you pay whether you meant to or not.',
+          },
+          {
+            type: 'p',
+            text: 'The map still has a gradient, just not the Island\'s. Outer flats and dune seas are the easy read: long sightlines, thin cover, nodes that do not require a climb you cannot reverse. Interior stone — canyons, cliffs, the rock that looks cooked — is where the desert keeps the materials that gate mid-game. You earn your way inward the same way you earn your way up on other maps: by arriving able to leave. Every trip is hydration, heat, and visibility stacked on a gathering problem.',
+          },
+          {
+            type: 'callout',
+            text: 'If a node sits in open sand, the sand is part of the price. If it sits in a cut of rock, the climb and the heat are part of the price. Pay both on purpose.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Wood is the desert\'s first argument with Island habits. Trees exist, but they cluster near water, in canyon bottoms, and anywhere the ground remembers being wet. Fiber is thinner on open dune and thicker in scrub and oasis-green. Cactus is the local substitute garden: sap for thirst, and a reminder that the flora here is armed. Do not punch the desert the way you punched a beach bush.',
+          },
+          {
+            type: 'p',
+            text: 'Stone is everywhere the wind has failed to bury it — rocky shelves, canyon walls, mountain bone. Metal follows the same rule it does on every map: exposed rock, not sand. Look at faces that have shrugged their dunes, the spines of ridgelines, caves that open from stone. Crystal likes high, hostile rock and the colder hours those heights invent at night. Sulfur favors scorched, chemically angry ground — fumaroles, cooked canyon stone, places that smell like a mistake. Salt favors flats and evaporite crust, the pale ground that looks like the ocean left and forgot its cargo.',
+          },
+          {
+            type: 'p',
+            text: 'Oil still lives in two tempers: desert seeps and pump-friendly stains on hardpan, and the rare deep water you should not assume is a lake you can live beside. Silk is an animal product here, not a tree product. Clay and sand sit underfoot on the flats, and they matter because adobe is how a base stops fighting the weather. Chitin and keratin still come from shells and horns, which in a desert often means the dunes are hunting you back.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Sand and scrub: starter stone, thin wood, cactus, the clay that becomes a house.',
+              'Bare ridgeline and cave rock: metal, and the crystal that hid from the heat below.',
+              'Cooked stone and pale crust: sulfur and salt, the desert\'s own crafting language.',
+              'Rare water: oil if you must swim, and the trees the rest of the map refused to grow.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The pick-and-hatchet split does not change because the sky is empty of trees. A pick still favors the mineral side of rock and the thatch side of the few trunks you find. A hatchet still favors wood and hide. Metal tools matter more here than on a jungle map because every wasted swing is also wasted water. A sickle still wins at fiber, and it is kinder to cactus than bare hands. Jars and canteens are harvest tools in this climate; a trip that forgets them is not a gathering trip.',
+          },
+          {
+            type: 'p',
+            text: 'Desert tames bias the same way Island tames do, with extra homework. A mineral gatherer on exposed rock is still the metal answer. A weight-focused herbivore that also banks water turns the logistics layer kinder. A fast mount matters more than a brutal one for most early loops, because the correct response to half the dune\'s interruptions is to leave. Silk and chitin want the creatures that produce them, not a better pick. Bring the tool that matches the node, then the animal that matches the tool.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The desert\'s weight problem is distance plus thirst. Nodes are often a long, shadeless walk from anything you would call home, and the cargo that matters — metal, crystal, sulfur — is as heavy as it is anywhere. Load the tame, not the survivor. The extra trick is that the tame and the survivor both drink. A hauler that arrives at the node already dry is a statue you will die next to.',
+          },
+          {
+            type: 'p',
+            text: 'Open sand is a terrible road when you are slow. Deep dune hides things that erupt under weight, and a loaded line across empty flats is a confession. Prefer rock and hardpan for the return. Prefer two short loops from a forward bag and a box over one heroic crossing. Green folds of land are filling stations, not automatic homes — everyone else can see them too. Smelt near the deposit when the heat makes a raw-ore walk foolish. Plan the return as if the sky will close. A sandstorm will ground the sensible flyers and strand the stubborn.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Heat is the standing tax. Daylight on open ground will cook an underdressed gatherer through a full bag of good decisions. Night swings cold enough to bite, especially on height. Dress for the hour, not the screenshot. Sandstorms erase sightlines, sap stamina, and turn every loaded retreat into guesswork. When the horizon goes brown, you stop being a farmer and start being someone who needs a wall. Hunker. Do not press.',
+          },
+          {
+            type: 'p',
+            text: 'The dune itself hunts. Burrowing things treat heavy footsteps as a dinner bell, which makes an overloaded mineral run across deep sand a special kind of optimism. Vultures turn a pause at a carcass into a mob. Canyons add falling to heat. Caves add closed rooms and residents that were waiting in the shade you wanted. Water sources are not automatically safe camps — anything that must drink will eventually visit them. Farm the rock. Visit the water. Do not confuse the two.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on Scorched Earth is water, then shade, then stone. Plant a bed within reach of a drink you can defend or replace, even if the view is ugly. Learn cactus and jars before you learn a mountain. Put down enough adobe or shade to make noon survivable indoors. A camp that cannot outlast a heat wave is a respawn timer with extra steps.',
+          },
+          {
+            type: 'p',
+            text: 'Once you can stay wet and stay indoors, read the nearest exposed rock for metal and start the loop you already know: bag at the deposit, tame that carries, short trips, smelt before you stroll. Salt and sulfur join the list as soon as your bench starts asking for the desert\'s own language; they are not first-day emergencies. Silk and deep-dune trophies wait until you can cross sand without looking like bait. The hub page tells you how populated that desert is today. The progression guide is the survival order; this page is the shopping list. The Resource Locations guide remains the grammar.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar this desert applies' },
+              { href: '/maps/scorched-earth', label: 'Live Scorched Earth servers', note: 'population, uptime, and versions right now' },
+              { href: '/guides/scorched-earth-progression', label: 'Scorched Earth Progression', note: 'water, heat, and the order that makes the map beatable' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'aberration-resources',
+    title: 'Aberration Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'Aberration Resources',
+    description:
+      'Terrain-first farming on Aberration: fungal caverns, charged rock, radiation, and the surface — what the dark pays, and how to move it without wings.',
+    lastVerified: '2026-08-23',
+    related: ['resource-locations', 'aberration-progression', 'the-island-resources', 'extinction-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Aberration is a cave that ate a world. The surface burned, the station failed, and what survived did so underground, which means the usual compass habits arrive already wrong. There is no beach ring. There is no flyer commute. Progress is vertical: fertile fungal floors near the light you can live in, then down through charged blue stone, then into rock that will poison an unsuited body, with a lethal surface waiting above for anyone who climbs the wrong way at the wrong hour.',
+          },
+          {
+            type: 'p',
+            text: 'The map reads as layers more than regions. A farming trip is less "head inland" and more "change floors." Gravity is a participant. A node you can see across a chasm may be a short cling for the right creature, or a death for a survivor who only knows how to walk. Mushrooms replace trees as the thing you keep bumping into. Charge light replaces daylight as the thing that decides whether the dark is empty or occupied. Farming here is a lighting problem and a falling problem stacked on a gathering problem.',
+          },
+          {
+            type: 'callout',
+            text: 'If you cannot see a safe way back up, you are not looking at a harvest. You are looking at a hole.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The fertile fungal floors are the green workshop. Wood as you knew it is scarce; mushroom trunks and the strange local flora carry the early building kit instead. Fiber still comes from harvestable plants, thicker in the undergrowth than on bare stone. Stone is everywhere the fungus has failed to carpet. Metal still wants exposed rock — cliff faces inside the caverns, broken shelves, station bone showing through — not the soft mushroom dirt you first want to live on. If it looks like soil, keep walking until it looks like a wall.',
+          },
+          {
+            type: 'p',
+            text: 'The charged blue layer is where the map starts paying like an endgame. Crystal and gem-bearing growths favor this glowing stone; they sit on walls and ceilings as much as the floor, which is a hint about your footing. The rarer ores concentrate as the rock gets less friendly and more irradiated. The red, poisoned stone is honest: if the air is a hazard, the harvest is not a starter loop. The surface, when you can stand it, is a scorched lid with its own nodes and its own reasons not to linger. Treat it as a raid, not a commute.',
+          },
+          {
+            type: 'p',
+            text: 'Organic gathering changes costume. Chitin still comes from the things with plates. Local insects and crawlers are the paste and polymer conversation. Aquatic pockets exist, but they are lakes in a cave, not an ocean biome — do not dive as if The Island\'s pearl rules apply. Charge is a resource in its own right. The light-producing flora and the creatures that store it are how you keep the dark from filling with things that hate a lantern. Farm charge on purpose the way you would farm narcotics anywhere else.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Fertile fungal floor: the building kit, early stone, the first honest metal on cavern rock.',
+              'Charged blue stone: crystal, gems, the harvest that assumes you can climb and see.',
+              'Irradiated rock and the surface: the late minerals, and a suit that is not optional.',
+              'Flora and fauna that glow: charge, the resource that makes every other trip possible.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Picks and hatchets still split a node the same way. A pick favors ore, crystal, thatch-like return from the local trunks, and the mineral face of gemmed walls. A hatchet favors the woody and hide-like returns. Metal tools matter sooner than your pride wants, because a long climb to a bad yield is a longer climb home. A sickle still wins at plant fiber. Climbing picks are movement tools, not harvest tools; they get you to the wall the real pick then works.',
+          },
+          {
+            type: 'p',
+            text: 'A charge lantern is also not a harvest tool, but farming without one in the deeper layers is a decision to share the node with things that prefer you blind. Powered industrial tools pull more from the same rock and weigh more on the way to it — bring them when the floor is safe enough to justify the encumbrance. The tame bench is inverted by the flyer ban. A mineral gatherer that can also walk a cliff is worth more than a stronger gatherer that cannot come home. Pack-capable mounts turn a vertical map into something you can actually logistics. Glow pets keep charge on your shoulder while both hands work.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Aberration\'s weight problem is gravity. The good rock is often below you, or on a ledge you will not want to recross loaded. A fall with metal is how kits disappear into a layer you are not dressed for. Load the tame, keep yourself light, store near the node — and never take a downhill harvest you have not already climbed with empty bags. If the way up is a puzzle, solve it before you are heavy.',
+          },
+          {
+            type: 'p',
+            text: 'Zip lines, climbs, and glides are the roads. Walking the long way around a chasm is safer than inventing a shortcut with a full saddle. Park haulers on flats, not on the lip of a drop. Put a bed on the fertile side of any descent that would take a naked respawn through radiation or nameless dark. A forward box on the correct floor is worth more than a bigger base on the wrong one. Two light trips are how you stay on the floor you meant to stay on. Bring more charge than the room looks like it needs.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The dark is staffed. Nameless and their worse relations treat an unlit gatherer as an opportunity, which makes charge management part of every swing in the deeper layers. Ceiling hunters drop into a node the moment you look at the rock instead of the roof. Fertile floors have their own predators; they are simply ones you can see coming if you chose a sightline.',
+          },
+          {
+            type: 'p',
+            text: 'Radiation does not negotiate. Irradiated rock will empty a health bar through clothes that were fine on a mountain. If you are not suited, you are not farming that floor. The surface adds heat, radiation, and things that fly in a map that otherwise forbade you that privilege; it is hostile on a timer. Falling remains the quiet killer. Encumbered jumps, wet fungus, and ledges that look wider than they are will put you on a floor whose air you cannot breathe. A perfect vein on a bad ledge is not a perfect vein.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on Aberration is light, a bed on fertile ground, and a way to move that is not a hopeful jump. Secure charge — a glow pet, a lantern, the habit of watching the meter — before you secure a pretty mineral wall across a drop. Learn the local trunks and the cavern stone with the pick-and-hatchet split you already own. Get a pack animal that can handle slopes so wood and stone stop living on your corpse.',
+          },
+          {
+            type: 'p',
+            text: 'Read the nearest cavern wall for metal only after you can die and respawn without a tour of the dark. Blue-layer crystal and gems wait until you can climb back out with a bag. Irradiated rock and the surface wait until you own a suit and a reason. Paste and charge stay on the weekly list the entire time; this map spends both. Do not skip the fertile floor because it looks like a tutorial. It is the only floor that will forgive you. The hub page tells you how crowded those caverns are right now. The progression guide is the order of survival; this page is where the rock pays. The Resource Locations guide is still the grammar.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar this cavern applies' },
+              { href: '/maps/aberration', label: 'Live Aberration servers', note: 'population, uptime, and versions right now' },
+              { href: '/guides/aberration-progression', label: 'Aberration Progression', note: 'charge, verticality, and the order that makes the map survivable' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
-// planned future guides that `related` arrays may reference before they exist; currently empty because no future guide is planted.
-const PLANNED_SLUGS = [];
+// planned future guides that `related` arrays may reference before they exist.
+const PLANNED_SLUGS = ['the-center-resources', 'ragnarok-resources', 'extinction-resources'];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));
 

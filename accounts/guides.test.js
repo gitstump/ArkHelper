@@ -43,7 +43,7 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 10);
+  assert.equal(GUIDE_REGISTRY.length, 13);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
@@ -54,6 +54,12 @@ test('registry slugs are unique and every entry has the required fields', () => 
   assert.ok(slugs.includes('aberration-progression'));
   assert.ok(slugs.includes('extinction-progression'));
   assert.ok(slugs.includes('genesis-progression'));
+  assert.ok(slugs.includes('the-island-resources'));
+  assert.ok(slugs.includes('scorched-earth-resources'));
+  assert.ok(slugs.includes('aberration-resources'));
+  for (const slug of slugs) {
+    assert.ok(!MAP_SLUGS.has(slug), `guide slug ${slug} collides with a maps slug`);
+  }
   for (const g of GUIDE_REGISTRY) {
     for (const field of REQUIRED_FIELDS) {
       assert.ok(g[field] != null, `missing ${field} on ${g.slug}`);
@@ -119,6 +125,18 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(aberration);
   assert.equal(aberration.slug, 'aberration-progression');
   assert.equal(aberration.shortTitle, 'Aberration Progression');
+  const islandRes = resolveGuide('the-island-resources');
+  assert.ok(islandRes);
+  assert.equal(islandRes.slug, 'the-island-resources');
+  assert.equal(islandRes.shortTitle, 'The Island Resources');
+  const scorchedRes = resolveGuide('scorched-earth-resources');
+  assert.ok(scorchedRes);
+  assert.equal(scorchedRes.slug, 'scorched-earth-resources');
+  assert.equal(scorchedRes.shortTitle, 'Scorched Earth Resources');
+  const aberrationRes = resolveGuide('aberration-resources');
+  assert.ok(aberrationRes);
+  assert.equal(aberrationRes.slug, 'aberration-resources');
+  assert.equal(aberrationRes.shortTitle, 'Aberration Resources');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -536,4 +554,50 @@ test('genesis-progression guide ships the brief prose verbatim', () => {
   assert.equal(g.sections[5].heading, 'The simulation\'s signature tames');
   assert.equal(g.sections[6].heading, 'Climbing the mission ladder');
   assert.equal(g.sections[7].heading, 'The Master Controller, and where the story goes next');
+});
+
+function flattenGuideBody(g) {
+  const parts = [];
+  for (const section of g.sections) {
+    if (section.heading) parts.push(section.heading);
+    for (const block of section.blocks) {
+      if (typeof block.text === 'string') parts.push(block.text);
+      if (typeof block.caption === 'string') parts.push(block.caption);
+      if (Array.isArray(block.headers)) parts.push(...block.headers);
+      if (Array.isArray(block.rows)) {
+        for (const row of block.rows) parts.push(...row);
+      }
+      if (!Array.isArray(block.items)) continue;
+      for (const item of block.items) {
+        if (typeof item === 'string') parts.push(item);
+        else if (item && typeof item === 'object') {
+          if (typeof item.label === 'string') parts.push(item.label);
+          if (typeof item.note === 'string') parts.push(item.note);
+        }
+      }
+    }
+  }
+  return parts.join('\n');
+}
+
+test('no guide body contains coordinate-shaped text (permanent policy)', () => {
+  const coordPair = /\d+\.\d+\s*,\s*\d+(?:\.\d+)?/;
+  const coordLabel = /\b(?:lat|lon|GPS)\b/;
+  for (const g of GUIDE_REGISTRY) {
+    const body = flattenGuideBody(g);
+    assert.doesNotMatch(body, coordPair, `coordinate pair in ${g.slug}`);
+    assert.doesNotMatch(body, coordLabel, `lat/lon/GPS label in ${g.slug}`);
+  }
+});
+
+test('new per-map resource bodies contain no percentages or numeric multipliers', () => {
+  const NEW_SLUGS = ['the-island-resources', 'scorched-earth-resources', 'aberration-resources'];
+  for (const slug of NEW_SLUGS) {
+    const g = resolveGuide(slug);
+    assert.ok(g, slug);
+    const body = flattenGuideBody(g);
+    assert.doesNotMatch(body, /%/, `percentage in ${slug}`);
+    assert.doesNotMatch(body, /\b\d+x\b/i, `x-multiplier in ${slug}`);
+    assert.doesNotMatch(body, /\b\d{2,}\b/, `multi-digit figure in ${slug}`);
+  }
 });

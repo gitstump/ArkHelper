@@ -3467,7 +3467,13 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(html, /href="\/guides\/aberration-progression"/);
   assert.match(html, /href="\/guides\/extinction-progression"/);
   assert.match(html, /href="\/guides\/genesis-progression"/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 10);
+  assert.match(html, /href="\/guides\/the-island-resources"/);
+  assert.match(html, /The Island Resources/);
+  assert.match(html, /href="\/guides\/scorched-earth-resources"/);
+  assert.match(html, /Scorched Earth Resources/);
+  assert.match(html, /href="\/guides\/aberration-resources"/);
+  assert.match(html, /Aberration Resources/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 13);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();
@@ -3751,6 +3757,75 @@ test('GET /guides/genesis-progression renders the guide h1', async () => {
   const extinctionRes = await fetch(`${base}/guides/extinction-progression`);
   const extinctionHtml = await extinctionRes.text();
   assert.match(extinctionHtml, /href="\/guides\/genesis-progression"/);
+
+  server.close();
+});
+
+test('GET /guides/the-island-resources renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/the-island-resources`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>The Island Resources Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/maps\/the-island"/);
+
+  server.close();
+});
+
+test('GET /guides/scorched-earth-resources renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/scorched-earth-resources`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Scorched Earth Resources Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/maps\/scorched-earth"/);
+
+  server.close();
+});
+
+test('GET /guides/aberration-resources renders the guide h1', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    browserDeps: fakeBrowserDeps(null),
+  });
+
+  const res = await fetch(`${base}/guides/aberration-resources`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(html, /<h1>Aberration Resources Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  assert.match(html, /href="\/guides">Guides/);
+  assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/maps\/aberration"/);
 
   server.close();
 });
