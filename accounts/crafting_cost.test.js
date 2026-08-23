@@ -5,10 +5,19 @@ const assert = require('node:assert/strict');
 const generated = require('./data/crafting_costs.json');
 const {
   STATIONS,
+  EXPECTED_KEEP_COUNT,
+  EXPECTED_EXCLUDE_COUNT,
+  DISPLAY_NAME_OVERRIDES,
   extraItemName,
   extraResolvesToKnownOutput,
   isMulticraftFamily,
   isInScope,
+  isKeptByCalculatorRule,
+  collectEngramClassSet,
+  assertCalculatorRuleCounts,
+  buildDisplayNameMap,
+  collectReferencedClasses,
+  findDuplicateDnames,
   findItem,
   computeCraft,
   stationById,
@@ -115,15 +124,18 @@ test('every generated entry has qty_made >= 1 and a non-empty reqs', () => {
 
 test('no generated entry has result != OK in either source file', () => {
   const full = [
-    { name: 'ok', result: 'OK', reqs: [{ qty: 1, res: 'Stone' }] },
-    { name: 'bad-full', result: 'NULL', reqs: [{ qty: 1, res: 'Stone' }] },
+    { name: 'ok', result: 'OK', pkg: '/Game/x/Resources/ok', dname: 'Ok', reqs: [{ qty: 1, res: 'Stone_C' }] },
+    { name: 'bad-full', result: 'NULL', pkg: '/Game/x/Resources/bad-full', dname: 'Bad', reqs: [{ qty: 1, res: 'Stone_C' }] },
   ];
   const yields = [
     { name: 'ok', result: 'OK', qty_made: 1, extra: [], stations: [] },
     { name: 'bad-full', result: 'OK', qty_made: 1, extra: [], stations: [] },
     { name: 'bad-yield', result: 'NOLOAD', qty_made: 1, extra: [], stations: [] },
   ];
-  const fullWithBadYield = [...full, { name: 'bad-yield', result: 'OK', reqs: [{ qty: 1, res: 'Stone' }] }];
+  const fullWithBadYield = [
+    ...full,
+    { name: 'bad-yield', result: 'OK', pkg: '/Game/x/Resources/bad-yield', dname: 'BadYield', reqs: [{ qty: 1, res: 'Stone_C' }] },
+  ];
   const names = new Set(['ok', 'bad-full', 'bad-yield', 'Stone']);
   assert.equal(isInScope(full[0], yields[0], names), true);
   assert.equal(isInScope(full[1], yields[1], names), false);
@@ -185,3 +197,327 @@ test('extra path resolution reads the trailing class name', () => {
     'PrimalItemResource_MetalIngot'
   );
 });
+
+function hatchetEngrams() {
+  return collectEngramClassSet({
+    '/Game/Engrams/EngramEntry_MetalHatchet': {
+      props: {
+        blue_print_entry: {
+          __ref: '/Game/PrimalEarth/CoreBlueprints/Weapons/PrimalItem_WeaponMetalHatchet.PrimalItem_WeaponMetalHatchet_C',
+        },
+      },
+    },
+    '/Game/Engrams/EngramEntry_Costume': {
+      props: {
+        blue_print_entry: {
+          __ref: '/Game/ASA/Dinos/ShoulderDragon/PrimalItemCostume_ShoulderDragonLost.PrimalItemCostume_ShoulderDragonLost_C',
+        },
+      },
+    },
+  });
+}
+
+test('keep-rule excludes Admin Blink Rifle (reqs>0, not in scope)', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItem_WeaponAdminBlinkRifle',
+        dname: 'Admin Blink Rifle',
+        pkg: '/Game/Extinction/Weapon_AdminBlinkRifle/PrimalItem_WeaponAdminBlinkRifle',
+        reqs: [{ qty: 10, res: 'PrimalItemResource_Hide_C' }],
+      },
+      hatchetEngrams()
+    ),
+    false
+  );
+});
+
+test('keep-rule excludes legacy egg kibble (reqs=0)', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItemConsumable_Kibble_DodoEgg',
+        dname: 'Kibble (Dodo Egg)',
+        pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/PrimalItemConsumable_Kibble_DodoEgg',
+        reqs: [],
+      },
+      hatchetEngrams()
+    ),
+    false
+  );
+});
+
+test('keep-rule keeps tiered kibble Kibble_Base_Small (reqs>0, rescued from junk)', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItemConsumable_Kibble_Base_Small',
+        dname: 'Simple Kibble',
+        pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/PrimalItemConsumable_Kibble_Base_Small',
+        reqs: [{ qty: 1, res: 'PrimalItemConsumableEatable_WaterContainer_C' }],
+      },
+      hatchetEngrams()
+    ),
+    true
+  );
+});
+
+test('keep-rule excludes costume (engram-linked, reqs=0)', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItemCostume_ShoulderDragonLost',
+        dname: 'Lost Drakeling Costume',
+        pkg: '/Game/ASA/Dinos/ShoulderDragon/Variants/Lost/PrimalItemCostume_ShoulderDragonLost',
+        reqs: [],
+      },
+      hatchetEngrams()
+    ),
+    false
+  );
+});
+
+test('keep-rule excludes RecipeNote (reqs>0, name match)', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItem_RecipeNote_StaminaSoup',
+        dname: 'Rockwell Recipes: Energy Brew',
+        pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Notes/PrimalItem_RecipeNote_StaminaSoup',
+        reqs: [{ qty: 3, res: 'PrimalItemResource_Thatch_C' }],
+      },
+      collectEngramClassSet({
+        e: {
+          props: {
+            blue_print_entry: {
+              __ref: '/Game/Notes/PrimalItem_RecipeNote_StaminaSoup.PrimalItem_RecipeNote_StaminaSoup_C',
+            },
+          },
+        },
+      })
+    ),
+    false
+  );
+});
+
+test('keep-rule excludes CustomFoodRecipe with custom but empty reqs', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItemCustomFoodRecipe_Type_BdayCake',
+        dname: 'A Food Recipe',
+        pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/PrimalItemCustomFoodRecipe_Type_BdayCake',
+        reqs: [],
+        custom: [{ qty: 3, res: 'PrimalItemConsumable_SweetVeggieCake_C' }],
+      },
+      hatchetEngrams()
+    ),
+    false
+  );
+});
+
+test('keep-rule keeps Flint (reqs>0, Resources folder)', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItemResource_Flint',
+        dname: 'Flint',
+        pkg: '/Game/PrimalEarth/CoreBlueprints/Resources/PrimalItemResource_Flint',
+        reqs: [{ qty: 2, res: 'PrimalItemResource_Stone_C' }],
+      },
+      new Set()
+    ),
+    true
+  );
+});
+
+test('keep-rule keeps Metal Hatchet base (engram-linked, reqs>0)', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItem_WeaponMetalHatchet',
+        dname: 'Metal Hatchet',
+        pkg: '/Game/PrimalEarth/CoreBlueprints/Weapons/PrimalItem_WeaponMetalHatchet',
+        reqs: [{ qty: 8, res: 'PrimalItemResource_MetalIngot_C' }],
+      },
+      hatchetEngrams()
+    ),
+    true
+  );
+});
+
+test('keep-rule excludes Gauntlet Metal Hatchet (reqs>0, Mission folder, no engram)', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItem_WeaponMetalHatchet_Gauntlet',
+        dname: 'Metal Hatchet',
+        pkg: '/Game/Genesis/CoreBlueprints/Weapons/Mission/PrimalItem_WeaponMetalHatchet_Gauntlet',
+        reqs: [{ qty: 8, res: 'PrimalItemResource_MetalIngot_C' }],
+      },
+      hatchetEngrams()
+    ),
+    false
+  );
+});
+
+test('keep-rule count tripwire is 711 kept and 2686 excluded', () => {
+  assert.equal(EXPECTED_KEEP_COUNT, 711);
+  assert.equal(EXPECTED_EXCLUDE_COUNT, 2686);
+  assert.throws(
+    () => assertCalculatorRuleCounts([], new Set()),
+    /KEEP 0 EXCLUDED 0/
+  );
+});
+
+test('keep-rule excludes CustomDrinkRecipe placeholder', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItemCustomDrinkRecipe_Type1',
+        dname: 'A Food Recipe',
+        pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/PrimalItemCustomDrinkRecipe_Type1',
+        reqs: [{ qty: 1, res: 'PrimalItemResource_Thatch_C' }],
+      },
+      new Set()
+    ),
+    false
+  );
+});
+
+test('keep-rule excludes Refill as an entry but still resolves it as an ingredient label', () => {
+  assert.equal(
+    isKeptByCalculatorRule(
+      {
+        name: 'PrimalItemConsumable_WaterJarRefill',
+        dname: 'Water Jar',
+        pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/PrimalItemConsumable_WaterJarRefill',
+        reqs: [{ qty: 1, res: 'PrimalItemResource_Fibers_C' }],
+      },
+      new Set()
+    ),
+    false
+  );
+  const beer = {
+    name: 'PrimalItemConsumable_BeerJarAlt',
+    dname: 'Beer Jar',
+    pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/Beer',
+    result: 'OK',
+    reqs: [{ qty: 1, res: 'PrimalItemConsumable_WaterJarRefill_C' }],
+  };
+  const refill = {
+    name: 'PrimalItemConsumable_WaterJarRefill',
+    dname: 'Water Jar',
+    pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/Refill',
+    reqs: [],
+  };
+  const { labels, missing } = buildDisplayNameMap([beer, refill], collectReferencedClasses([beer]));
+  assert.deepEqual(missing, []);
+  assert.equal(labels.PrimalItemConsumable_WaterJarRefill_C, 'Water Jar');
+});
+
+test('keep-rule excludes Crafted_ taffy and keeps Craftable_ taffy', () => {
+  const crafted = {
+    name: 'PrimalItemConsumable_Crafted_FourthOfJulyDinoCandy',
+    dname: 'Summer Swirl Taffy',
+    pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/Crafted',
+    reqs: [{ qty: 1, res: 'PrimalItemResource_Polymer_C' }],
+  };
+  const craftable = {
+    name: 'PrimalItemConsumable_Craftable_FourthOfJulyDinoCandy',
+    dname: 'Summer Swirl Taffy',
+    pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/Craftable',
+    reqs: [{ qty: 1, res: 'PrimalItemResource_Polymer_C' }],
+  };
+  assert.equal(isKeptByCalculatorRule(crafted, new Set()), false);
+  assert.equal(isKeptByCalculatorRule(craftable, new Set()), true);
+});
+
+test('display-name override renders the verbatim §2 name on the kept item', () => {
+  const beer = {
+    name: 'PrimalItemConsumable_BeerJar',
+    dname: 'Beer Jar',
+    pkg: '/Game/PrimalEarth/CoreBlueprints/Items/Consumables/Beer',
+    result: 'OK',
+    reqs: [{ qty: 1, res: 'PrimalItemResource_Beer_C' }],
+  };
+  const beerRes = { name: 'PrimalItemResource_Beer', dname: 'Beer', reqs: [] };
+  const yields = [{ name: beer.name, result: 'OK', qty_made: 1, extra: [], stations: [] }];
+  const dataset = buildDataset([beer, beerRes], yields);
+  assert.equal(dataset.items.length, 1);
+  assert.equal(dataset.items[0].dname, 'Beer Jar (from crafted Water Jar)');
+  assert.equal(dataset.items[0].label, 'Beer Jar (from crafted Water Jar)');
+  assert.equal(DISPLAY_NAME_OVERRIDES.PrimalItemConsumable_BeerJar, 'Beer Jar (from crafted Water Jar)');
+});
+
+test('display-name map resolves name+_C to dname and lists missing without inventing', () => {
+  const items = [
+    { name: 'PrimalItemResource_Hide', dname: 'Hide' },
+    { name: 'PrimalItemResource_Empty', dname: '' },
+  ];
+  const referenced = ['PrimalItemResource_Hide_C', 'PrimalItemResource_Empty_C', 'Unknown_C'];
+  const { labels, missing } = buildDisplayNameMap(items, referenced);
+  assert.deepEqual(labels, { PrimalItemResource_Hide_C: 'Hide' });
+  assert.deepEqual(missing, ['PrimalItemResource_Empty_C', 'Unknown_C']);
+});
+
+test('display-name map collects reqs and custom refs from kept items', () => {
+  const refs = collectReferencedClasses([
+    {
+      reqs: [{ res: 'PrimalItemResource_Hide_C' }],
+      custom: [{ res: 'PrimalItemConsumable_Honey_C' }],
+    },
+  ]);
+  assert.deepEqual([...refs].sort(), ['PrimalItemConsumable_Honey_C', 'PrimalItemResource_Hide_C']);
+});
+
+test('every generated req has a non-empty label from the display-name map', () => {
+  assert.ok(generated.labels && typeof generated.labels === 'object');
+  for (const entry of generated.items) {
+    for (const req of entry.reqs) {
+      assert.equal(typeof req.label, 'string');
+      assert.ok(req.label, `${entry.name} ${req.res}`);
+      assert.equal(generated.labels[req.res], req.label, `${entry.name} ${req.res}`);
+    }
+  }
+});
+
+test('duplicate dname detector reports colliding pairs without renaming dnames', () => {
+  const items = [
+    { name: 'PrimalItem_WeaponMetalHatchet', dname: 'Metal Hatchet' },
+    { name: 'PrimalItem_WeaponMetalHatchet_Gauntlet', dname: 'Metal Hatchet' },
+    { name: 'PrimalItemResource_Flint', dname: 'Flint' },
+  ];
+  assert.deepEqual(findDuplicateDnames(items), [
+    { dname: 'Metal Hatchet', names: ['PrimalItem_WeaponMetalHatchet', 'PrimalItem_WeaponMetalHatchet_Gauntlet'] },
+  ]);
+  assert.deepEqual(items.map((item) => item.dname), ['Metal Hatchet', 'Metal Hatchet', 'Flint']);
+});
+
+test('generated dataset excludes Admin Blink Rifle, RecipeNotes, and Gauntlet hatchet', () => {
+  assert.equal(findItem(generated, 'PrimalItem_WeaponAdminBlinkRifle'), null);
+  assert.equal(findItem(generated, 'PrimalItem_RecipeNote_StaminaSoup'), null);
+  assert.equal(findItem(generated, 'PrimalItem_WeaponMetalHatchet_Gauntlet'), null);
+  assert.ok(findItem(generated, 'PrimalItem_WeaponMetalHatchet'));
+  assert.ok(findItem(generated, 'PrimalItemResource_Flint'));
+  assert.ok(findItem(generated, 'PrimalItemConsumable_Kibble_Base_Small'));
+});
+
+test('generated dataset excludes drink placeholders, Refill entries, and Crafted_ taffy', () => {
+  assert.equal(findItem(generated, 'PrimalItemCustomDrinkRecipe_Type1'), null);
+  assert.equal(findItem(generated, 'PrimalItemCustomDrinkRecipe_Type2'), null);
+  assert.equal(findItem(generated, 'PrimalItemConsumable_WaterJarRefill'), null);
+  assert.equal(findItem(generated, 'PrimalItemConsumable_Crafted_FourthOfJulyDinoCandy'), null);
+  assert.ok(findItem(generated, 'PrimalItemConsumable_Craftable_FourthOfJulyDinoCandy'));
+  const beer = findItem(generated, 'PrimalItemConsumable_BeerJarAlt');
+  assert.ok(beer);
+  const refillReq = beer.reqs.find((req) => req.res === 'PrimalItemConsumable_WaterJarRefill_C');
+  assert.ok(refillReq);
+  assert.equal(refillReq.label, 'Water Jar');
+});
+
+test('final dataset has zero dname collisions after overrides', () => {
+  assert.deepEqual(findDuplicateDnames(generated.items), []);
+  assert.equal(findItem(generated, 'PrimalItemResource_ElementDustFromElement').dname, 'Crafted Element Dust (from Element)');
+});
+
