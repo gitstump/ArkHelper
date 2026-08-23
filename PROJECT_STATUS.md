@@ -105,10 +105,7 @@ Not yet done: transform extraction for a defended resource allowlist, and census
 ## Production deployment
 
 LIVE at https://arkhelper.info since 2026-08-16. DigitalOcean droplet (2GB, NYC, Ubuntu 24.04, IP 159.223.188.54). Code at `/opt/arkhelper`, cloned from the public GitHub repo. Two systemd services: `arkhelper-discovery.service` and `arkhelper-accounts.service` (`Restart=always`, enabled at boot). Secrets in `/etc/arkhelper.env` (`EnvironmentFile`; the code itself has no `.env` loader). Caddy reverse-proxies arkhelper.info and www → localhost:8793 with automatic Let's Encrypt HTTPS; discovery :8792 is internal-only (firewall allows only SSH/80/443). 2GB swap file enabled. Weekly DigitalOcean droplet backups enabled. Updates ship via `/root/deploy.sh` on the droplet (pull → npm install → `node --test` → restart; aborts if tests fail).
-
-## Infrastructure not yet done
-
-- **GeoLite2** — country enrichment is optional (`--geo-db` or `GEOLITE2_DB_PATH`). The UI surfaces `country` / `countryName` when present (browser Region column + filter, detail facts, `/leaderboards/regions`) and degrades to em-dash / Unknown when absent. The `.mmdb` file still has to exist on the host for live enrichment.
+GeoIP: `geoipupdate` is installed on the droplet with `/etc/GeoIP.conf` (mode 600, holds the MaxMind Account ID and license key) writing to `/var/lib/GeoIP/`. The packaged `geoipupdate.timer` handles refreshes weekly — no cron entry. `GEOLITE2_DB_PATH=/var/lib/GeoIP/GeoLite2-Country.mmdb` in `/etc/arkhelper.env` points the services at it, so country enrichment is live rather than degrading to em-dash. This lives entirely outside the repo: a droplet rebuild must redo it. `GeoLite2-City.mmdb` is also being downloaded but nothing reads it — droppable from `EditionIDs`. MaxMind attribution is in the footer Project column, as required.
 
 ## Recently fixed (worth knowing about, not re-introducing)
 
