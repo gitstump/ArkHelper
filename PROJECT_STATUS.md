@@ -62,6 +62,14 @@ Banked: nine maps of actor descriptors (45,893 gameplay actors) with a verified 
 
 Foliage: Aberration has a complete InstancedFoliageActor census — 3,710,555 instances across 669 World Partition cells, 251 distinct meshes, counts and mesh names only, no transforms yet. Mesh-to-resource attribution resolves through FoliageType assets, each of which references a static mesh and an attached harvest component; these are read from the asset registry's dependency graph without loading assets, which avoids triggering multi-gigabyte Nanite mesh builds. 2,404 FoliageType assets are mapped.
 
+GeneTraits: `GeneTraits.json` is banked but PARTIAL. Captured: 60 player-facing
+traits plus 2 cheat-only, tier chances [100%, 30%, 5%], wild spawns carry 1 trait,
+max 5 per creature, and all per-creature overrides at default. NOT captured:
+per-tier effect magnitudes — all 70 Trait BP CDOs returned empty props, so the
+values almost certainly live in per-tier struct arrays the CDO walk did not reach.
+No trait numbers may publish until a follow-up probe resolves this. A catalog /
+odds / mechanics page carrying only the captured facts is publishable without them.
+
 Not yet done: transform extraction for a defended resource allowlist, and censuses for the other eight maps. Both are gated on the manifest feature review deciding whether interactive maps ship.
 
 ## Future / deferred work
@@ -77,6 +85,16 @@ Not yet done: transform extraction for a defended resource allowlist, and census
 - Population intelligence — typical-hour population baselines,
   "N% above normal" deltas, and version-rollout percentages, all
   derived from the existing history SQLite. No new data sources.
+
+- GeneTraits tier-magnitude probe — separate DevKit session. Resolve where
+  per-tier effect magnitudes live (per-tier struct arrays, not the Trait BP CDO)
+  and re-extract. Blocks any published trait numbers; does not block a
+  numbers-free traits catalog page.
+
+- Dye color-ID pairing — deliberately NOT published. The dye→color-ID mapping
+  (101+) is unverified inference and fails the publication standard; `/colors`
+  states the pairing is not listed. In-game verification is optional future work,
+  blocking nothing. Do not publish the mapping without it.
 
 - Remaining guides work: per-map resource and progression fan-outs (the six-guide core index now matches arkstatus: beginner, taming, resources, settings, breeding, bosses)
 
