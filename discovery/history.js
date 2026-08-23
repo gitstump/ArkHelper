@@ -192,13 +192,6 @@ function detectAndLogChanges(db, servers, runAt) {
   }
 }
 
-function getChangeLog(db, serverId, { limit = 20 } = {}) {
-  return db
-    .prepare('SELECT seen_at, change_type, old_value, new_value FROM change_log WHERE server_id = ? ORDER BY seen_at DESC LIMIT ?')
-    .all(serverId, limit)
-    .map((r) => ({ seenAt: r.seen_at, changeType: r.change_type, oldValue: r.old_value, newValue: r.new_value }));
-}
-
 function serializeChangeValue(value) {
   if (value === undefined || value === null) return null;
   if (typeof value === 'boolean') return value ? 'true' : 'false';
@@ -972,7 +965,6 @@ module.exports = {
   recordSnapshotRun,
   detectAndLogChanges,
   detectStableChanges,
-  getChangeLog,
   getChangeEvents,
   pruneChangeEvents,
   pruneChangeState,

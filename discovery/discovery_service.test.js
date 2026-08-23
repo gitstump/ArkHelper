@@ -33,7 +33,7 @@ const {
 } = require('./discovery_service.js');
 const { openUnofficialDb, getUnofficialMeta, upsertMods, getMod, getModsSummary } = require('./unofficial_store.js');
 const { openInfoDb, getCurrentRates, getNewsEntries, getFeedsMeta } = require('./info_store.js');
-const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun, getChangeEvents, getRecentWipes, getChangeLog } = require('./history.js');
+const { openHistoryDb, computeUptimePercent, getIncidentStatus, recordSnapshotRun, getChangeEvents, getRecentWipes } = require('./history.js');
 
 function tmpFile(name) {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ark-tools-discovery-')), name);
@@ -310,7 +310,7 @@ test('GET /history/:id returns uptime and history for a tracked server', async (
   assert.equal(body.serverId, '1');
   assert.equal(body.uptime.totalRuns, 1);
   assert.equal(body.history.length, 1);
-  assert.deepEqual(body.changeLog, []); // first sighting, nothing to compare against yet
+  assert.equal(Object.hasOwn(body, 'changeLog'), false);
   assert.deepEqual(body.changeEvents, []);
   assert.equal(body.peakTimes.length, 168);
   assert.equal(body.downtimePatterns.length, 168);
@@ -1594,5 +1594,6 @@ test('unofficial cycle: batched inserts write one event per held version change 
   const written = historyDb.prepare('SELECT COUNT(*) as c FROM server_change_events').get().c;
   assert.equal(written, 8);
   assert.equal(confirming.changeEventsWritten, 8);
-  assert.equal(getChangeLog(historyDb, 'u-fix-0').length, 0);
+  const unofficialChangeLog = historyDb.prepare('SELECT COUNT(*) as c FROM change_log WHERE server_id = ?').get('u-fix-0');
+  assert.equal(unofficialChangeLog.c, 0);
 });

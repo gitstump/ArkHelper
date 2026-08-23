@@ -29,7 +29,7 @@
    *   GET  /guides                 -> guides index
    *   GET  /guides/:slug           -> a single guide
    *   GET  /tools/crafting-cost    -> crafting cost calculator
-   *   GET  /data/:hashed.json      -> static precomputed game-data JSON
+   *   GET/HEAD /data/:hashed.json  -> static precomputed game-data JSON
    *   GET  /tools/demolish-refund  -> demolish refund calculator
    *   GET  /compare                -> side-by-side official server comparison
    *   GET  /alerts                 -> in-page alert feed (login required)
@@ -386,7 +386,7 @@ function createAuthServer({
         }
       }
 
-      if (req.method === 'GET' && staticBodies.has(url.pathname)) {
+      if ((req.method === 'GET' || req.method === 'HEAD') && staticBodies.has(url.pathname)) {
         const body = staticBodies.get(url.pathname);
         const headers = {
           'Content-Type': 'application/json; charset=utf-8',
@@ -394,7 +394,8 @@ function createAuthServer({
           'Content-Length': body.length,
         };
         res.writeHead(200, headers);
-        res.end(body);
+        if (req.method === 'HEAD') res.end();
+        else res.end(body);
         return;
       }
 

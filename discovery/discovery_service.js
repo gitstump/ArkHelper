@@ -49,7 +49,6 @@ const {
   detectStableChanges,
   computeUptimePercent,
   getServerHistory,
-  getChangeLog,
   getChangeEvents,
   getRecentWipes,
   computePeakTimes,
@@ -655,13 +654,12 @@ function createRosterServer({
 
       const uptime = computeUptimePercent(historyDb, serverId, { sinceIso });
       const history = getServerHistory(historyDb, serverId, { sinceIso });
-      const changeLog = getChangeLog(historyDb, serverId);
       const changeEvents = getChangeEvents(historyDb, serverId, { limit: 10 });
       const peakTimes = computePeakTimes(historyDb, serverId, { sinceIso });
       const downtimePatterns = computeDowntimePatterns(historyDb, serverId, { sinceIso });
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ serverId, uptime, history, changeLog, changeEvents, peakTimes, downtimePatterns }));
+      res.end(JSON.stringify({ serverId, uptime, history, changeEvents, peakTimes, downtimePatterns }));
       return;
     }
 

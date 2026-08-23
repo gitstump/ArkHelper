@@ -10,7 +10,6 @@ const {
   openHistoryDb,
   recordSnapshotRun,
   detectAndLogChanges,
-  getChangeLog,
   getChangeEvents,
   pruneChangeEvents,
   maybePruneChangeEvents,
@@ -42,6 +41,14 @@ function tmpHistoryDbFile() {
 
 function servers(ids) {
   return ids.map((id) => ({ id, playersNow: 5, maxPlayers: 70, day: 100 }));
+}
+
+function changeLogRows(db, serverId) {
+  return db
+    .prepare(
+      'SELECT change_type as changeType, old_value as oldValue, new_value as newValue FROM change_log WHERE server_id = ? ORDER BY seen_at DESC'
+    )
+    .all(serverId);
 }
 
 // ---------------------------------------------------------------------
@@ -239,7 +246,7 @@ test('computeTopUptimeServers respects a sinceIso window', () => {
 test('detectAndLogChanges logs nothing on the very first sighting of a server (nothing to compare against)', () => {
   const db = freshDb();
   recordSnapshotRun(db, [{ id: 'a', day: 5, version: '92.41' }], { now: () => '2026-08-15T00:00:00.000Z' });
-  assert.deepEqual(getChangeLog(db, 'a'), []);
+  assert.deepEqual(changeLogRows(db, 'a'), []);
 });
 
 test('recordSnapshotRun logs a version change between two runs', () => {
@@ -247,7 +254,7 @@ test('recordSnapshotRun logs a version change between two runs', () => {
   recordSnapshotRun(db, [{ id: 'a', day: 5, version: '92.41' }], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [{ id: 'a', day: 6, version: '92.42' }], { now: () => '2026-08-15T01:00:00.000Z' });
 
-  const log = getChangeLog(db, 'a');
+  const log = changeLogRows(db, 'a');
   assert.equal(log.length, 1);
   assert.equal(log[0].changeType, 'version');
   assert.equal(log[0].oldValue, '92.41');
@@ -260,7 +267,7 @@ test('recordSnapshotRun does not write a wipe into change_log after the switchov
   recordSnapshotRun(db, [{ id: 'a', day: 1, version: '92.41' }], { now: () => '2026-08-15T01:00:00.000Z' });
   recordSnapshotRun(db, [{ id: 'a', day: 1, version: '92.41' }], { now: () => '2026-08-15T02:00:00.000Z' });
 
-  assert.deepEqual(getChangeLog(db, 'a'), []);
+  assert.deepEqual(changeLogRows(db, 'a'), []);
   const wipeRows = db.prepare("SELECT COUNT(*) as c FROM change_log WHERE change_type = 'wipe'").get();
   assert.equal(wipeRows.c, 0);
 });
@@ -269,14 +276,14 @@ test('recordSnapshotRun does NOT log a wipe for a normal day-count increment', (
   const db = freshDb();
   recordSnapshotRun(db, [{ id: 'a', day: 45, version: '92.41' }], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [{ id: 'a', day: 46, version: '92.41' }], { now: () => '2026-08-15T01:00:00.000Z' });
-  assert.deepEqual(getChangeLog(db, 'a'), []);
+  assert.deepEqual(changeLogRows(db, 'a'), []);
 });
 
 test('recordSnapshotRun does NOT treat an early low day count as a wipe (needs 3+ before the drop counts)', () => {
   const db = freshDb();
   recordSnapshotRun(db, [{ id: 'a', day: 2, version: '92.41' }], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [{ id: 'a', day: 1, version: '92.41' }], { now: () => '2026-08-15T01:00:00.000Z' });
-  assert.deepEqual(getChangeLog(db, 'a'), []);
+  assert.deepEqual(changeLogRows(db, 'a'), []);
 });
 
 test('recordSnapshotRun still logs a version change when a day reset happens in the same run', () => {
@@ -284,7 +291,7 @@ test('recordSnapshotRun still logs a version change when a day reset happens in 
   recordSnapshotRun(db, [{ id: 'a', day: 45, version: '92.41' }], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [{ id: 'a', day: 1, version: '93.0' }], { now: () => '2026-08-15T01:00:00.000Z' });
 
-  const log = getChangeLog(db, 'a');
+  const log = changeLogRows(db, 'a');
   assert.equal(log.length, 1);
   assert.equal(log[0].changeType, 'version');
   assert.equal(log[0].oldValue, '92.41');
@@ -293,24 +300,13 @@ test('recordSnapshotRun still logs a version change when a day reset happens in 
   assert.equal(wipeRows.c, 0);
 });
 
-test('getChangeLog respects the limit and orders newest first', () => {
-  const db = freshDb();
-  recordSnapshotRun(db, [{ id: 'a', day: 1, version: 'v1' }], { now: () => '2026-08-15T00:00:00.000Z' });
-  recordSnapshotRun(db, [{ id: 'a', day: 1, version: 'v2' }], { now: () => '2026-08-15T01:00:00.000Z' });
-  recordSnapshotRun(db, [{ id: 'a', day: 1, version: 'v3' }], { now: () => '2026-08-15T02:00:00.000Z' });
-
-  const log = getChangeLog(db, 'a', { limit: 1 });
-  assert.equal(log.length, 1);
-  assert.equal(log[0].newValue, 'v3'); // most recent change first
-});
-
-test('getChangeLog is scoped per-server', () => {
+test('recordSnapshotRun version changes are scoped per-server', () => {
   const db = freshDb();
   recordSnapshotRun(db, [{ id: 'a', day: 5, version: 'v1' }, { id: 'b', day: 5, version: 'v1' }], { now: () => '2026-08-15T00:00:00.000Z' });
   recordSnapshotRun(db, [{ id: 'a', day: 6, version: 'v2' }, { id: 'b', day: 6, version: 'v1' }], { now: () => '2026-08-15T01:00:00.000Z' });
 
-  assert.equal(getChangeLog(db, 'a').length, 1);
-  assert.equal(getChangeLog(db, 'b').length, 0);
+  assert.equal(changeLogRows(db, 'a').length, 1);
+  assert.equal(changeLogRows(db, 'b').length, 0);
 });
 
 test('getRecentWipes returns the latest probable_wipe per server inside the window', () => {

@@ -3869,6 +3869,51 @@ test('GET hashed demolish-refunds JSON serves the preloaded asset with an immuta
   server.close();
 });
 
+test('HEAD hashed data URL returns 200 with the same headers as GET and an empty body', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const craftingUrl = `${base}${resolveDataUrl('crafting-costs')}`;
+  const getRes = await fetch(craftingUrl);
+  const headRes = await fetch(craftingUrl, { method: 'HEAD' });
+  assert.equal(getRes.status, 200);
+  assert.equal(headRes.status, 200);
+  assert.equal(headRes.headers.get('content-type'), getRes.headers.get('content-type'));
+  assert.equal(headRes.headers.get('cache-control'), getRes.headers.get('cache-control'));
+  assert.equal(headRes.headers.get('cache-control'), HASHED_CACHE_CONTROL);
+  assert.equal(headRes.headers.get('content-length'), getRes.headers.get('content-length'));
+  assert.equal(await headRes.text(), '');
+  const getBody = await getRes.json();
+  assert.ok(Array.isArray(getBody.items));
+
+  server.close();
+});
+
+test('HEAD on a nonexistent hashed data URL returns 404 matching GET', async () => {
+  const db = openDb(':memory:');
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+  });
+
+  const missing = `${base}/data/crafting-costs.000000000000.json`;
+  const getRes = await fetch(missing);
+  const headRes = await fetch(missing, { method: 'HEAD' });
+  assert.equal(getRes.status, 404);
+  assert.equal(headRes.status, 404);
+
+  server.close();
+});
+
 test('GET /compare with two known ids renders both names and attribute rows', async () => {
   const db = openDb(':memory:');
   const { server, base } = await startServer({
