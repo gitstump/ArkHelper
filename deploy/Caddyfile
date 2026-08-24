@@ -6,12 +6,26 @@
 # policy on those responses so Cloudflare can keep them for a year. Node sends
 # the same Cache-Control, so this block is defence in depth, not a requirement.
 #
+# The upstream is a literal 127.0.0.1, not localhost: Caddy otherwise dials
+# ::1 intermittently and returns 502 because accounts binds IPv4 only.
+#
+# Access logging is droplet state — a rebuild must recreate it. The log file
+# itself needs caddy:caddy ownership; chown on the directory alone is not
+# enough. A reload will NOT pick up a new log path — that needs a restart.
+#
 # After editing the live file: caddy validate --config /etc/caddy/Caddyfile
 # then systemctl reload caddy. Keep this copy in sync by hand — nothing
 # automates it.
 
 arkhelper.info, www.arkhelper.info {
-        @hashed_data path_regexp hashed_data ^/data/[^/]+\.[a-f0-9]{12}\.json$
-        header @hashed_data Cache-Control "public, max-age=31536000, immutable"
-        reverse_proxy localhost:8793
+	@hashed_data path_regexp hashed_data ^/data/[^/]+\.[a-f0-9]{12}\.json$
+	header @hashed_data Cache-Control "public, max-age=31536000, immutable"
+	reverse_proxy 127.0.0.1:8793
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
 }
