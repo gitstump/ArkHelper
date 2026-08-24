@@ -80,22 +80,23 @@ Not yet done: transform extraction for a defended resource allowlist, and census
   2. Per-map resource guides — The Island, Scorched Earth, and Aberration are live. Still outstanding: The Center, Extinction, Genesis, Ragnarok, Valguero, Lost Colony, Astraeos. Terrain/biome-first prose, no coordinates.
   3. Owner-waypoint enrichment — curated farming routes with Owner's own in-game GPS readings; staged behind the screenshot safari, judgment content not coverage.
   4. Interactive coverage maps — extraction is no longer the blocker (see coordinate-data policy above). Gated now on the manifest feature review: whether the site commits to interactive maps as a feature. 20,000+ resource nodes is a map overlay, not a list anyone reads, so the feature decision precedes any further transform extraction.
-
 - Population intelligence — typical-hour population baselines,
   "N% above normal" deltas, and version-rollout percentages, all
   derived from the existing history SQLite. No new data sources.
-
 - GeneTraits tier-magnitude probe — separate DevKit session. Resolve where
   per-tier effect magnitudes live (per-tier struct arrays, not the Trait BP CDO)
   and re-extract. Blocks any published trait numbers; does not block a
   numbers-free traits catalog page.
-
 - Dye color-ID pairing — deliberately NOT published. The dye→color-ID mapping
   (101+) is unverified inference and fails the publication standard; `/colors`
   states the pairing is not listed. In-game verification is optional future work,
   blocking nothing. Do not publish the mapping without it.
-
-
+- Unofficial retention pruning — reverted 2026-08-23 as premature (site
+  was eight days old; nothing had aged into a 30-day window, and the
+  sweep cost ~16s hourly against 5.2M server_mods rows to delete zero).
+  Revisit once last_seen spans 30+ days and the real churn rate is
+  measurable. Table growth is the open question: 517K server rows and
+  5.2M mods rows against ~55K listed per cycle.
 
 ## Known real gaps vs. arkstatus.com (confirmed via a live re-scan, not guessed)
 
