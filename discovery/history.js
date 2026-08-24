@@ -403,11 +403,32 @@ function getRecentWipes(db, { sinceIso, limit = 5000 } = {}) {
 // ---------------------------------------------------------------------
 // Recording
 // ---------------------------------------------------------------------
+function computeIdentityOverlap(prevIds, nextIds) {
+  const prev = new Set(prevIds);
+  const next = new Set(nextIds);
+  let overlapCount = 0;
+  for (const id of next) if (prev.has(id)) overlapCount += 1;
+  const overlapPercent = prev.size === 0 ? null : (overlapCount / prev.size) * 100;
+  return { prevCount: prev.size, nextCount: next.size, overlapCount, overlapPercent };
+}
+
 function recordSnapshotRun(db, servers, { now = () => new Date().toISOString() } = {}) {
   const runAt = now();
 
   detectAndLogChanges(db, servers, runAt); // must run before inserting this run's rows
   detectStableChanges(db, servers, runAt); // two-cycle events; also needs the previous run
+
+  const prevIds = loadLastRunServerIds(db);
+  const nextIds = [];
+  for (const s of servers) {
+    if (s.id) nextIds.push(s.id);
+  }
+  const overlap = computeIdentityOverlap(prevIds, nextIds);
+  if (overlap.prevCount !== 0 && overlap.overlapPercent < 50) {
+    console.warn(
+      `[identity] prevCount ${overlap.prevCount} nextCount ${overlap.nextCount} overlapCount ${overlap.overlapCount} overlapPercent ${Math.round(overlap.overlapPercent)}`
+    );
+  }
 
   const insertRun = db.prepare('INSERT INTO snapshot_runs (run_at) VALUES (?)');
   const runInfo = insertRun.run(runAt);
@@ -423,7 +444,7 @@ function recordSnapshotRun(db, servers, { now = () => new Date().toISOString() }
 
   maybePruneChangeEvents(db, runAt);
 
-  return { runId, runAt, serverCount: servers.length };
+  return { runId, runAt, serverCount: servers.length, ...overlap };
 }
 
 // ---------------------------------------------------------------------
@@ -962,6 +983,7 @@ function recordIncidentCycle(db, { rosterFetchFailed = false, presentServerIds =
 
 module.exports = {
   openHistoryDb,
+  computeIdentityOverlap,
   recordSnapshotRun,
   detectAndLogChanges,
   detectStableChanges,

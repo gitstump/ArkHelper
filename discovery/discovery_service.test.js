@@ -252,7 +252,7 @@ test('refreshCycle records a snapshot into historyDb when one is provided', asyn
     historyDb,
   });
 
-  const uptime = computeUptimePercent(historyDb, '1');
+  const uptime = computeUptimePercent(historyDb, '1.1.1.1:7777');
   assert.equal(uptime.totalRuns, 1);
   assert.equal(uptime.presentCount, 1);
 });
@@ -304,10 +304,10 @@ test('GET /history/:id returns uptime and history for a tracked server', async (
   await new Promise((resolve) => server.listen(0, resolve));
   const port = server.address().port;
 
-  const res = await fetch(`http://127.0.0.1:${port}/history/1`);
+  const res = await fetch(`http://127.0.0.1:${port}/history/1.1.1.1:7777`);
   const body = await res.json();
   assert.equal(res.status, 200);
-  assert.equal(body.serverId, '1');
+  assert.equal(body.serverId, '1.1.1.1:7777');
   assert.equal(body.uptime.totalRuns, 1);
   assert.equal(body.history.length, 1);
   assert.equal(Object.hasOwn(body, 'changeLog'), false);
@@ -427,10 +427,10 @@ test('GET /rankings/:id returns rank neighborhood info for a tracked server', as
   await new Promise((resolve) => server.listen(0, resolve));
   const port = server.address().port;
 
-  const res = await fetch(`http://127.0.0.1:${port}/rankings/1?minRuns=1`);
+  const res = await fetch(`http://127.0.0.1:${port}/rankings/1.1.1.1:7777?minRuns=1`);
   const body = await res.json();
   assert.equal(res.status, 200);
-  assert.equal(body.serverId, '1');
+  assert.equal(body.serverId, '1.1.1.1:7777');
   assert.ok(body.ranking.rank >= 1);
   assert.ok(body.ranking.neighbors.length > 0);
 

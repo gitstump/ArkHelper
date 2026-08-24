@@ -8,6 +8,7 @@ const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 const {
   openHistoryDb,
+  computeIdentityOverlap,
   recordSnapshotRun,
   detectAndLogChanges,
   getChangeEvents,
@@ -82,6 +83,77 @@ test('recordSnapshotRun across multiple calls accumulates separate runs', () => 
   recordSnapshotRun(db, servers(['a']), { now: () => '2026-08-15T01:00:00.000Z' });
   const runs = db.prepare('SELECT COUNT(*) as c FROM snapshot_runs').get();
   assert.equal(runs.c, 2);
+});
+
+// ---------------------------------------------------------------------
+// computeIdentityOverlap
+// ---------------------------------------------------------------------
+test('computeIdentityOverlap is 100 when the sets are identical', () => {
+  const result = computeIdentityOverlap(['a', 'b', 'c'], ['c', 'b', 'a']);
+  assert.deepEqual(result, { prevCount: 3, nextCount: 3, overlapCount: 3, overlapPercent: 100 });
+});
+
+test('computeIdentityOverlap is 0 when the sets are disjoint', () => {
+  const result = computeIdentityOverlap(['a', 'b'], ['x', 'y']);
+  assert.deepEqual(result, { prevCount: 2, nextCount: 2, overlapCount: 0, overlapPercent: 0 });
+});
+
+test('computeIdentityOverlap returns overlapPercent null when prev is empty', () => {
+  const result = computeIdentityOverlap([], ['a']);
+  assert.equal(result.prevCount, 0);
+  assert.equal(result.nextCount, 1);
+  assert.equal(result.overlapCount, 0);
+  assert.equal(result.overlapPercent, null);
+});
+
+test('computeIdentityOverlap partial overlap is overlapCount / prevCount * 100', () => {
+  const result = computeIdentityOverlap(['a', 'b', 'c', 'd'], ['a', 'b', 'x']);
+  assert.equal(result.prevCount, 4);
+  assert.equal(result.nextCount, 3);
+  assert.equal(result.overlapCount, 2);
+  assert.equal(result.overlapPercent, 50);
+});
+
+test('recordSnapshotRun warns on a simulated full re-key', () => {
+  const db = freshDb();
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (msg) => warnings.push(msg);
+  try {
+    const first = recordSnapshotRun(db, servers(['a', 'b', 'c']), { now: () => '2026-08-15T00:00:00.000Z' });
+    assert.equal(first.prevCount, 0);
+    assert.equal(first.overlapPercent, null);
+    assert.equal(warnings.length, 0);
+
+    const second = recordSnapshotRun(db, servers(['x', 'y', 'z']), { now: () => '2026-08-15T01:00:00.000Z' });
+    assert.equal(second.prevCount, 3);
+    assert.equal(second.nextCount, 3);
+    assert.equal(second.overlapCount, 0);
+    assert.equal(second.overlapPercent, 0);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /^\[identity\] /);
+    assert.match(warnings[0], /prevCount 3/);
+    assert.match(warnings[0], /nextCount 3/);
+    assert.match(warnings[0], /overlapCount 0/);
+    assert.match(warnings[0], /overlapPercent 0/);
+  } finally {
+    console.warn = original;
+  }
+});
+
+test('recordSnapshotRun stays silent on a normal run', () => {
+  const db = freshDb();
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (msg) => warnings.push(msg);
+  try {
+    recordSnapshotRun(db, servers(['a', 'b', 'c']), { now: () => '2026-08-15T00:00:00.000Z' });
+    const second = recordSnapshotRun(db, servers(['a', 'b', 'c']), { now: () => '2026-08-15T01:00:00.000Z' });
+    assert.equal(second.overlapPercent, 100);
+    assert.equal(warnings.length, 0);
+  } finally {
+    console.warn = original;
+  }
 });
 
 // ---------------------------------------------------------------------

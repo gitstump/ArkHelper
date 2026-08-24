@@ -148,7 +148,7 @@ test('parseVersion returns null when nothing is available', () => {
 // ---------------------------------------------------------------------
 test('normalizeServer correctly reads a real official PvE server record', () => {
   const server = normalizeServer(REAL_SAMPLE_PVE);
-  assert.equal(server.id, 'ba8031024542429bb38fee3491e78ec3');
+  assert.equal(server.id, '5.62.112.69:7779');
   assert.equal(server.name, 'EU-PVE-TheIsland5313');
   assert.equal(server.ip, '5.62.112.69');
   assert.equal(server.port, 7779);
@@ -198,9 +198,27 @@ test('normalizeServer never throws, even on null/undefined input', () => {
   assert.doesNotThrow(() => normalizeServer(undefined));
 });
 
-test('normalizeServer falls back to IP:Port as id when SessionID is absent', () => {
-  const server = normalizeServer({ IP: '1.2.3.4', Port: 7777 });
-  assert.equal(server.id, '1.2.3.4:7777');
+test('normalizeServer keys id by IP:Port when address is present', () => {
+  const withSession = normalizeServer({
+    SessionID: 'ba8031024542429bb38fee3491e78ec3',
+    IP: '5.62.112.69',
+    Port: 7779,
+  });
+  assert.equal(withSession.id, '5.62.112.69:7779');
+
+  const addressOnly = normalizeServer({ IP: '1.2.3.4', Port: 7777 });
+  assert.equal(addressOnly.id, '1.2.3.4:7777');
+});
+
+test('normalizeServer yields null when SessionID is present but address is missing', () => {
+  const server = normalizeServer({ SessionID: 'ba8031024542429bb38fee3491e78ec3' });
+  assert.equal(server.id, null);
+  assert.notEqual(server.id, 'ba8031024542429bb38fee3491e78ec3');
+});
+
+test('normalizeServer yields null when both SessionID and address are missing', () => {
+  assert.equal(normalizeServer({}).id, null);
+  assert.equal(normalizeServer({ Name: 'no-address' }).id, null);
 });
 
 test('parseTransferFlag converts live 0/1 numbers and sibling boolean/digit-string forms', () => {

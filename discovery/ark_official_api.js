@@ -117,7 +117,11 @@ function normalizeServer(raw) {
   const day = Number(r.DayTime);
 
   return applyTransferFlags({
-    id: r.SessionID || (r.IP && r.Port ? `${r.IP}:${r.Port}` : null),
+    // Wildcard regenerates SessionID network-wide on update restarts (~every
+    // 2-3 days), so it is NOT a stable identity — see PROJECT_STATUS.md.
+    // Address is the identity. Servers without one are dropped by the caller's
+    // `if (!s.id) continue` guard rather than falling back to SessionID.
+    id: r.IP && r.Port ? `${r.IP}:${r.Port}` : null,
     name: r.Name || null,
     sessionName: r.SessionName || null,
     ip: r.IP || null,
