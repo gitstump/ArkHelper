@@ -26,9 +26,6 @@
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const UNOFFICIAL_RETENTION_DAYS = 30;
-const UNOFFICIAL_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 const UNOFFICIAL_PRUNE_BATCH = 400;
 
 const SCHEMA = `
@@ -80,11 +77,6 @@ CREATE TABLE IF NOT EXISTS mods (
   resolved_at TEXT,
   refreshed_at TEXT
 );
-
-CREATE TABLE IF NOT EXISTS unofficial_prune_state (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  pruned_at TEXT NOT NULL
-);
 `;
 
 function tableHasColumn(db, tableName, columnName) {
@@ -109,10 +101,6 @@ function migrateUnofficialSchema(db) {
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_server_mods_mod_id ON server_mods(mod_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_unofficial_servers_last_seen ON unofficial_servers(last_seen)');
-  db.exec(`CREATE TABLE IF NOT EXISTS unofficial_prune_state (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    pruned_at TEXT NOT NULL
-  )`);
 }
 
 function openUnofficialDb(dbPath) {
@@ -192,97 +180,6 @@ function loadServerCycleState(db, keys) {
     }
   }
   return prevByKey;
-}
-
-function deleteByKeys(db, table, keys) {
-  if (!keys.length) return 0;
-  const placeholders = keys.map(() => '?').join(',');
-  return db.prepare(`DELETE FROM ${table} WHERE server_key IN (${placeholders})`).run(...keys).changes;
-}
-
-function pruneStaleUnofficialServers(db, beforeIso, { batchSize = UNOFFICIAL_PRUNE_BATCH, log } = {}) {
-  const cap = Number.isInteger(batchSize) && batchSize > 0 ? batchSize : UNOFFICIAL_PRUNE_BATCH;
-  let serversRemoved = 0;
-  let modsRemoved = 0;
-  const selectStale = db.prepare(
-    'SELECT server_key FROM unofficial_servers WHERE last_seen < ? LIMIT ?'
-  );
-  let batches = 0;
-  for (;;) {
-    const keys = selectStale.all(beforeIso, cap).map((r) => r.server_key);
-    if (keys.length === 0) break;
-    db.exec('BEGIN');
-    try {
-      modsRemoved += deleteByKeys(db, 'server_mods', keys);
-      serversRemoved += deleteByKeys(db, 'unofficial_servers', keys);
-      db.exec('COMMIT');
-    } catch (err) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        // ignore rollback failure
-      }
-      throw err;
-    }
-    batches += 1;
-    if (typeof log === 'function' && batches % 10 === 0) {
-      log(
-        `[discovery] unofficial prune progress: servers_deleted=${serversRemoved} mods_deleted=${modsRemoved}`
-      );
-    }
-  }
-  const orphansRemoved = sweepOrphanServerMods(db, { batchSize: cap, log });
-  return { serversRemoved, modsRemoved, orphansRemoved };
-}
-
-function sweepOrphanServerMods(db, { batchSize = UNOFFICIAL_PRUNE_BATCH, log } = {}) {
-  const cap = Number.isInteger(batchSize) && batchSize > 0 ? batchSize : UNOFFICIAL_PRUNE_BATCH;
-  const selectOrphans = db.prepare(`
-    SELECT sm.server_key AS server_key
-    FROM server_mods sm
-    LEFT JOIN unofficial_servers us ON us.server_key = sm.server_key
-    WHERE us.server_key IS NULL
-    GROUP BY sm.server_key
-    LIMIT ?
-  `);
-  let orphansRemoved = 0;
-  let batches = 0;
-  for (;;) {
-    const keys = selectOrphans.all(cap).map((r) => r.server_key);
-    if (keys.length === 0) break;
-    orphansRemoved += deleteByKeys(db, 'server_mods', keys);
-    batches += 1;
-    if (typeof log === 'function' && batches % 10 === 0) {
-      log(`[discovery] unofficial prune progress: orphans_deleted=${orphansRemoved}`);
-    }
-  }
-  return orphansRemoved;
-}
-
-function maybePruneUnofficialRetention(db, nowIso, opts = {}) {
-  const nowMs = Date.parse(nowIso);
-  if (!Number.isFinite(nowMs)) {
-    return { serversRemoved: 0, modsRemoved: 0, orphansRemoved: 0, skipped: true };
-  }
-  const row = db.prepare('SELECT pruned_at FROM unofficial_prune_state WHERE id = 1').get();
-  if (row && row.pruned_at) {
-    const lastMs = Date.parse(row.pruned_at);
-    if (Number.isFinite(lastMs) && nowMs - lastMs < UNOFFICIAL_PRUNE_INTERVAL_MS) {
-      return { serversRemoved: 0, modsRemoved: 0, orphansRemoved: 0, skipped: true };
-    }
-  }
-  const beforeIso = new Date(nowMs - UNOFFICIAL_RETENTION_DAYS * DAY_MS).toISOString();
-  const result = pruneStaleUnofficialServers(db, beforeIso, opts);
-  db.prepare(
-    `INSERT INTO unofficial_prune_state (id, pruned_at) VALUES (1, ?)
-     ON CONFLICT(id) DO UPDATE SET pruned_at = excluded.pruned_at`
-  ).run(nowIso);
-  if (typeof opts.log === 'function') {
-    opts.log(
-      `[discovery] unofficial prune: servers_deleted=${result.serversRemoved} mods_deleted=${result.modsRemoved} orphans_deleted=${result.orphansRemoved}`
-    );
-  }
-  return { ...result, skipped: false, beforeIso };
 }
 
 function recordUnofficialCycle(db, servers, { now = () => new Date().toISOString() } = {}) {
@@ -622,9 +519,4 @@ module.exports = {
   markModsFailed,
   getModsSummary,
   getMod,
-  pruneStaleUnofficialServers,
-  maybePruneUnofficialRetention,
-  UNOFFICIAL_RETENTION_DAYS,
-  UNOFFICIAL_PRUNE_INTERVAL_MS,
-  UNOFFICIAL_PRUNE_BATCH,
 };

@@ -22,8 +22,6 @@ const {
   markModsFailed,
   getModsSummary,
   getMod,
-  pruneStaleUnofficialServers,
-  maybePruneUnofficialRetention,
 } = require('./unofficial_store.js');
 
 function tmpDbFile() {
@@ -633,16 +631,6 @@ test('unknown transfer flags overwrite a prior 1/0 with NULL and never coerce to
   assert.equal(disabled.allow_item_transfers, 0);
 });
 
-function insertTracked(db, key, lastSeen, mods = []) {
-  db.prepare(
-    `INSERT INTO unofficial_servers (server_key, name, first_seen, last_seen, cycles_seen, mods_hash)
-     VALUES (?, ?, ?, ?, 1, ?)`
-  ).run(key, `Server ${key}`, lastSeen, lastSeen, mods.length ? 'hash' : null);
-  for (const modId of mods) {
-    db.prepare('INSERT INTO server_mods (server_key, mod_id) VALUES (?, ?)').run(key, modId);
-  }
-}
-
 function loadServerCycleStateWholeTable(db) {
   const prevByKey = new Map();
   const rows = db.prepare('SELECT server_key, cycles_seen, mods_hash FROM unofficial_servers').all();
@@ -659,79 +647,75 @@ function sortedMapEntries(map) {
   return [...map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 }
 
-test('prune drops servers older than 30 days and keeps 1- and 29-day rows', () => {
-  const db = openUnofficialDb(':memory:');
-  const now = Date.parse('2026-08-23T00:00:00.000Z');
-  const ago = (days) => new Date(now - days * 24 * 60 * 60 * 1000).toISOString();
-  insertTracked(db, 'd1', ago(1), [11]);
-  insertTracked(db, 'd29', ago(29), [29]);
-  insertTracked(db, 'd31', ago(31), [31]);
-  insertTracked(db, 'd200', ago(200), [200]);
-  const beforeServers = db.prepare('SELECT COUNT(*) AS n FROM unofficial_servers').get().n;
-  const beforeMods = db.prepare('SELECT COUNT(*) AS n FROM server_mods').get().n;
+test('openUnofficialDb opens a fixture that already has unofficial_prune_state and does not drop it', () => {
+  const file = tmpDbFile();
+  const raw = new DatabaseSync(file);
+  raw.exec(`
+    CREATE TABLE unofficial_servers (
+      server_key TEXT PRIMARY KEY,
+      name TEXT,
+      first_seen TEXT NOT NULL,
+      last_seen TEXT NOT NULL,
+      cycles_seen INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE unofficial_meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      cycles_total INTEGER NOT NULL DEFAULT 0,
+      last_fetch_at TEXT,
+      last_fetch_status TEXT
+    );
+    CREATE TABLE unofficial_prune_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      pruned_at TEXT NOT NULL
+    );
+    INSERT INTO unofficial_meta (id, cycles_total) VALUES (1, 0);
+    INSERT INTO unofficial_prune_state (id, pruned_at) VALUES (1, '2026-08-23T00:00:00.000Z');
+  `);
+  raw.close();
 
-  const result = pruneStaleUnofficialServers(db, ago(30));
-  assert.equal(beforeServers, 4);
-  assert.equal(beforeMods, 4);
-  assert.equal(result.serversRemoved, 2);
-  assert.equal(result.modsRemoved, 2);
-  const keys = db
-    .prepare('SELECT server_key FROM unofficial_servers ORDER BY server_key')
-    .all()
-    .map((r) => r.server_key);
-  assert.deepEqual(keys, ['d1', 'd29']);
-  const mods = db
-    .prepare('SELECT server_key, mod_id FROM server_mods ORDER BY server_key')
-    .all()
-    .map((r) => ({ server_key: r.server_key, mod_id: r.mod_id }));
-  assert.deepEqual(mods, [
-    { server_key: 'd1', mod_id: 11 },
-    { server_key: 'd29', mod_id: 29 },
-  ]);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM unofficial_servers').get().n, 2);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM server_mods').get().n, 2);
+  let db;
+  assert.doesNotThrow(() => {
+    db = openUnofficialDb(file);
+  });
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'unofficial_prune_state'")
+    .get();
+  assert.ok(table);
+  const row = db.prepare('SELECT pruned_at FROM unofficial_prune_state WHERE id = 1').get();
+  assert.equal(row.pruned_at, '2026-08-23T00:00:00.000Z');
+  db.close();
 });
 
-test('orphan sweep deletes server_mods with no parent and keeps parented rows', () => {
-  const db = openUnofficialDb(':memory:');
-  insertTracked(db, 'live', '2026-08-22T00:00:00.000Z', [1]);
-  db.prepare('INSERT INTO server_mods (server_key, mod_id) VALUES (?, ?)').run('ghost', 99);
-  const result = pruneStaleUnofficialServers(db, '2026-01-01T00:00:00.000Z');
-  assert.equal(result.orphansRemoved, 1);
-  const mods = db
-    .prepare('SELECT server_key, mod_id FROM server_mods')
-    .all()
-    .map((r) => ({ server_key: r.server_key, mod_id: r.mod_id }));
-  assert.deepEqual(mods, [{ server_key: 'live', mod_id: 1 }]);
-});
+test('openUnofficialDb opens a fixture without unofficial_prune_state and does not create it', () => {
+  const file = tmpDbFile();
+  const raw = new DatabaseSync(file);
+  raw.exec(`
+    CREATE TABLE unofficial_servers (
+      server_key TEXT PRIMARY KEY,
+      name TEXT,
+      first_seen TEXT NOT NULL,
+      last_seen TEXT NOT NULL,
+      cycles_seen INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE unofficial_meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      cycles_total INTEGER NOT NULL DEFAULT 0,
+      last_fetch_at TEXT,
+      last_fetch_status TEXT
+    );
+    INSERT INTO unofficial_meta (id, cycles_total) VALUES (1, 0);
+  `);
+  raw.close();
 
-test('prune completes across batches when stale rows exceed one batch', () => {
-  const db = openUnofficialDb(':memory:');
-  for (let i = 0; i < 5; i += 1) {
-    insertTracked(db, `old-${i}`, '2026-01-01T00:00:00.000Z', [i + 1]);
-  }
-  insertTracked(db, 'fresh', '2026-08-22T00:00:00.000Z', [99]);
-  const result = pruneStaleUnofficialServers(db, '2026-07-24T00:00:00.000Z', { batchSize: 2 });
-  assert.equal(result.serversRemoved, 5);
-  assert.equal(result.modsRemoved, 5);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM unofficial_servers').get().n, 1);
-  assert.equal(getUnofficialServer(db, 'fresh').server_key, 'fresh');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM server_mods').get().n, 1);
-});
-
-test('maybePruneUnofficialRetention matches the hourly guard shape', () => {
-  const db = openUnofficialDb(':memory:');
-  insertTracked(db, 'old', '2026-01-01T00:00:00.000Z', [1]);
-  const first = maybePruneUnofficialRetention(db, '2026-08-23T00:00:00.000Z');
-  assert.equal(first.skipped, false);
-  assert.equal(first.serversRemoved, 1);
-  const second = maybePruneUnofficialRetention(db, '2026-08-23T00:59:00.000Z');
-  assert.equal(second.skipped, true);
-  assert.equal(second.serversRemoved, 0);
-  insertTracked(db, 'older', '2026-01-02T00:00:00.000Z', [2]);
-  const third = maybePruneUnofficialRetention(db, '2026-08-23T01:00:00.000Z');
-  assert.equal(third.skipped, false);
-  assert.equal(third.serversRemoved, 1);
+  let db;
+  assert.doesNotThrow(() => {
+    db = openUnofficialDb(file);
+  });
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'unofficial_prune_state'")
+    .get();
+  assert.equal(table, undefined);
+  db.close();
 });
 
 test('loadServerCycleState matches whole-table output for payload keys and omits others', () => {
