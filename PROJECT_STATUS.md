@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-23 — 1101 tests passing — In flight: none
+Last updated: 2026-08-24 — 1101 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -98,6 +98,19 @@ Not yet done: transform extraction for a defended resource allowlist, and census
   Revisit once last_seen spans 30+ days and the real churn rate is
   measurable. Table growth is the open question: 517K server rows and
   5.2M mods rows against ~55K listed per cycle.
+- Unofficial cycle — the remaining ~4.4 s block. Halved, not eliminated;
+  discovery still goes deaf roughly 4 s every 15 minutes and the cost scales
+  with the roster. Three options, none chosen: accept it; chase the mods
+  delete/insert path inside `recordUnofficialCycle`; or move the cycle to a
+  worker thread (`node:worker_threads` is core, so zero-dependency survives,
+  but it means two writers on one SQLite file and a permanent concurrency tax
+  on a single-threaded codebase). No post-fix figure has been measured under
+  production load — the 4,399 ms is idle — so measure before briefing either.
+  Measurement rule: `cp` the sqlite to `/tmp` first, never measure against
+  production.
+- Separate from the above: `/rankings/:id` runs 2.5–2.9 s against a 3 s budget
+  on a rotating set of ids, steadily, and flickers between `slow` and
+  `timeout` because it sits on the line. Not the unofficial cycle. Unexamined.
 
 ## Known real gaps vs. arkstatus.com (confirmed via a live re-scan, not guessed)
 
@@ -106,8 +119,9 @@ Not yet done: transform extraction for a defended resource allowlist, and census
 
 ## Production deployment
 
-LIVE at https://arkhelper.info since 2026-08-16. DigitalOcean droplet (2GB, NYC, Ubuntu 24.04, IP 159.223.188.54). Code at `/opt/arkhelper`, cloned from the public GitHub repo. Two systemd services: `arkhelper-discovery.service` and `arkhelper-accounts.service` (`Restart=always`, enabled at boot). Secrets in `/etc/arkhelper.env` (`EnvironmentFile`; the code itself has no `.env` loader). Caddy reverse-proxies arkhelper.info and www → localhost:8793 with automatic Let's Encrypt HTTPS; discovery :8792 is internal-only (firewall allows only SSH/80/443). 2GB swap file enabled. Weekly DigitalOcean droplet backups enabled. Updates ship via `/root/deploy.sh` on the droplet (pull → npm install → `node --test` → restart; aborts if tests fail).
+LIVE at https://arkhelper.info since 2026-08-16. DigitalOcean droplet (2GB, NYC, Ubuntu 24.04, IP 159.223.188.54). Code at `/opt/arkhelper`, cloned from the public GitHub repo. Two systemd services: `arkhelper-discovery.service` and `arkhelper-accounts.service` (`Restart=always`, enabled at boot). Secrets in `/etc/arkhelper.env` (`EnvironmentFile`; the code itself has no `.env` loader). Caddy reverse-proxies arkhelper.info and www → 127.0.0.1:8793 with automatic Let's Encrypt HTTPS (a literal IPv4, not `localhost`: Caddy otherwise dials `::1` intermittently and returns 502); discovery :8792 is internal-only (firewall allows only SSH/80/443). 2GB swap file enabled. Weekly DigitalOcean droplet backups enabled. Updates ship via `/root/deploy.sh` on the droplet (pull → npm install → `node --test` → restart; aborts if tests fail).
 GeoIP: `geoipupdate` is installed on the droplet with `/etc/GeoIP.conf` (mode 600, holds the MaxMind Account ID and license key) writing to `/var/lib/GeoIP/`. The packaged `geoipupdate.timer` handles refreshes weekly — no cron entry. `GEOLITE2_DB_PATH=/var/lib/GeoIP/GeoLite2-Country.mmdb` in `/etc/arkhelper.env` points the services at it, so country enrichment is live rather than degrading to em-dash. This lives entirely outside the repo: a droplet rebuild must redo it. `GeoLite2-City.mmdb` is also being downloaded but nothing reads it — droppable from `EditionIDs`. MaxMind attribution is in the footer Project column, as required.
+Caddy access logging is on: `/var/log/caddy/access.log`, `roll_size 20mb`, `roll_keep 5`, owned `caddy:caddy`. Like GeoIP this is droplet state a rebuild must recreate, though `deploy/Caddyfile` now mirrors it. Two things that cost a 521 outage when learned the hard way: the log *file* needs `caddy:caddy` ownership, not just the directory; and `caddy reload` does not pick up a new log path — that needs a restart. Rebooted 2026-08-24 to clear the kernel restart-required flag; caddy, both services, and `geoipupdate.timer` all came back unattended.
 
 ## Recently fixed (worth knowing about, not re-introducing)
 
@@ -115,6 +129,7 @@ GeoIP: `geoipupdate` is installed on the droplet with `/etc/GeoIP.conf` (mode 60
 - Browser Uptime column rendered "—" on every row: ranking stamped `rankScore` onto the roster but not `uptimePercent`, so row rendering had nothing to show. Fixed by stamping 7-day uptime (and avg population %) in the same ranking pass. A regression test fails if a history-backed row renders an em-dash uptime.
 - Production outage (2026-08-19): `realHttpGetLocal` defaulted to 2s and `fetchJsonSafe` swallowed every failure. `GET /mods/summary` took 2.58s so `/mods` showed empty while discovery was healthy; the alerts engine logged `roster unavailable, skipping cycle` on every cycle and dispatched nothing for over a day. Fixed with tiered local-fetch budgets, rate-limited failure/slow logs, distinct null-vs-rosterless skip lines, a consecutive-skip counter (warn at 3 and every 10th thereafter), and a muted `/alerts` health note after 3 skips.
 - Unofficial cycle write amplification (2026-08-19): each 15-minute cycle was DELETE+re-INSERT of ~1.5M `server_mods` rows plus a per-server `SELECT` to reread `cycles_seen`, pinning discovery around 40% CPU. Cycles now hash each server's normalized mod-id list, skip `server_mods` writes when unchanged (including empty lists), bulk-read `cycles_seen`/`mods_hash` once per cycle, add `idx_server_mods_mod_id` and `idx_unofficial_servers_last_seen` on open (in-place on existing DBs), and cache `GET /mods/summary` per `last_fetch_at`+limit.
+- Unofficial cycle blocking discovery's event loop (2026-08-23): `recordUnofficialCycle` is synchronous SQLite over ~55K servers every 15 minutes, and every accounts page fetches from discovery, so the site presented as fully down during the write. Measured against a copy of production `unofficial.sqlite` (733 MB): the record step went 9,974 ms → 4,399 ms after scoping `loadServerCycleState` to payload keys via chunked `IN` (400). Journals bracket the fix: before, a continuous 35-minute wall of `[local-fetch] timeout` across `/history`, `/rankings`, `/roster`, and `/unofficial/meta`; after, sporadic single-endpoint slow lines. Stale-serve (see Request cost) hides the remaining window from users.
 - Crawler cost-per-request (2026-08-19): AI crawlers walking server detail pages (~1 req/s peak) pinned both services at ~30% CPU because each page re-fetched the multi-MB official roster (eleven uncached call sites plus the alerts engine) and discovery re-parsed/re-stringified roster payloads per request. Fixed with the shared official-roster TTL cache, byte-serving `/roster` and cycle-keyed `/unofficial/roster`, and `robots.txt` Crawl-delay (PERF2).
 - Production crash (2026-08-23): `openHistoryDb` created `idx_server_change_state_updated` in the initial SCHEMA exec, before the ALTER that adds `updated_at` on pre-existing tables. Fresh DBs worked; production, whose table predated the column, crashed at startup. The index now follows the migration; a legacy-schema fixture test covers the old shape.
 - Dead `/history/:id` `changeLog` payload removed (2026-08-23): official detail pages no longer render the one-cycle activity log, and no remaining caller read the field. `getChangeLog` dropped; `change_log` table and incident version writes unchanged. Hashed `/data/<name>.<12-hex>.json` now answers HEAD with the same 200/404 and headers as GET, empty body.
