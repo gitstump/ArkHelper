@@ -52,6 +52,7 @@ existing history).
 - **Incident detection & status** (`/is-ark-down`, alias `/status`) — each discovery cycle classifies the official network as NORMAL / DEGRADED / OUTAGE / UPDATE_ROLLOUT from roster presence, 24h offline baseline, version-change coverage, and consecutive CDN fetch failures. Incidents persist in the history SQLite (hysteresis: 3 consecutive NORMAL cycles to close). The public page renders the latest stored snapshot (`Cache-Control: public, max-age=30`), not a per-request recompute.
 - **Official rates** (`/rates`) — current multipliers for official / arkpocalypse / smalltribes / conquest from Wildcard's CDN `dynamicconfig.ini` files, a "Bonus rates active" banner when any official multiplier is not 1.0, and a recent change-log table.
 - **Launcher news** (`/news`) — titles, outbound links, and hotlinked official announcement thumbnails from Wildcard's CDN (fan-content policy, 2026-08-17 — see Imagery policy). Titles come from EntryData, else a humanized survivetheark article slug, else a humanized DLC name. Entries with no resolvable ImagePath stay text-only.
+- When a roster fetch fails or times out, the cache serves the last successful copy rather than nulling out; `/` and `/servers` show a "Data as of N minutes ago" note. The unavailable message now appears only on a cold start with no cached roster.
 
 ## DevKit extraction pipeline (Owner's machine, not in this repo)
 
