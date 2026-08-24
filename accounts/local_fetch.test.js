@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const {
   fetchJsonSafe,
   createTtlCache,
+  formatStaleRosterNote,
   LOCAL_FETCH_TIMEOUT_FAST_MS,
   LOCAL_FETCH_TIMEOUT_HEAVY_MS,
   LOCAL_FETCH_TIMEOUT_BACKGROUND_MS,
@@ -57,6 +58,31 @@ test('createTtlCache does not cache a null miss', async () => {
 test('OFFICIAL_ROSTER_CACHE_TTL_MS is five minutes', () => {
   assert.equal(OFFICIAL_ROSTER_CACHE_TTL_MS, 5 * 60 * 1000);
   assert.equal(UNOFFICIAL_ROSTER_CACHE_TTL_MS, 5 * 60 * 1000);
+});
+
+test('createTtlCache stale-serves the last success after a failed refetch', async () => {
+  let now = 1_000;
+  let calls = 0;
+  const cache = createTtlCache({ ttlMs: OFFICIAL_ROSTER_CACHE_TTL_MS, now: () => now });
+  const first = await cache.get('http://localhost:8792/roster', async () => {
+    calls += 1;
+    return { servers: [{ id: '1' }] };
+  });
+  now = 1_000 + OFFICIAL_ROSTER_CACHE_TTL_MS;
+  const stale = await cache.get('http://localhost:8792/roster', async () => {
+    calls += 1;
+    return null;
+  });
+  assert.equal(calls, 2);
+  assert.equal(stale, first);
+  const peek = cache.peek();
+  assert.equal(peek.stale, true);
+  assert.equal(peek.ageMs, OFFICIAL_ROSTER_CACHE_TTL_MS);
+});
+
+test('formatStaleRosterNote uses whole minutes', () => {
+  assert.equal(formatStaleRosterNote(60_000), 'Data as of 1 minute ago');
+  assert.equal(formatStaleRosterNote(5 * 60_000), 'Data as of 5 minutes ago');
 });
 
 test('createTtlCache on the official roster URL does not cache a null miss', async () => {

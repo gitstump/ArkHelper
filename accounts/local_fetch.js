@@ -117,8 +117,23 @@ function createTtlCache({ ttlMs = UNOFFICIAL_ROSTER_CACHE_TTL_MS, now = Date.now
       const t = now();
       if (cached && cached.url === url && t - cached.at < ttlMs) return cached.value;
       const value = await fetchFn(url);
-      if (value != null) cached = { url, at: t, value };
+      if (value != null) {
+        cached = { url, at: t, value };
+        return value;
+      }
+      if (cached && cached.url === url) return cached.value;
       return value;
+    },
+    peek() {
+      if (!cached) return null;
+      const t = now();
+      return {
+        url: cached.url,
+        at: cached.at,
+        value: cached.value,
+        ageMs: t - cached.at,
+        stale: t - cached.at >= ttlMs,
+      };
     },
     clear() {
       cached = null;
@@ -126,11 +141,19 @@ function createTtlCache({ ttlMs = UNOFFICIAL_ROSTER_CACHE_TTL_MS, now = Date.now
   };
 }
 
+function formatStaleRosterNote(ageMs) {
+  const n = Number(ageMs);
+  if (!Number.isFinite(n) || n < 0) return '';
+  const minutes = Math.max(1, Math.round(n / 60_000));
+  return minutes === 1 ? 'Data as of 1 minute ago' : `Data as of ${minutes} minutes ago`;
+}
+
 module.exports = {
   realHttpGetLocal,
   fetchJsonSafe,
   fetchJsonWithReason,
   createTtlCache,
+  formatStaleRosterNote,
   UNOFFICIAL_ROSTER_CACHE_TTL_MS,
   OFFICIAL_ROSTER_CACHE_TTL_MS,
   LOCAL_FETCH_TIMEOUT_FAST_MS,

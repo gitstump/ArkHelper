@@ -657,6 +657,35 @@ test('unofficial fetch failure leaves official cycle untouched', async () => {
   unofficial.stop();
 });
 
+test('refreshCycle prunes stale unofficial rows; unofficial cycle does not', async () => {
+  const file = tmpFile('roster.json');
+  const unofficialDb = openUnofficialDb(':memory:');
+  unofficialDb
+    .prepare(
+      `INSERT INTO unofficial_servers (server_key, name, first_seen, last_seen, cycles_seen)
+       VALUES (?, ?, ?, ?, 1)`
+    )
+    .run('old', 'Old', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+  unofficialDb.prepare('INSERT INTO server_mods (server_key, mod_id) VALUES (?, ?)').run('old', 7);
+
+  await refreshUnofficialCycle({
+    unofficialState: createUnofficialState(),
+    unofficialDb,
+    fetchUnofficial: async () => fakeUnofficialServers(),
+    now: () => '2026-08-23T00:00:00.000Z',
+  });
+  assert.ok(unofficialDb.prepare('SELECT server_key FROM unofficial_servers WHERE server_key = ?').get('old'));
+
+  await refreshCycle({
+    outPath: file,
+    discoveryOpts: { httpGet: fakeOfficialServersGet(), sleep: async () => {} },
+    unofficialDb,
+    now: () => '2026-08-23T00:00:00.000Z',
+  });
+  assert.equal(unofficialDb.prepare('SELECT server_key FROM unofficial_servers WHERE server_key = ?').get('old'), undefined);
+  assert.equal(unofficialDb.prepare('SELECT COUNT(*) AS n FROM server_mods WHERE server_key = ?').get('old').n, 0);
+});
+
 test('GET /unofficial/roster and /unofficial/meta serve the last good fetch', async () => {
   const file = tmpFile('roster.json');
   const unofficialState = createUnofficialState();

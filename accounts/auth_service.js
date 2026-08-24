@@ -77,6 +77,7 @@ const { renderHomepage, fetchRosterMetaSafe } = require('./home_page.js');
 const {
   fetchJsonSafe,
   createTtlCache,
+  formatStaleRosterNote,
   OFFICIAL_ROSTER_CACHE_TTL_MS,
   LOCAL_FETCH_TIMEOUT_HEAVY_MS,
   LOCAL_FETCH_TIMEOUT_BACKGROUND_MS,
@@ -373,6 +374,13 @@ function createAuthServer({
 
   function fetchOfficialRosterCached(fetchFn) {
     return officialCache.get(rosterUrl, (u) => fetchFn(u, LOCAL_FETCH_HEAVY));
+  }
+
+  function staleNoteForCache(cache) {
+    if (!cache || typeof cache.peek !== 'function') return '';
+    const entry = cache.peek();
+    if (!entry || !entry.stale) return '';
+    return formatStaleRosterNote(entry.ageMs);
   }
 
   function readAlertsHealth() {
@@ -1253,6 +1261,7 @@ function createAuthServer({
         const currentQuery = sanitizeQueryString(url.search);
         const errorCode = url.searchParams.get('presetError');
         const presetError = messageForPresetError(errorCode) ? errorCode : '';
+        const rosterStaleNote = staleNoteForCache(source === 'unofficial' ? rosterCache : officialCache);
 
         const browserOpts = {
           page,
@@ -1265,6 +1274,7 @@ function createAuthServer({
           platformOptions: getDistinctPlatforms(roster.servers),
           countryOptions: getDistinctCountries(roster.servers),
           rosterAvailable: true,
+          rosterStaleNote,
           presets,
           loggedIn: Boolean(accountRow),
           shareOrigin: shareOriginFromReq(req, cookieSecure),

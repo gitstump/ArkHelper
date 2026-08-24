@@ -76,6 +76,7 @@ const {
   markModsFailed,
   getModsSummary,
   getMod,
+  maybePruneUnofficialRetention,
 } = require('./unofficial_store.js');
 const { fetchModsBatch } = require('./curseforge_api.js');
 const { fetchInfoFeeds } = require('./info_feeds.js');
@@ -246,6 +247,7 @@ async function refreshCycle({
   fsDeps = {},
   geoReader,
   historyDb,
+  unofficialDb,
   now = () => new Date().toISOString(),
 } = {}) {
   const previous = readRosterIfExists(outPath, fsDeps);
@@ -279,6 +281,16 @@ async function refreshCycle({
   }
   persistRosterAtomic(outPath, snapshot, fsDeps);
 
+  if (unofficialDb) {
+    try {
+      maybePruneUnofficialRetention(unofficialDb, now(), {
+        log: (msg) => console.log(msg),
+      });
+    } catch {
+      // never throw into the official cycle
+    }
+  }
+
   return {
     snapshot,
     diff,
@@ -297,6 +309,7 @@ function startScheduledRefresh({
   fsDeps = {},
   geoReader,
   historyDb,
+  unofficialDb,
   onCycle = () => {},
   onError = (err) => console.error('[discovery] refresh cycle failed:', err.message),
   setIntervalFn = setInterval,
@@ -307,7 +320,7 @@ function startScheduledRefresh({
   const tick = async () => {
     if (stopped) return;
     try {
-      const result = await refreshCycle({ outPath, discoveryOpts, fsDeps, geoReader, historyDb });
+      const result = await refreshCycle({ outPath, discoveryOpts, fsDeps, geoReader, historyDb, unofficialDb });
       onCycle(result);
     } catch (err) {
       onError(err);
@@ -1042,6 +1055,7 @@ async function main() {
       outPath,
       intervalMs: intervalMinutes * 60 * 1000,
       historyDb,
+      unofficialDb,
       discoveryOpts: {},
       geoReader,
       onCycle: (result) => {

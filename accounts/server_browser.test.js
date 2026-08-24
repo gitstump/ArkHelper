@@ -310,6 +310,24 @@ test('renderBrowserPage shows a fallback when the roster is unavailable', () => 
   assert.match(html, /discovery service may not be running/);
 });
 
+test('renderBrowserPage shows a staleness note when rosterStaleNote is set', () => {
+  const servers = makeServers();
+  const paged = paginateServers(sortServers(servers), 1, 25);
+  const html = renderBrowserPage({
+    page: paged,
+    filters: {},
+    sort: 'players',
+    dir: 'desc',
+    counters: computeLiveCounters(servers),
+    mapOptions: getDistinctMaps(servers),
+    rosterAvailable: true,
+    rosterStaleNote: 'Data as of 12 minutes ago',
+  });
+  assert.match(html, /Astraeos_WP/);
+  assert.match(html, /<p class="note">Data as of 12 minutes ago<\/p>/);
+  assert.doesNotMatch(html, /isn't available right now/);
+});
+
 test('renderBrowserPage renders rows for the given page of results', () => {
   const servers = makeServers();
   const paged = paginateServers(sortServers(servers), 1, 25);

@@ -3236,6 +3236,70 @@ test('alerts engine roster comes from the shared official cache after a page ren
   server.close();
 });
 
+test('GET /servers stale-serves the last official roster and shows its age', async () => {
+  const db = openDb(':memory:');
+  let now = 1_000;
+  let fail = false;
+  const fetchJsonSafe = async (url) => {
+    if (String(url) === 'http://localhost:8792/roster') {
+      if (fail) return null;
+      return { servers: makeTestServers(), generatedAt: 'T' };
+    }
+    return null;
+  };
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    officialRosterCache: createTtlCache({ ttlMs: OFFICIAL_ROSTER_CACHE_TTL_MS, now: () => now }),
+    browserDeps: { fetchJsonSafe },
+    homeDeps: fakeHomeDeps({ totalOfficial: 2, pveCount: 1, pvpCount: 1, generatedAt: 'T' }),
+  });
+
+  try {
+    const first = await fetch(`${base}/servers`);
+    assert.equal(first.status, 200);
+    assert.match(await first.text(), /TheIsland_WP/);
+
+    fail = true;
+    now = 1_000 + OFFICIAL_ROSTER_CACHE_TTL_MS;
+    const second = await fetch(`${base}/servers`);
+    const html = await second.text();
+    assert.equal(second.status, 200);
+    assert.match(html, /TheIsland_WP/);
+    assert.match(html, /Data as of 5 minutes ago/);
+    assert.doesNotMatch(html, /isn't available right now/);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /servers with no cached roster still shows unavailable on a failed fetch', async () => {
+  const db = openDb(':memory:');
+  const fetchJsonSafe = async () => null;
+  const { server, base } = await startServer({
+    db,
+    clientId: 'CID',
+    clientSecret: 'SECRET',
+    redirectUri: 'http://x/cb',
+    discordDeps: fakeDiscordDeps(),
+    officialRosterCache: createTtlCache({ ttlMs: OFFICIAL_ROSTER_CACHE_TTL_MS, now: () => 1_000 }),
+    browserDeps: { fetchJsonSafe },
+    homeDeps: { fetchRosterMetaSafe: async () => null },
+  });
+
+  const res = await fetch(`${base}/servers`);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /isn't available right now/);
+  assert.doesNotMatch(html, /Data as of/);
+  assert.doesNotMatch(html, /TheIsland_WP/);
+
+  server.close();
+});
+
 test('official roster cache does not cache a null miss', async () => {
   const db = openDb(':memory:');
   let officialFetches = 0;

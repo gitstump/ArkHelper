@@ -553,6 +553,7 @@ function renderBrowserBody({
   platformOptions,
   countryOptions,
   rosterAvailable,
+  rosterStaleNote = '',
   presets,
   loggedIn,
   shareOrigin,
@@ -615,6 +616,10 @@ function renderBrowserBody({
       `${pingBit} &middot; ` +
       `${escapeHtml(localeCount(counters.pveCount))} PvE / ${escapeHtml(localeCount(counters.pvpCount))} PvP</p>`
     : `<p class="counters">Server roster data isn't available right now (the discovery service may not be running).</p>`;
+  const staleNoteHtml =
+    rosterAvailable && rosterStaleNote
+      ? `<p class="note">${escapeHtml(rosterStaleNote)}</p>`
+      : '';
   const homeMetaNote =
     showHero && !rosterMeta
       ? `<p class="note">Server roster data isn't available right now (the discovery service may not be running).</p>`
@@ -724,6 +729,7 @@ function renderBrowserBody({
   ${extraNav || ''}
   ${backLink}
   ${countersBar}
+  ${staleNoteHtml}
   ${homeMetaNote}
   ${listIndex}
   ${presetBar}
