@@ -1943,10 +1943,237 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'genesis-resources',
+    title: 'Genesis Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'Genesis Resources',
+    description:
+      'Terrain-first farming on Genesis: bog, arctic, volcanic, lunar, and ocean — plus the shop that pays in Hexagons instead of swings.',
+    lastVerified: '2026-08-24',
+    related: ['resource-locations', 'genesis-progression', 'extinction-resources', 'lost-colony-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Genesis is not a continent. It is a simulation cut into five rooms that share a sky: bog, arctic, volcanic, lunar, and ocean. Each room is a biome that functions as its own map. There is no inland walk that turns swamp into snow. There is a door, a teleport, or a crossing of open water. Farming here is the decision of which room you are in, and whether the land or the shop is going to pay for the trip.',
+          },
+          {
+            type: 'p',
+            text: 'That last clause is the map\'s argument with every earlier quarry. On The Island, materials come from the world and progress comes from materials. Here, missions pay Hexagons, and Hexagons buy the thing your current biome refuses to grow. The land still pays — the bog is a real swamp, the volcanic rock is a real forge — but the shop is a second quarry that sits in your pocket. A gatherer who only swings will starve in the wrong room. A gatherer who only shops will waste the currency on groceries.',
+          },
+          {
+            type: 'callout',
+            text: 'Farm the room you are in. Buy the room you are not. Do not mix those jobs.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The bog is the green workshop. Wood, thatch, fiber, and berries live in the wet canopy the way they do in any swamp. Stone is wherever the fungus and the mud have failed to hide it. Metal still wants exposed rock — the faces that shrug their soil, the cave wall, not the soft floor you first want to live on. Insects and chitin make paste a bog story. Treat it as the starter climate, not a lesser one. It is the only room that will forgive a bad kit.',
+          },
+          {
+            type: 'p',
+            text: 'The arctic is the cold mineral economy. Crystal prefers the high and the frozen, as it does on every map that offers those. Surface oil belongs to that same fringe. The volcanic room is the forge: lava fields, cooked stone, the richest veins of the minerals that gate mid-game, and obsidian on ground that looks poured. Heat is the rent. If the air already hurts, the harvest is not a starter loop. Do not commute there for thatch.',
+          },
+          {
+            type: 'p',
+            text: 'The ocean is a second map with the usual dark-water pay: oil on the seafloor, pearls deeper and quieter than a casual swim, timber on the scattered islands. The lunar surface is not a quarry you visit for a stack of stone. It is endgame terrain that happens to be standing next to the rest of the simulation — vacuum, thin gravity, a technology-tier threat — and the harvest there assumes a kit the bog will not give you. Hexagons fill the gaps between rooms. They do not replace the rock in the room you can already survive.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Bog green: wood, thatch, fiber, paste, the starter loop.',
+              'Arctic height and ice: crystal, and the oil that refuses the swamp.',
+              'Volcanic rock: the late minerals, obsidian, paid in heat.',
+              'Dark water and the lunar surface: pearls, and a harvest that is not a commute.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The pick-and-hatchet split did not move because the sky is a simulation. A pick still favors ore, flint, thatch, and the mineral side of a node. A hatchet still favors wood, hide, and the organic side of the same swing. Upgrade both to metal when a room starts paying metal. A sickle still wins at fiber. Hands still gather pearls and loose ground stone. The new tool is the shop: spend Hexagons on bottlenecks, not on anything a safe bog hour would have stacked for free.',
+          },
+          {
+            type: 'p',
+            text: 'Tames bias the same nodes in the same directions, then add a room change. A mineral gatherer on volcanic rock is still the metal answer. A wood specialist belongs in the bog, not on lava. A strong swimmer with weight to spare still turns the ocean into a commute. None of that helps if the node and the box are in different rooms and you packed for the one you left. Bring the tool that matches the node, then the travel that matches the door.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Genesis\'s weight problem is zone-crossing. The richest mineral sits in a room that will kill the kit you wear in the bog, and home is usually a bed in a climate you can no longer see. Load the tame, not the survivor. Store per room. Smelt or crate on the rock when the next door is a climate change — walk bars, not rocks. A full bag in the wrong biome is a hostage situation until something that travels intact arrives.',
+          },
+          {
+            type: 'p',
+            text: 'Teleportation is the fast road, and it moves you with what you are carrying; bed travel does not. Treat a hop the way earlier maps treated an obelisk run: a packing list, not a casual jump. The remade ocean is the freight road — slower, but it moves cargo and lets you farm the water column on the way. Two light loops from a forward bag in the room you came to harvest beat one heroic crossing into a climate you did not dress for. The harvest is finished when the box at home closes.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Each room charges its own rent. The bog is wet, thick, and staffed with things that consider a gatherer food. The arctic drains stamina and health while you chip crystal. The volcanic room adds fire to falling. The ocean adds drowning to teeth. The lunar surface adds vacuum, meteors, and a footing the rest of the game never taught. Dress for the room you are farming, not the one you woke up in.',
+          },
+          {
+            type: 'p',
+            text: 'Arriving is the quiet killer. A hop into heat or vacuum with a bog kit is the classic Genesis death, and a full saddle makes it faster. If the harvest made you too heavy to run, you are already late to leave. Clear a pocket before you swing. Park the hauler where a slip does not take it into lava or a drop you cannot climb. The shop is not a hazard. Treating another room as a walk is.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on Genesis is pick the bog and stay in it. Secure a camp with a bed, a box, and a fire on ground that does not require a suit. Learn the pick-and-hatchet split on local stone and trunks until the muscle memory is boring. Get a modest weight-carrying herbivore so wood and stone stop living in your own inventory. Spend early Hexagons on the things the swamp will not grow, not on a second stack of wood.',
+          },
+          {
+            type: 'p',
+            text: 'Then read the nearest bog rock. If the slope shows metal, treat that face as your first real economy and put a sleeping bag in walking distance of it. Arctic crystal and oil wait until you own clothes that answer the cold. Volcanic rock and the lunar surface wait until you can leave a body behind and still have a kit at home. The ocean waits until you have a swimmer you trust. The hub page tells you how crowded that simulation is right now. The progression guide is the mission order; this page is where the rock — and the shop — pays. The Resource Locations guide is still the grammar.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar these five rooms apply' },
+              { href: '/maps/genesis', label: 'Live Genesis servers', note: 'population, uptime, and versions right now' },
+              { href: '/guides/genesis-progression', label: 'Genesis Progression', note: 'missions, Hexagons, and the order that makes the simulation passable' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'lost-colony-resources',
+    title: 'Lost Colony Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'Lost Colony Resources',
+    description:
+      'Terrain-first farming on Lost Colony: the settlement, the wilds around it, and how to read land that is still new.',
+    lastVerified: '2026-08-24',
+    related: ['resource-locations', 'genesis-resources', 'extinction-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Lost Colony is a later official map organized around a colony settlement and the wilds that press against it. It is not a beach ring, not a cave that ate a world, and not five rooms sharing a sky. People cluster at the settlement. The quarry is outside. A survivor who treats the populated center as the farm will spend the week dodging tribes instead of filling boxes.',
+          },
+          {
+            type: 'p',
+            text: 'The gradient runs outward. Near the settlement the land is readable and contested: short loops, familiar nodes, everyone else\'s commute. Farther out the wilds start charging real rent — climate, predators, and a return walk you should respect. This map is new enough that the usual pin-memory does not exist yet. That is a gift. Read the terrain the way the grammar already taught you: trees pay wood, exposed rock pays metal, water pays what water always paid. The costume is different. The rules are not.',
+          },
+          {
+            type: 'callout',
+            text: 'If you cannot name the climate you are standing in, you are not farming. You are touring.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Wood and thatch live wherever this map still grows trees. Fiber and berries follow that same green. The starter kit is a settlement-edge story: the first grove and the first stone you can reach without a climate you have not packed for. Do not assume the settlement itself is a quarry. It is a crowd. The wilds are where the land pays.',
+          },
+          {
+            type: 'p',
+            text: 'Stone is the default mineral wherever soil has failed — slopes, cuts, any face that has shrugged its dirt. Metal still wants exposed rock, not the path everyone walks toward town. If you are standing on a road, keep walking until you are standing on a wall. Crystal still prefers height and cold when the wilds offer them. Obsidian still wants ground that looks poured. Oil is still a water story and a cold story. Pearls still hide in unfriendly water. None of that moved because the map is new. What moved is how few people have learned which fold of wilds holds which climate.',
+          },
+          {
+            type: 'p',
+            text: 'Organic gathering did not get a new language. Chitin and paste still come from insects and shells. Hide still comes from the things you hunt. If a structure looks harvestable, test it; if it does not pay, it was scenery. Farm what the swing returns. Leave the rumor for later. A node you have not stood on is not a node. It is a story someone else told.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Settlement edge and nearby green: wood, thatch, fiber, the starter loop.',
+              'Exposed rock past the crowd: metal first, then whatever else the stone is hiding.',
+              'Hostile climate once you can name it: the minerals that climate always paid.',
+              'Water you cannot see the bottom of: oil, pearls, and a return you plan before you leave.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The pick-and-hatchet split did not move because the map is new. A pick still favors ore, flint, thatch, and the mineral side of a node. A hatchet still favors wood, hide, and the organic side of the same swing. Upgrade both to metal when the wilds start paying metal. They are not interchangeable. A sickle still wins at fiber. Hands still gather pearls and loose ground stone. Carry both tools. The wrong one is a second trip through a crowd.',
+          },
+          {
+            type: 'p',
+            text: 'Tames bias the same nodes in the same directions. A dedicated mineral gatherer on exposed rock will still fill a saddle. A wood specialist in the nearest grove will still empty it. A strong swimmer with weight to spare still turns water into a commute. The extra homework is the settlement: a loaded line through town is a confession. Bring the tool that matches the node, then the animal that can reach it without a parade.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Lost Colony\'s weight problem is the walk past other people. The richest mineral sits out in the wilds, and home is often a bed near the settlement you did not want to advertise. Load the tame, not the survivor. Put a bag near the deposit so death is a commute, not a tour of town. Smelt or store on the rock when the walk home crosses ground everyone else can see. Walk bars, not rocks.',
+          },
+          {
+            type: 'p',
+            text: 'The settlement is a hub, not a road. Prefer a quiet fold and two short loops from a forward box over one heroic crossing through the crowd. Pick the route for the cargo, not the scenery. A full saddle on the path to town is how kits disappear. Night and weather still change the return; pack for the climate you are actually in, even if the settlement looked mild from the ridge. The harvest is finished when the box at home closes.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The settlement is kinder than the wilds and harder than it looks. Streets and yards hold gentler nodes and also hold everyone else who wanted a safe quarry. The edge is the line between a gathering problem and a people problem. Past it, the wilds charge the usual rent: predators in cover, climate that punishes the underdressed, footing that punishes a survivor who looks at the node instead of the ground.',
+          },
+          {
+            type: 'p',
+            text: 'Newness is the quiet killer. A route that looks obvious from a ridge can strand you in a climate you did not pack for, because this map has not yet worn grooves into tribal memory. Falling still kills on rock and cuts. Water still drowns the heavy. If the harvest made you too heavy to run, you are already late to leave. Dress for the fold you are crossing, not the settlement you woke up in. Clear a pocket before you swing.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on Lost Colony is pick a quiet edge and stay on it. Secure a camp with a bed, a box, and a fire within reach of trees and stone, far enough from the settlement that a bad run is not a public event. Learn the pick-and-hatchet split on local rock and trunks until the muscle memory is boring. Get a modest weight-carrying herbivore so wood and stone stop living in your own inventory. Do not tour the wilds because the map is new and curiosity feels like progress.',
+          },
+          {
+            type: 'p',
+            text: 'Then read the nearest rock. If the slope shows metal, treat that face as your first real economy and put a sleeping bag in walking distance of it. Hostile climates, deep water, and whatever the wilds hide past the first ridge wait until you can leave a body behind and still have a kit at home. Farm what you can see. Name the climate before you pack for it. The hub page tells you how crowded that colony is right now. The Resource Locations guide is the grammar this page applies.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar this colony applies' },
+              { href: '/maps/lost-colony', label: 'Live Lost Colony servers', note: 'population, uptime, and versions right now' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 // planned future guides that `related` arrays may reference before they exist.
-const PLANNED_SLUGS = ['genesis-resources', 'valguero-resources', 'lost-colony-resources', 'astraeos-resources'];
+const PLANNED_SLUGS = ['valguero-resources', 'astraeos-resources'];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));
 
