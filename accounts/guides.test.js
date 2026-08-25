@@ -43,7 +43,7 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 18);
+  assert.equal(GUIDE_REGISTRY.length, 17);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
@@ -61,7 +61,6 @@ test('registry slugs are unique and every entry has the required fields', () => 
   assert.ok(slugs.includes('ragnarok-resources'));
   assert.ok(slugs.includes('extinction-resources'));
   assert.ok(slugs.includes('genesis-resources'));
-  assert.ok(slugs.includes('lost-colony-resources'));
   for (const slug of slugs) {
     assert.ok(!MAP_SLUGS.has(slug), `guide slug ${slug} collides with a maps slug`);
   }
@@ -158,10 +157,6 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(genesisRes);
   assert.equal(genesisRes.slug, 'genesis-resources');
   assert.equal(genesisRes.shortTitle, 'Genesis Resources');
-  const lostColonyRes = resolveGuide('lost-colony-resources');
-  assert.ok(lostColonyRes);
-  assert.equal(lostColonyRes.slug, 'lost-colony-resources');
-  assert.equal(lostColonyRes.shortTitle, 'Lost Colony Resources');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -404,6 +399,15 @@ test('planned slugs are only for unpublished guides', () => {
   }
 });
 
+test('lost-colony-resources is planned, not shipped', () => {
+  assert.equal(
+    GUIDE_REGISTRY.some((g) => g.slug === 'lost-colony-resources'),
+    false,
+  );
+  assert.ok(PLANNED_SLUGS.includes('lost-colony-resources'));
+  assert.equal(resolveGuide('lost-colony-resources'), null);
+});
+
 test('boss-strategies guide ships the brief prose verbatim', () => {
   const g = resolveGuide('boss-strategies');
   assert.equal(g.title, 'Boss Strategies — ARK: Survival Ascended');
@@ -634,7 +638,7 @@ test('the-center-resources, ragnarok-resources, and extinction-resources ship th
   }
 });
 
-test('genesis-resources and lost-colony-resources ship the six headings in order', () => {
+test('genesis-resources ships the six headings in order', () => {
   const headings = [
     'What this map is like',
     'Where the biomes put resources',
@@ -643,13 +647,11 @@ test('genesis-resources and lost-colony-resources ship the six headings in order
     'Hazards while farming',
     'First-week priorities',
   ];
-  for (const slug of ['genesis-resources', 'lost-colony-resources']) {
-    const g = resolveGuide(slug);
-    assert.ok(g, slug);
-    assert.deepEqual(g.sections.map((s) => s.heading), headings);
-    for (const related of g.related) {
-      assert.ok(resolveGuide(related) !== null || PLANNED_SLUGS.includes(related), `${slug} related ${related}`);
-    }
+  const g = resolveGuide('genesis-resources');
+  assert.ok(g);
+  assert.deepEqual(g.sections.map((s) => s.heading), headings);
+  for (const related of g.related) {
+    assert.ok(resolveGuide(related) !== null || PLANNED_SLUGS.includes(related), `genesis-resources related ${related}`);
   }
 });
 
@@ -662,7 +664,6 @@ test('new per-map resource bodies contain no percentages or numeric multipliers'
     'ragnarok-resources',
     'extinction-resources',
     'genesis-resources',
-    'lost-colony-resources',
   ];
   for (const slug of NEW_SLUGS) {
     const g = resolveGuide(slug);
