@@ -122,7 +122,13 @@ test('renderGuidesIndexPage lists the beginners card with a link and last-verifi
   assert.match(html, /Scorched Earth Resources/);
   assert.match(html, /href="\/guides\/aberration-resources"/);
   assert.match(html, /Aberration Resources/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 13);
+  assert.match(html, /href="\/guides\/the-center-resources"/);
+  assert.match(html, /The Center Resources/);
+  assert.match(html, /href="\/guides\/ragnarok-resources"/);
+  assert.match(html, /Ragnarok Resources/);
+  assert.match(html, /href="\/guides\/extinction-resources"/);
+  assert.match(html, /Extinction Resources/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 16);
 });
 
 test('renderGuidePage renders the h1, all 8 headings, the callout, and escaped content', () => {
@@ -307,7 +313,7 @@ test('renderGuidePage table cells and caption are escaped; first column is th sc
 });
 
 test('every related list across the registry fully resolves in the footer', () => {
-  assert.equal(GUIDE_REGISTRY.length, 13);
+  assert.equal(GUIDE_REGISTRY.length, 16);
   for (const g of GUIDE_REGISTRY) {
     const html = renderGuidePage({ guide: g });
     const related = html.match(/class="guide-related"[\s\S]*?<\/nav>/);
@@ -434,7 +440,7 @@ test('renderGuidePage renders the-island-resources h1, headings, and cross-links
   assert.match(html, /href="\/maps\/the-island"/);
   assert.match(html, /href="\/guides\/scorched-earth-resources"/);
   assert.match(html, /href="\/guides\/aberration-resources"/);
-  assert.doesNotMatch(html, /href="\/guides\/the-center-resources"/);
+  assert.match(html, /href="\/guides\/the-center-resources"/);
 });
 
 test('renderGuidePage renders scorched-earth-resources h1, headings, and cross-links', () => {
@@ -457,4 +463,39 @@ test('renderGuidePage renders aberration-resources h1, headings, and cross-links
   assert.match(html, /href="\/guides\/resource-locations"/);
   assert.match(html, /href="\/maps\/aberration"/);
   assert.match(html, /href="\/guides\/aberration-progression"/);
+});
+
+test('renderGuidePage renders the-center-resources h1, headings, and cross-links', () => {
+  const html = renderGuidePage({ guide: resolveGuide('the-center-resources') });
+  assert.match(html, /<h1>The Center Resources Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  for (const heading of MAP_RESOURCE_HEADINGS) {
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(heading)}</h2>`));
+  }
+  assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/maps\/the-center"/);
+  assert.match(html, /href="\/guides\/the-island-resources"/);
+  assert.match(html, /href="\/guides\/ragnarok-resources"/);
+});
+
+test('renderGuidePage renders ragnarok-resources h1, headings, and cross-links', () => {
+  const html = renderGuidePage({ guide: resolveGuide('ragnarok-resources') });
+  assert.match(html, /<h1>Ragnarok Resources Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  for (const heading of MAP_RESOURCE_HEADINGS) {
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(heading)}</h2>`));
+  }
+  assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/maps\/ragnarok"/);
+  assert.match(html, /href="\/guides\/scorched-earth-resources"/);
+});
+
+test('renderGuidePage renders extinction-resources h1, headings, and cross-links', () => {
+  const html = renderGuidePage({ guide: resolveGuide('extinction-resources') });
+  assert.match(html, /<h1>Extinction Resources Guide \u2014 ARK: Survival Ascended<\/h1>/);
+  for (const heading of MAP_RESOURCE_HEADINGS) {
+    assert.match(html, new RegExp(`<h2>${escapeRegExp(heading)}</h2>`));
+  }
+  assert.match(html, /href="\/guides\/resource-locations"/);
+  assert.match(html, /href="\/maps\/extinction"/);
+  assert.match(html, /href="\/guides\/extinction-progression"/);
+  assert.doesNotMatch(html, /href="\/guides\/genesis-resources"/);
 });

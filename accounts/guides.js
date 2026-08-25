@@ -1603,10 +1603,350 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'the-center-resources',
+    title: 'The Center Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'The Center Resources',
+    description:
+      'Terrain-first farming on The Center: floating islands, underworld, lava, redwoods, and ocean — familiar land, rearranged.',
+    lastVerified: '2026-08-24',
+    related: ['resource-locations', 'the-island-resources', 'ragnarok-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The Center is The Island taken apart and hung back up in a different order. The biomes will feel like homework you already finished: beach, jungle, redwood, snow, ocean, a place that burns. What changes is the architecture. Land floats. A cavern swallows the middle of the world. Lava keeps its own island. A survivor who only knows how to walk inland will keep arriving at a cliff, a drop, or open air where The Island would have offered another hill.',
+          },
+          {
+            type: 'p',
+            text: 'Read it as a remix, not a sequel. The coastline still teaches. The jungle still workshops. The redwoods still make timber and trouble. Snow and bare rock still hold the mineral economy. Then the map adds its two arguments: the floating islands, where the same high-rock rules apply with no walk-off, and the underworld cavern, a second climate stacked under the first. The ocean is as large as it looks. Familiar rules. Unfamiliar commute.',
+          },
+          {
+            type: 'callout',
+            text: 'If the terrain looks like The Island, ask how you would leave. The answer is usually not a walk.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Wood and thatch still live where trees live, and The Center has no shortage of trees — they just do not sit on one inland. Jungle pays on the main islands the way it did on The Island. Redwoods pay heavier timber and a meaner floor. Fiber and berries follow the same green. The starter kit is still a beach-and-jungle story. The beach may be on a different island than the grove you meant to finish in.',
+          },
+          {
+            type: 'p',
+            text: 'Stone is the default mineral wherever soil has failed: beaches, river cuts, any slope that shows its bone. Metal still wants exposed rock — mountain faces, cliff shoulders, floating shelves, cave wall, the stone that lines the underworld. If you are standing on dirt, keep walking until you are standing on a wall. Crystal prefers height and cold: snowy ridges, thin air above the treeline, floating shelves that already feel like a peak. Obsidian wants the lava island and the rock that looks poured. The volcano\'s western approach is rock before it is fire.',
+          },
+          {
+            type: 'p',
+            text: 'Oil is still a water story and a cold story: dark seafloor, the frozen fringe. Silica pearls hide in that same unfriendly water. The underworld is not an ocean and does not obey ocean rules — it is a climate with its own walls, its own heat, and its own reasons to pack a way out before you pack a pick. Cementing paste is still insects and chitin. Plan the dive and the drop as two different jobs.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Green islands and redwood floor: wood, thatch, fiber, the starter loop.',
+              'Bare rock, floating shelves, cave wall: metal first, then whatever else the stone is hiding.',
+              'Snow, thin air, and the lava approach: crystal and obsidian, paid in climate.',
+              'Dark water and the underworld: oil, pearls, and a return you plan before you leave.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The pick-and-hatchet split did not move because the land did. A pick still favors ore, flint, thatch, and the mineral side of a node. A hatchet still favors wood, hide, and the organic side of the same swing. Upgrade both to metal when the map starts paying metal. They are not interchangeable. A sickle still wins at fiber. Hands still gather pearls and loose ground stone. A flyer is a road, not a pick; it gets you to the shelf the real tool then works.',
+          },
+          {
+            type: 'p',
+            text: 'Tames bias the same nodes in the same directions, with extra homework about gaps. A dedicated mineral gatherer on exposed rock will still fill a saddle. A wood specialist in jungle or redwood will still empty a grove. A strong swimmer with weight to spare still turns the ocean into a commute. The new requirement is a way across air and a way back out of the cavern. None of this changes where the nodes live. It only changes whether the same hillside is a loop or a stranding.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The Center\'s weight problem is gaps. The richest mineral sits up, or down, or on a floating shelf with no walk-off, and home is usually a beach you can no longer see. Load the tame, not the survivor. Put a bed near the deposit so death is a commute. Smelt or store on the rock when you can — walk bars, not rocks. A full bag on a floating island is a hostage situation until something that flies arrives.',
+          },
+          {
+            type: 'p',
+            text: 'Water is still a road, and so is air. Shoreline skips jungle sightlines; it also advertises you. Overland through trees is worse for a loaded mount that cannot turn, and useless when the next grove is across a drop. Pick the route for the cargo, not the scenery. Two light trips beat one overloaded crawl, especially when the crawl has a cliff in it. The underworld is a one-way harvest if you get heavy before you have mapped the climb. The harvest is finished when the box at home closes.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The beach is still honest. The jungle is still not. Redwoods add height to the ambush: things drop from timber you were looking at as lumber. Snow drains stamina while you chip crystal. The lava island adds fire to falling. The ocean adds drowning to teeth. The underworld adds heat, dark, and a climb you will not want to invent loaded. These are the rent each biome charges for its nodes.',
+          },
+          {
+            type: 'p',
+            text: 'Falling is this map\'s specialty, practiced in more directions than The Island offered. Floating shelves and cavern drops punish a survivor who looks at the node instead of the footing. If the harvest made you too heavy to jump, you are already late to leave. Clear a pocket before you swing. Park the hauler where a slip does not take it into sky or lava. Night and weather are quieter killers — cold on a ridge, rain in a jungle, a storm at sea. Dress for the biome you are farming, not the one you spawned in.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on this map is still not a metal rush. Secure a beach or river camp with a bed, a box, and a fire. Learn the pick-and-hatchet split on local stone and trees until the muscle memory is boring. Get a modest weight-carrying herbivore so the second day\'s wood and stone stop living in your own inventory. That tame is the difference between a base that grows and a survivor who spends every evening over-encumbered on the sand.',
+          },
+          {
+            type: 'p',
+            text: 'Then read the nearest rock. If the slope shows metal, treat that hillside as your first real economy and put a sleeping bag in walking distance of it. Do not graduate to snow, floating shelves, the underworld, or the lava island until you can leave a body behind and still have a kit at home. Oil and pearls wait until you have a swimmer you trust. Crystal waits until you own clothes that answer the cold. The hub page tells you how crowded that remix is right now. The Resource Locations guide is the grammar this page applies.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar this remixed island applies' },
+              { href: '/maps/the-center', label: 'Live The Center servers', note: 'population, uptime, and versions right now' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'ragnarok-resources',
+    title: 'Ragnarok Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'Ragnarok Resources',
+    description:
+      'Terrain-first farming on Ragnarok: highlands, desert, canyons, jungle, and a large ocean — scale and travel cost are the tax.',
+    lastVerified: '2026-08-24',
+    related: ['resource-locations', 'scorched-earth-resources', 'the-center-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Ragnarok is not a bigger Island. It is a continent that happens to share a server, and the share is the problem. Highlands roll into desert. Desert cuts into canyon. Green Scottish hills sit beside jungle that sits beside a real ocean. Each of those climates already taught you how it pays; this map\'s lesson is how far apart it put them. A full bag on the wrong side of the landmass is not wealth. It is a walk you will not finish.',
+          },
+          {
+            type: 'p',
+            text: 'The gradient is not inland. It is across. A gentle highland pasture can be a short ride from a desert that will cook you, and that desert can be a short ride from a jungle that will eat you. You earn your way into each climate the way you earned height on The Island: by arriving able to leave. The difference is that leave may mean a different biome, not a downhill. Every trip is a travel problem stacked on a gathering problem.',
+          },
+          {
+            type: 'callout',
+            text: 'A node you cannot reach with the cargo is not a node. It is a postcard.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Wood and thatch live wherever this map is still green, and the greens are not one forest. Highland and Scottish hills grow honest timber. Jungle pays thicker and meaner. Desert wood is the old argument: trees cluster near water, in canyon bottoms, and anywhere the ground remembers being wet. Fiber and berries follow those same greens. The starter kit is easy to start and easy to strand. The grove you can see from a highland ridge may belong to a climate you are not dressed for.',
+          },
+          {
+            type: 'p',
+            text: 'Stone is everywhere the wind or the grass has failed to hide it — highland shelves, canyon walls, mountain bone. Metal follows the same rule it does on every map: exposed rock, not soil, not sand. Look at faces that have shrugged their turf, the spines of ridgelines, caves that open from stone. Crystal likes high, hostile rock and the colder hours those heights invent. The desert keeps its own language: sulfur on cooked stone, salt on pale crust, oil in seeps and stains on hardpan. Cactus is the local garden, and it is armed.',
+          },
+          {
+            type: 'p',
+            text: 'The ocean is not a border. It is a second map with the usual dark-water pay: oil on the seafloor, pearls deeper and quieter than a casual swim. Do not treat a desert basin as that ocean. Cementing paste is still insects and chitin, which makes jungle, swampy folds, and the things that hunt the dunes your quarry. Silk is an animal product in the dry country, not a tree product. If you cannot see the bottom, you are in the harvest zone and the danger zone together.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Highlands, Scotlands, and jungle: wood, thatch, fiber, the starter loop.',
+              'Bare ridgeline, canyon wall, cave rock: metal, and the crystal that hid from the pastures below.',
+              'Cooked stone and pale crust: sulfur, salt, and the desert\'s own crafting language.',
+              'Dark water: oil, pearls, and a return trip you should plan before you dive.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The pick-and-hatchet split does not change because the landmass got wider. A pick still favors the mineral side of rock and the thatch side of trunks. A hatchet still favors wood and hide. Metal tools matter more here than pride wants, because a wasted swing is also wasted travel. A sickle still wins at fiber, and it is kinder to cactus than bare hands. In the desert, jars and canteens are harvest tools; a trip that forgets them is not a gathering trip.',
+          },
+          {
+            type: 'p',
+            text: 'The tame that matters most is the one that crosses climates. A mineral gatherer on exposed rock is still the metal answer. A wood specialist still empties a grove. A swimmer still turns the ocean into a commute. None of that helps if the node and the box are in different weathers and you have no road between them. A flyer or a boat is how this map stops being a dare. Bring the tool that matches the node, then the animal that matches the distance.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Ragnarok\'s weight problem is distance. Nodes that would be a hillside apart on The Island can be a climate apart here, and the cargo that matters — metal, crystal, sulfur — is as heavy as it is anywhere. Load the tame, not the survivor. Put a bed near the deposit so death is a commute, not a tour. Smelt or store on site when the walk home crosses a biome you did not pack for. Walk bars, not rocks.',
+          },
+          {
+            type: 'p',
+            text: 'Air and shoreline are the roads. Overland through mixed country is how loaded mounts disappear. Prefer two short loops from a forward bag and a box over one heroic crossing. A highland base does not make a desert node local; a coastal box does not make a mountain local. Plan the return as if the weather will change, because on this map it will — sandstorm in the dry country, cold on the heights, a storm at sea. The harvest is finished when the box at home closes.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Each climate charges its usual rent, then adds the commute. Highland predators use folds of land as cover. Jungle uses trees. Desert heat cooks an underdressed gatherer through a full bag of good decisions, and sandstorms erase the way home. Canyons add falling to heat. Snow drains stamina on the crystal you came for. The ocean adds drowning to teeth. Wyverns treat the desert scar as a porch. Dress for the biome you are in, not the one you left this morning.',
+          },
+          {
+            type: 'p',
+            text: 'Scale is the quiet killer. A route that looks obvious from a ridge can strand you in the wrong weather with the wrong cargo. Deep dune still hides things that erupt under weight. Water sources in the dry country are not automatically safe camps — anything that must drink will eventually visit them. Farm the rock. Visit the water. Do not confuse a scenic overlook with a path. If the harvest made you too heavy to run, you are already late to leave.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on Ragnarok is pick a climate and stay in it. Secure a highland fold or a gentle coast with a bed, a box, and a fire. Learn the pick-and-hatchet split on local stone and trees until the muscle memory is boring. Get a modest weight-carrying herbivore so wood and stone stop living in your own inventory. Do not tour the desert, the jungle, and the ocean in the same week because the map offered you all three.',
+          },
+          {
+            type: 'p',
+            text: 'Then read the nearest rock. If the slope shows metal, treat that hillside as your first real economy and put a sleeping bag in walking distance of it. Desert salt, sulfur, and dune trophies wait until you can cross sand without looking like bait, and until you own water for the ride. Oil and pearls wait until you have a swimmer you trust. Crystal waits until you own clothes that answer the cold. The hub page tells you how crowded that continent is right now. The Resource Locations guide is the grammar this page applies.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar this continent applies' },
+              { href: '/maps/ragnarok', label: 'Live Ragnarok servers', note: 'population, uptime, and versions right now' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'extinction-resources',
+    title: 'Extinction Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'Extinction Resources',
+    description:
+      'Terrain-first farming on Extinction: city, wasteland, sunken forest, and the domes — what the ruins pay, and what corruption costs.',
+    lastVerified: '2026-08-24',
+    related: ['resource-locations', 'extinction-progression', 'aberration-resources', 'genesis-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Extinction is a city in a wasteland, and the two pay differently. Inside the ruined streets the land is wreckage: poles, vehicles, broken furniture, the leftovers of a civilization that already refined what other maps make you climb for. Outside the shield the old grammar returns — rock, ice, sand, trees — plus wildlife the corruption has already claimed, and Element, the mineral earlier maps locked behind bosses. Farming here is the decision of which side of that fence you are on.',
+          },
+          {
+            type: 'p',
+            text: 'The gradient runs outward. Streets and courtyards are the easy read: short loops, wreckage you can see from a bed, nodes that do not require a climate you have not packed for. The open wasteland is the test: distance, packs, and mountain logic under a hostile sky. The sunken forest and the two domes are destinations. You do not commute there for thatch. A survivor who treats the whole map like one quarry will die in the first climate they were not dressed for.',
+          },
+          {
+            type: 'callout',
+            text: 'Farm the city like a quarry. Farm the wasteland like a raid. Do not mix the two kits.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The city is the green workshop, except the green is rust. Street wreckage gives up metal, crystal, and electronics without a mountain. Wood is thinner on pavement and thicker in the sunken forest crater, where the map remembers being green. Fiber follows whatever still grows in courtyards and along the shield edge. The starter kit is a scavenging story first and a forestry story second. If it looks like furniture, it is probably a node.',
+          },
+          {
+            type: 'p',
+            text: 'Past the shield, stone and metal go back to exposed rock — wasteland shelves, crater walls, the bone of the world showing through. Crystal likes hostile height and the snow dome\'s cold. The desert dome keeps the dry language: cactus, salt, sulfur, heat, the pale crust and cooked stone you already learned to read. Obsidian still wants ground that looks poured. Treat each dome as a compressed climate, not a shortcut. If the air already hurts, the harvest is not a starter loop.',
+          },
+          {
+            type: 'p',
+            text: 'Element is this map\'s own node. It sits in the wasteland, and it is not a quiet swing — the ground that pays it also advertises you. Oil and pearls are not the city\'s language; look to cold water and the snow dome when those are the need. Chitin and hide still come from the things with plates, which on this map often means the things that are already hunting you. Corrupted wildlife is not a resource. It is an interruption that never becomes a mount.',
+          },
+          {
+            type: 'list',
+            items: [
+              'City streets: scrap metal, crystal, electronics, the starter loop without a climb.',
+              'Open wasteland rock: the old mineral grammar, and Element if you can keep the ground.',
+              'Desert dome and snow dome: compressed climates, packed with what those climates always paid.',
+              'Sunken forest: the wood and green the pavement refused to grow.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Picks and hatchets still split a node the same way, including the ones that used to be lamp posts. A pick favors the mineral side of wreckage and rock. A hatchet favors wood, hide, and the organic side of the same swing. Metal tools matter once you leave the streets, because wasteland distance makes a bad yield expensive. A sickle still wins at plant fiber. Hands still gather what is loose on the ground. The city will let you stay on foot longer than your Island habits expect.',
+          },
+          {
+            type: 'p',
+            text: 'Tames bias the same directions, then add a fence. A mineral gatherer on wasteland rock is still the metal answer. A wood specialist belongs in the sunken forest, not on the avenue. A weight-focused hauler — especially one that can leave the ground — is how wasteland cargo comes home. A fighter on the same trip is not vanity; the corruption treats a farming swing as a dinner bell. Bring the tool that matches the node, then the animal that matches the side of the shield you are on.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The city\'s weight problem is almost polite: short loops, wreckage near a bed, cargo that does not require a climate change. The wasteland\'s is distance plus hunting. Load the tame, not the survivor. Put a bed on the city side of any trip that would drop a naked respawn into packs. Smelt or store near the deposit when the walk home crosses open ground. Walk bars, not rocks.',
+          },
+          {
+            type: 'p',
+            text: 'Streets are the easy road. Open waste is a confession when you are slow. Prefer two short loops from a forward bag over one heroic crossing, and do not start a dome run with the city kit still in the saddle. A floating hauler turns wasteland weight into a commute; a grounded one turns it into a siege. Park haulers where a pack cannot pin them against a wall you liked. The harvest is finished when the box at home closes.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The city is kinder than it looks, not kind. Streets hold gentler wildlife and also hold everyone else who wanted a safe quarry. The shield edge is the line between a gathering problem and a hunting problem. Past it, corrupted packs roam, chew structures, and treat an unescorted gatherer as the day\'s work. Their pressure scales with how far from the city you are. That is the gradient enforcing itself.',
+          },
+          {
+            type: 'p',
+            text: 'The domes add climate on a timer: heat in the desert shell, cold in the snow shell, and residents that were waiting in the weather you came to harvest. The sunken forest hides what forests always hide. Element nodes and falling orbital crates are not quiet rocks — they are harvests that call an audience. Falling still kills in craters and on dome walls. If the harvest made you too heavy to run, you are already late to leave. Dress for the side of the fence you are crossing, not the street you woke up on.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on Extinction is the city. Plant a bed deep enough in the streets that the shield edge is a trip, not a backyard. Learn to read wreckage with the pick-and-hatchet split you already own. Get a modest weight-carrying herbivore so scrap and stone stop living in your own inventory. A camp that cannot outlast a bad run into the waste is a respawn timer with extra steps.',
+          },
+          {
+            type: 'p',
+            text: 'Once the streets pay, read the nearest exposed rock outside for metal and start the loop you already know: bag at the deposit, tame that carries, short trips, smelt before you stroll. Element and the domes wait until you can leave a body behind and still have a kit at home, and until a pack is a job rather than a surprise. The sunken forest waits until wood is the need, not the tour. The hub page tells you how crowded those ruins are right now. The progression guide is the order of survival; this page is where the rock — and the wreckage — pays. The Resource Locations guide is still the grammar.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar this ruined earth applies' },
+              { href: '/maps/extinction', label: 'Live Extinction servers', note: 'population, uptime, and versions right now' },
+              { href: '/guides/extinction-progression', label: 'Extinction Progression', note: 'city, corruption, and the order that makes the wasteland earnable' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 // planned future guides that `related` arrays may reference before they exist.
-const PLANNED_SLUGS = ['the-center-resources', 'ragnarok-resources', 'extinction-resources'];
+const PLANNED_SLUGS = ['genesis-resources', 'valguero-resources', 'lost-colony-resources', 'astraeos-resources'];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));
 

@@ -3734,7 +3734,13 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(html, /Scorched Earth Resources/);
   assert.match(html, /href="\/guides\/aberration-resources"/);
   assert.match(html, /Aberration Resources/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 13);
+  assert.match(html, /href="\/guides\/the-center-resources"/);
+  assert.match(html, /The Center Resources/);
+  assert.match(html, /href="\/guides\/ragnarok-resources"/);
+  assert.match(html, /Ragnarok Resources/);
+  assert.match(html, /href="\/guides\/extinction-resources"/);
+  assert.match(html, /Extinction Resources/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 16);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();
