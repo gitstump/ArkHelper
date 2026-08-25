@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-24 — 1113 tests passing — In flight: none
+Last updated: 2026-08-25 — 1116 tests passing — In flight: none
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -78,7 +78,7 @@ Not yet done: transform extraction for a defended resource allowlist, and census
 
 - Guides fan-outs, re-scoped after the 2026-08-17 coordinate-data research (see Coordinate-data policy above). Queue order:
   1. Per-DLC progression guides — DONE (Scorched Earth, Aberration, Extinction, Genesis). Pure prose in the G-track mold, no external dataset needed.
-  2. Per-map resource guides — The Island, Scorched Earth, Aberration, The Center, Ragnarok, and Extinction are live. Still outstanding: Genesis, Valguero, Lost Colony, Astraeos. Terrain/biome-first prose, no coordinates.
+  2. Per-map resource guides — The Island, Scorched Earth, Aberration, The Center, Ragnarok, and Extinction are live. Still outstanding: Genesis, Valguero, Lost Colony, Astraeos. Terrain/biome-first prose, no coordinates. The ten-map core roster was verified 2026-08-24 against the live official roster: all 26 maps in the Maps nav have official servers, but the ten core maps carry 3,046 of 3,186 (95.6%), two are official modes (Club ARK, SOTF), and fourteen are community maps hosted on the official roster with 2-4 servers each. Community maps do not get resource guides.
   3. Owner-waypoint enrichment — curated farming routes with Owner's own in-game GPS readings; staged behind the screenshot safari, judgment content not coverage.
   4. Interactive coverage maps — extraction is no longer the blocker (see coordinate-data policy above). Gated now on the manifest feature review: whether the site commits to interactive maps as a feature. 20,000+ resource nodes is a map overlay, not a list anyone reads, so the feature decision precedes any further transform extraction.
 - Population intelligence — typical-hour population baselines,

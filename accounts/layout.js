@@ -47,9 +47,18 @@ const STATS_NAV = [
   { href: '/news', label: 'News' },
 ];
 
-const MAPS_NAV = [...MAP_REGISTRY]
-  .sort((a, b) => a.displayName.localeCompare(b.displayName))
-  .map((m) => ({ href: `/maps/${m.slug}`, label: m.displayName }));
+const MAP_TIER_NAV = [
+  { tier: 'core', label: 'Core Maps' },
+  { tier: 'mode', label: 'Modes' },
+  { tier: 'community', label: 'Community Maps' },
+];
+
+const MAPS_NAV = MAP_TIER_NAV.flatMap(({ tier, label }) => [
+  { label },
+  ...MAP_REGISTRY
+    .filter((m) => m.tier === tier)
+    .map((m) => ({ href: `/maps/${m.slug}`, label: m.displayName })),
+]);
 
 const NAV = [
   {
@@ -93,6 +102,9 @@ function pathMatches(currentPath, match) {
 }
 
 function renderNavLink(item, currentPath) {
+  if (!item.href) {
+    return `<strong>${escapeHtml(item.label)}</strong>`;
+  }
   const match = item.match || [item.href];
   const active = pathMatches(currentPath, match) ? ' active' : '';
   return `<a class="${active.trim()}" href="${item.href}">${escapeHtml(item.label)}</a>`;

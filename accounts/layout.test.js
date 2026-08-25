@@ -2,7 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { renderPage, renderNav, renderAuth, renderFooter, pathMatches, GITHUB_REPO, LIST_NAV, STATS_NAV } = require('./layout.js');
+const { renderPage, renderNav, renderAuth, renderFooter, pathMatches, GITHUB_REPO, LIST_NAV, STATS_NAV, MAPS_NAV } = require('./layout.js');
+const { MAP_REGISTRY } = require('./maps.js');
 
 test('renderPage includes a meta description when one is provided', () => {
   const html = renderPage({ title: 'Low ping', description: 'Find ARK low ping servers.', currentPath: '/', body: '<p>x</p>' });
@@ -100,6 +101,66 @@ test('renderNav marks the Maps group active on per-map pages', () => {
   const html = renderNav('/maps/the-island');
   assert.match(html, /<summary class="active">Maps<\/summary>/);
   assert.match(html, /class="active" href="\/maps\/the-island"/);
+});
+
+test('MAPS_NAV lists all 26 maps in Core → Modes → Community, preserving registry order', () => {
+  const headings = MAPS_NAV.filter((item) => !item.href).map((item) => item.label);
+  assert.deepEqual(headings, ['Core Maps', 'Modes', 'Community Maps']);
+
+  const mapItems = MAPS_NAV.filter((item) => item.href);
+  assert.equal(mapItems.length, MAP_REGISTRY.length);
+  assert.equal(mapItems.length, 26);
+  for (const m of MAP_REGISTRY) {
+    assert.ok(
+      mapItems.some((item) => item.href === `/maps/${m.slug}` && item.label === m.displayName),
+      `missing nav item for ${m.slug}`,
+    );
+  }
+
+  const coreNav = [];
+  let section = null;
+  for (const item of MAPS_NAV) {
+    if (!item.href) {
+      section = item.label;
+      continue;
+    }
+    if (section === 'Core Maps') coreNav.push(item.label);
+  }
+  const coreRegistry = MAP_REGISTRY.filter((m) => m.tier === 'core').map((m) => m.displayName);
+  assert.deepEqual(coreNav, coreRegistry);
+  const alpha = [...coreRegistry].sort((a, b) => a.localeCompare(b));
+  assert.notDeepEqual(coreRegistry, alpha);
+});
+
+test('renderNav prints Maps tier labels as non-link headings and keeps every map href', () => {
+  const html = renderNav('/');
+  const mapsStart = html.indexOf('>Maps</summary>');
+  const mapsEnd = html.indexOf('>Stats</summary>');
+  assert.ok(mapsStart !== -1 && mapsEnd > mapsStart);
+  const menu = html.slice(mapsStart, mapsEnd);
+
+  assert.match(menu, /<strong>Core Maps<\/strong>/);
+  assert.match(menu, /<strong>Modes<\/strong>/);
+  assert.match(menu, /<strong>Community Maps<\/strong>/);
+  assert.doesNotMatch(menu, /<a[^>]*>Core Maps<\/a>/);
+  assert.doesNotMatch(menu, /<a[^>]*>Modes<\/a>/);
+  assert.doesNotMatch(menu, /<a[^>]*>Community Maps<\/a>/);
+  assert.doesNotMatch(menu, /<strong[^>]*tabindex/);
+
+  const coreAt = menu.indexOf('>Core Maps<');
+  const islandAt = menu.indexOf('href="/maps/the-island"');
+  const modesAt = menu.indexOf('>Modes<');
+  const clubAt = menu.indexOf('href="/maps/club-ark"');
+  const communityAt = menu.indexOf('>Community Maps<');
+  const althemiaAt = menu.indexOf('href="/maps/althemia"');
+  assert.ok(coreAt !== -1 && islandAt !== -1 && modesAt !== -1);
+  assert.ok(coreAt < islandAt && islandAt < modesAt);
+  assert.ok(modesAt < clubAt && clubAt < communityAt);
+  assert.ok(communityAt < althemiaAt);
+
+  for (const m of MAP_REGISTRY) {
+    assert.match(menu, new RegExp(`href="/maps/${m.slug}"`));
+  }
 });
 
 test('renderNav marks the Servers group active on the compare page', () => {

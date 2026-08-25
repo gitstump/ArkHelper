@@ -42,6 +42,17 @@ test('registry covers every map ID observed on the live official roster', () => 
   }
 });
 
+test('every registry entry has a valid tier and the three tiers count 10 / 2 / 14', () => {
+  const counts = { core: 0, mode: 0, community: 0 };
+  for (const m of MAP_REGISTRY) {
+    assert.ok(counts[m.tier] != null, `${m.id} has invalid tier ${m.tier}`);
+    counts[m.tier] += 1;
+  }
+  assert.equal(counts.core, 10);
+  assert.equal(counts.mode, 2);
+  assert.equal(counts.community, 14);
+});
+
 test('registry slugs and ids are unique, and every entry has a display name', () => {
   const slugs = MAP_REGISTRY.map((m) => m.slug);
   const ids = MAP_REGISTRY.map((m) => m.id);
