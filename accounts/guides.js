@@ -2057,10 +2057,127 @@ const GUIDE_REGISTRY = [
       },
     ],
   },
+  {
+    slug: 'lost-colony-resources',
+    title: 'Lost Colony Resources Guide — ARK: Survival Ascended',
+    shortTitle: 'Lost Colony Resources',
+    description:
+      'Terrain-first farming on Lost Colony: mountains, trench, caves, city, and the drop below — how elevation pays, and what the walk back costs.',
+    lastVerified: '2026-08-25',
+    related: ['resource-locations', 'genesis-resources', 'extinction-resources'],
+    sections: [
+      {
+        heading: 'What this map is like',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Lost Colony is a vertical map. Mountains occupy the center and they are the highest terrain on the map. A trench sits at the bottom of the surface band and never rises to the level of the rest. Caves open west-central and low; a second, separate cave system opens in the northeast. A boss arena waits far below every surface region. Elevation is the organizing fact, in contrast to The Island\'s radial gradient or Genesis\'s discrete rooms. Farming here is a question of how far up or down you are willing to go, and what the walk back costs.',
+          },
+          {
+            type: 'p',
+            text: 'The rest of the surface is not one climate. Passes thread the mountains, slightly north of center, and bridges sit inside the same rock. Hot springs, corrupted ground, and the city all lie east of center — the city built and patrolled, with no-build zones near it. A caldera clusters at the easternmost and southernmost edge. Icicles mark cold. Waterfalls, rivers, and deep and shallow water cut the stone. Exposed rock is the defining surface.',
+          },
+          {
+            type: 'callout',
+            text: 'If you cannot walk the cargo back to the elevation you live at, you are not looking at a harvest. You are looking at a drop.',
+          },
+        ],
+      },
+      {
+        heading: 'Where the biomes put resources',
+        blocks: [
+          {
+            type: 'p',
+            text: 'The mountains are where the rock shows through, and rock is where the mineral economy lives. Passes thread those mountains north of center — walkable cuts through the same stone. Bridges sit within mountain terrain; they are crossings, not a new quarry. If you are still standing on soil, keep walking until the stone is the ground.',
+          },
+          {
+            type: 'p',
+            text: 'Wood and thatch live wherever trees live. Fiber and berries follow the same green. This map does not make a forest the default; the rock is. The starter kit is still wood, thatch, fiber, stone, and food, but a grove may sit at a different height than home.',
+          },
+          {
+            type: 'p',
+            text: 'Crystal prefers the high and the cold. The mountains are height. Icicles mark cold. Hot springs and the caldera are geothermal ground, and obsidian wants that kind of stone. The trench never rises; treat it as a different harvest from the peaks, not a shortcut to them. Caves punch in at two separate depths: west-central and low, and a second system in the northeast. Cave wall is still cave wall. The boss arena sits far below every surface region. It is not a quarry.',
+          },
+          {
+            type: 'p',
+            text: 'The city is a different kind of place to farm than open ground: built, patrolled, ringed with no-build zones. Corrupted ground and pain volumes mean some of this map damages you for standing on it. Oil is still a water story and a cold story, and pearls still hide in the least friendly water.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Mountains, passes, and mountain bridges: exposed rock, the mineral economy, the height crystal prefers.',
+              'Trench and the two cave systems: the drop, cave wall, a harvest you climb out of.',
+              'Hot springs, caldera, and icicles: climate that is not uniform — geothermal and cold.',
+              'City and corrupted ground: built terrain, patrols, no-build, and ground that charges rent for standing on it.',
+            ],
+          },
+        ],
+      },
+      {
+        heading: 'Tools and what they favor',
+        blocks: [
+          {
+            type: 'p',
+            text: 'A stone pick and a stone hatchet teach the split that never goes away. The pick favors ore, flint, thatch, and the mineral side of a node. The hatchet favors wood, hide, and the organic side of the same swing. Upgrade both to metal when the mountains start paying metal. They are not interchangeable. A sickle turns fiber from a chore into a stack. Hands still gather pearls and loose ground stone.',
+          },
+          {
+            type: 'p',
+            text: 'Tames bias the same nodes harder in the same directions. A dedicated mineral gatherer on mountain rock will fill a saddle. A wood specialist in whatever grove you actually found will empty it. A strong swimmer with weight to spare turns deep water from a dare into a commute. None of this changes where the nodes live. It only changes how many trips the same face costs, and whether you can still climb the way you came.',
+          },
+        ],
+      },
+      {
+        heading: 'Hauling and logistics',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Lost Colony\'s weight problem is vertical. The richest mineral sits up in the mountains, or down in a cave, or on the trench floor that never rises, and home is usually a different elevation. Load the tame, not the survivor. Put a bed near the deposit so death is a commute. Smelt or store on the rock when you can — walk bars, not rocks.',
+          },
+          {
+            type: 'p',
+            text: 'The city breaks the usual forward-box habit. No-build zones near it, and patrols on it, mean you may not plant the crate the hillside would have allowed. Farm the city as short loops back to ground you can actually build on. Prefer two light trips over one overloaded crawl. When a haul fails it is almost always on the way home: you are slow, and the elevation you ignored on the way out is now a wall. The harvest is finished when the box at home closes.',
+          },
+        ],
+      },
+      {
+        heading: 'Hazards while farming',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Corrupted zones are widely spread east of center. Pain volumes sit in enough places that standing still is a decision. The city adds patrols, gothic fencing and glass, street lighting, promenade arches — a loaded walk down a street is a confession. No-build zones near it deny the wall you wanted to hide behind.',
+          },
+          {
+            type: 'p',
+            text: 'Falling is this map\'s specialty. Mountains, mountain bridges, cave drops, the trench, and the boss depth all punish a survivor who looks at the node instead of the footing. If the harvest made you too heavy to jump, you are already late to leave. Park the hauler where a slip does not take it over an edge you cannot climb. Climate is not uniform: hot springs and a caldera cook; icicles mark cold. Dress for the elevation you are farming, not the one you spawned on. Do not treat a fall toward the boss arena as a shortcut.',
+          },
+        ],
+      },
+      {
+        heading: 'First-week priorities',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Week one on this map is not a rush to the drop. Secure a camp at an elevation you can live at — a bed, a box, and a fire on ground that does not damage you and that you are allowed to build on. Learn the pick-and-hatchet split on local stone and trees. Get a modest weight-carrying herbivore so wood and stone stop living in your own inventory.',
+          },
+          {
+            type: 'p',
+            text: 'Then read the nearest rock. If the slope is already stone, treat that face as your first real economy and put a sleeping bag in walking distance of it. Do not graduate to the trench, the caves, the caldera, or the boss arena until you can leave a body behind and still have a kit at home. The city waits until patrols are a job and until you can build. Corrupted ground waits until you can leave it. Crystal waits until you own clothes that answer the cold. Oil and pearls wait until you have a swimmer you trust. The hub page tells you how crowded that stack is right now. The Resource Locations guide is the grammar this page applies.',
+          },
+          {
+            type: 'links',
+            items: [
+              { href: '/guides/resource-locations', label: 'Resource Locations', note: 'the terrain grammar this vertical map applies' },
+              { href: '/maps/lost-colony', label: 'Live Lost Colony servers', note: 'population, uptime, and versions right now' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 // planned future guides that `related` arrays may reference before they exist.
-const PLANNED_SLUGS = ['lost-colony-resources', 'valguero-resources', 'astraeos-resources'];
+const PLANNED_SLUGS = ['valguero-resources', 'astraeos-resources'];
 
 const BY_SLUG = new Map(GUIDE_REGISTRY.map((g) => [g.slug, g]));
 

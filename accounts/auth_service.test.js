@@ -3742,7 +3742,9 @@ test('GET /guides renders the index as HTML', async () => {
   assert.match(html, /Extinction Resources/);
   assert.match(html, /href="\/guides\/genesis-resources"/);
   assert.match(html, /Genesis Resources/);
-  assert.equal((html.match(/class="guide-card"/g) || []).length, 17);
+  assert.match(html, /href="\/guides\/lost-colony-resources"/);
+  assert.match(html, /Lost Colony Resources/);
+  assert.equal((html.match(/class="guide-card"/g) || []).length, 18);
   assert.match(html, /href="\/guides">Guides/);
 
   server.close();

@@ -43,7 +43,7 @@ function isKnownAppHref(href) {
 test('registry slugs are unique and every entry has the required fields', () => {
   const slugs = GUIDE_REGISTRY.map((g) => g.slug);
   assert.equal(new Set(slugs).size, slugs.length);
-  assert.equal(GUIDE_REGISTRY.length, 17);
+  assert.equal(GUIDE_REGISTRY.length, 18);
   assert.ok(slugs.includes('beginners'));
   assert.ok(slugs.includes('taming'));
   assert.ok(slugs.includes('resource-locations'));
@@ -61,6 +61,7 @@ test('registry slugs are unique and every entry has the required fields', () => 
   assert.ok(slugs.includes('ragnarok-resources'));
   assert.ok(slugs.includes('extinction-resources'));
   assert.ok(slugs.includes('genesis-resources'));
+  assert.ok(slugs.includes('lost-colony-resources'));
   for (const slug of slugs) {
     assert.ok(!MAP_SLUGS.has(slug), `guide slug ${slug} collides with a maps slug`);
   }
@@ -157,6 +158,10 @@ test('resolveGuide returns the beginners record and null (not throw) for unknown
   assert.ok(genesisRes);
   assert.equal(genesisRes.slug, 'genesis-resources');
   assert.equal(genesisRes.shortTitle, 'Genesis Resources');
+  const lostColonyRes = resolveGuide('lost-colony-resources');
+  assert.ok(lostColonyRes);
+  assert.equal(lostColonyRes.slug, 'lost-colony-resources');
+  assert.equal(lostColonyRes.shortTitle, 'Lost Colony Resources');
   assert.equal(resolveGuide('nope'), null);
   assert.equal(resolveGuide(''), null);
   assert.equal(resolveGuide(undefined), null);
@@ -397,15 +402,6 @@ test('planned slugs are only for unpublished guides', () => {
   for (const slug of PLANNED_SLUGS) {
     assert.equal(resolveGuide(slug), null);
   }
-});
-
-test('lost-colony-resources is planned, not shipped', () => {
-  assert.equal(
-    GUIDE_REGISTRY.some((g) => g.slug === 'lost-colony-resources'),
-    false,
-  );
-  assert.ok(PLANNED_SLUGS.includes('lost-colony-resources'));
-  assert.equal(resolveGuide('lost-colony-resources'), null);
 });
 
 test('boss-strategies guide ships the brief prose verbatim', () => {
@@ -655,6 +651,23 @@ test('genesis-resources ships the six headings in order', () => {
   }
 });
 
+test('lost-colony-resources ships the six headings in order', () => {
+  const headings = [
+    'What this map is like',
+    'Where the biomes put resources',
+    'Tools and what they favor',
+    'Hauling and logistics',
+    'Hazards while farming',
+    'First-week priorities',
+  ];
+  const g = resolveGuide('lost-colony-resources');
+  assert.ok(g);
+  assert.deepEqual(g.sections.map((s) => s.heading), headings);
+  for (const related of g.related) {
+    assert.ok(resolveGuide(related) !== null, `lost-colony-resources related ${related}`);
+  }
+});
+
 test('new per-map resource bodies contain no percentages or numeric multipliers', () => {
   const NEW_SLUGS = [
     'the-island-resources',
@@ -664,6 +677,7 @@ test('new per-map resource bodies contain no percentages or numeric multipliers'
     'ragnarok-resources',
     'extinction-resources',
     'genesis-resources',
+    'lost-colony-resources',
   ];
   for (const slug of NEW_SLUGS) {
     const g = resolveGuide(slug);
@@ -672,5 +686,6 @@ test('new per-map resource bodies contain no percentages or numeric multipliers'
     assert.doesNotMatch(body, /%/, `percentage in ${slug}`);
     assert.doesNotMatch(body, /\b\d+x\b/i, `x-multiplier in ${slug}`);
     assert.doesNotMatch(body, /\b\d{2,}\b/, `multi-digit figure in ${slug}`);
+    assert.doesNotMatch(body, /\d/, `digit in ${slug}`);
   }
 });
