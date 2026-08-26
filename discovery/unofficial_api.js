@@ -151,7 +151,11 @@ function parseUnofficialDay(raw) {
 
 function trimUnofficialServer(raw) {
   const r = raw || {};
-  const id = r.SessionID || (r.IP && r.Port ? `${r.IP}:${r.Port}` : null);
+  // SessionID rotates on every server restart — measured 2026-08-26, 48,888 of
+  // 54,429 addresses served two distinct SessionIDs in 22 hours, against ~2%
+  // address churn. Address is the identity. Servers without one are dropped by
+  // the caller rather than falling back to SessionID. See PROJECT_STATUS.md.
+  const id = r.IP && r.Port ? `${r.IP}:${r.Port}` : null;
   const ping = typeof r.ServerPing === 'number' ? r.ServerPing : null;
   const day = parseUnofficialDay(r.DayTime);
   const trimmed = {
@@ -217,7 +221,12 @@ async function fetchUnofficialRoster({
     throw new Error(`Failed to parse unofficial server list as JSON: ${err.message}`);
   }
 
-  const servers = trimUnofficialList(raw);
+  const trimmed = trimUnofficialList(raw);
+  const servers = [];
+  for (const s of trimmed) {
+    if (!s.id) continue;
+    servers.push(s);
+  }
   return { servers, count: servers.length };
 }
 

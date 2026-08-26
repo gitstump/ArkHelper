@@ -66,7 +66,7 @@ const REAL_UNOFFICIAL_PVP_PASSWORD = {
 
 test('trimUnofficialServer maps live unofficial field names onto the trimmed shape', () => {
   const trimmed = trimUnofficialServer(REAL_UNOFFICIAL_SAMPLE);
-  assert.equal(trimmed.id, '52e11cd150124d088443b0c37807c724');
+  assert.equal(trimmed.id, `${REAL_UNOFFICIAL_SAMPLE.IP}:${REAL_UNOFFICIAL_SAMPLE.Port}`);
   assert.equal(trimmed.name, 'Crookz Ark  Extinction');
   assert.equal(trimmed.map, 'Extinction_WP');
   assert.equal(trimmed.gameMode, 'pve');
@@ -139,8 +139,13 @@ test('trimUnofficialServer maps SessionIsPve 0 and HasPassword true', () => {
   assert.equal(Object.prototype.hasOwnProperty.call(trimmed, 'allowItemTransfers'), false);
 });
 
-test('trimUnofficialServer falls back to IP:Port when SessionID is missing', () => {
-  const trimmed = trimUnofficialServer({ IP: '1.2.3.4', Port: 7777, Name: 'x' });
+test('trimUnofficialServer keys on IP:Port and ignores SessionID', () => {
+  const trimmed = trimUnofficialServer({
+    SessionID: '52e11cd150124d088443b0c37807c724',
+    IP: '1.2.3.4',
+    Port: 7777,
+    Name: 'x',
+  });
   assert.equal(trimmed.id, '1.2.3.4:7777');
 });
 
@@ -148,7 +153,7 @@ test('trimUnofficialList maps then releases the raw slots', () => {
   const raw = [REAL_UNOFFICIAL_SAMPLE, REAL_UNOFFICIAL_PVP_PASSWORD];
   const trimmed = trimUnofficialList(raw);
   assert.equal(trimmed.length, 2);
-  assert.equal(trimmed[0].id, REAL_UNOFFICIAL_SAMPLE.SessionID);
+  assert.equal(trimmed[0].id, `${REAL_UNOFFICIAL_SAMPLE.IP}:${REAL_UNOFFICIAL_SAMPLE.Port}`);
   assert.equal(trimmed[1].gameMode, 'pvp');
   assert.equal(raw.length, 0);
 });
@@ -168,11 +173,27 @@ test('fetchUnofficialRoster trims an injected body and does not keep raw fields'
     sleep: async () => {},
   });
   assert.equal(result.count, 1);
-  assert.equal(result.servers[0].id, REAL_UNOFFICIAL_SAMPLE.SessionID);
+  assert.equal(result.servers[0].id, `${REAL_UNOFFICIAL_SAMPLE.IP}:${REAL_UNOFFICIAL_SAMPLE.Port}`);
   assert.equal(result.servers[0].name, 'Crookz Ark  Extinction');
   assert.equal(result.servers[0].SessionID, undefined);
   assert.equal(result.servers[0].ModIDs, undefined);
   assert.deepEqual(result.servers[0].modIds, [928793, 947033, 927084]);
+});
+
+test('a server with neither IP nor Port yields id null and is skipped by fetchUnofficialRoster', async () => {
+  const trimmed = trimUnofficialServer({ Name: 'no-address', SessionID: 'should-be-ignored' });
+  assert.equal(trimmed.id, null);
+
+  const result = await fetchUnofficialRoster({
+    httpGet: async () => ({
+      status: 200,
+      body: JSON.stringify([{ Name: 'no-address', SessionID: 'should-be-ignored' }, REAL_UNOFFICIAL_SAMPLE]),
+    }),
+    sleep: async () => {},
+  });
+  assert.equal(result.count, 1);
+  assert.equal(result.servers.length, 1);
+  assert.equal(result.servers[0].id, `${REAL_UNOFFICIAL_SAMPLE.IP}:${REAL_UNOFFICIAL_SAMPLE.Port}`);
 });
 
 test('fetchUnofficialRoster rejects an injected body over the byte cap', async () => {
