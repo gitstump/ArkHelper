@@ -1,6 +1,6 @@
 # ArkHelper — Project Status
 
-Last updated: 2026-08-26 — 1120 tests passing — In flight: address-churn read due 2026-08-27, see unofficial identity entry
+Last updated: 2026-08-26 — 1120 tests passing — In flight: address-churn read due 2026-08-27, see unofficial identity entry; foliage transform extraction unblocked, cost unmeasured
 
 *Update this file whenever a phase completes or priorities shift. Any new agent session should read this first. Keep the "Last updated" line current at every update.*
 
@@ -84,7 +84,7 @@ Degenerate bounds, and the validation rule that follows. Valguero `GasVein_Base_
 
 Lost Colony `nobounds=21133` is not a defect: all 21,133 are `WorldPartitionMiniMap` render tiles, already excluded from every gameplay figure. Genesis 376 and Ragnarok 1 are the same class.
 
-Foliage: Aberration has a complete InstancedFoliageActor census — 3,710,555 instances across 669 World Partition cells, 251 distinct meshes, counts and mesh names only, no transforms yet. Mesh-to-resource attribution resolves through FoliageType assets, each of which references a static mesh and an attached harvest component; these are read from the asset registry's dependency graph without loading assets, which avoids triggering multi-gigabyte Nanite mesh builds. 2,404 FoliageType assets are mapped.
+Foliage: Aberration has a complete InstancedFoliageActor census — 3,710,555 instances across 669 World Partition cells, 251 distinct meshes. The census recorded counts and mesh names only, but TRANSFORMS ARE REACHABLE AND THE ONLY MISSING PIECE IS AN EMIT FIELD (verified 2026-08-26). The census script `scripts/fol_probe5.py` already holds the InstancedStaticMeshComponent in scope where it writes `{mesh, inst}`; `c.get_instance_transform(j, True)` on that same component returns an `unreal.Transform` whose `.translation` is world-space. Sample, Aberration cell actor, mesh `SM_Element_Rock_Small_A` resolving to Metal: translation x 87045.29, y 58581.76, z -97021.55. No new traversal, no asset loading, no second pass — re-run the existing census loop with the transform written out. Mesh-to-resource attribution resolves through FoliageType assets, each of which references a static mesh and an attached harvest component; these are read from the asset registry's dependency graph without loading assets, which avoids triggering multi-gigabyte Nanite mesh builds. 2,404 FoliageType assets are mapped. Join verified live 2026-08-26: 1,626 of the 2,404 carry a non-empty `harvest` array resolving to real components (`MetalHarvestComponent`, `StoneHarvestComponent`), and keying on static-mesh basename builds a 1,397-entry mesh-to-resource map that matches meshes found on live foliage components. SCOPE LIMIT: every record in `foliage_types.jsonl` is under `/Game/Aberration/`, so this map is Aberration-only and the other eight maps each need their own FoliageType scan before the join works there.
 
 GeneTraits: `GeneTraits.json` is banked but PARTIAL. Captured: 60 player-facing
 traits plus 2 cheat-only, tier chances [100%, 30%, 5%], wild spawns carry 1 trait,
